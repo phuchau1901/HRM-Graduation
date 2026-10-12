@@ -1,20 +1,24 @@
 
-# Build ASP.NET Core API
+# ==========================
+# STAGE 1: BUILD
+# ==========================
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 
 WORKDIR /src
 
-COPY HRM.API.csproj ./
+COPY . .
+
 RUN dotnet restore HRM.API.csproj
 
-COPY . .
 RUN dotnet publish HRM.API.csproj \
     -c Release \
     -o /app/publish \
     --no-restore
 
-# Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:8.0
+# ==========================
+# STAGE 2: RUNTIME
+# ==========================
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 
 WORKDIR /app
 
