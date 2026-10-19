@@ -67,9 +67,7 @@ if (allowedOrigins.Length != origins.Length)
 
 
 
-builder.Services.AddCors(o => o.AddPolicy("NotificationClients", policy =>
-    policy.WithOrigins(notificationOrigins.Select(origin => new Uri(origin).GetLeftPart(UriPartial.Authority)).Distinct().ToArray())
-        .AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithExposedHeaders("X-Correlation-Id")));
+
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, NotificationUserIdProvider>();
 builder.Services.AddScoped<INotificationTransport, SignalRNotificationTransport>();
