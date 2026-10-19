@@ -415,7 +415,10 @@ if (trustedProxies.Length > 0) app.UseForwardedHeaders();
 app.UseMiddleware<ApiAccessLoggingMiddleware>();
 
 app.UseRouting();
-
+if (app.Environment.IsDevelopment())
+{
+    app.UseStaticFiles();
+}
 app.UseCors();
 
 app.UseHttpsRedirection();
@@ -423,6 +426,9 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+
+
 
 app.MapControllers();
 

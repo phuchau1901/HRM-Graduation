@@ -7,4 +7,5 @@
 .backend/HRM.API.TESTS/
 .env
 .env.*
+.backend/wwwroot/
 **/appsettings.Production.json
