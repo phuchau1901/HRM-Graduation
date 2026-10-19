@@ -27,6 +27,8 @@ builder.Logging.AddJsonConsole(o => { o.UseUtcTimestamp = true; o.TimestampForma
 // Hosting diagnostics include raw URLs; the access middleware records safe route templates instead.
 builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
 builder.Services.Configure<ApiAccessLoggingOptions>(builder.Configuration.GetSection("ApiAccessLogging"));
+
+
 var trustedProxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
 if (trustedProxies.Length > 0)
     builder.Services.Configure<ForwardedHeadersOptions>(o =>
@@ -36,11 +38,35 @@ if (trustedProxies.Length > 0)
         o.KnownNetworks.Clear(); o.KnownProxies.Clear();
         foreach (var proxy in trustedProxies) o.KnownProxies.Add(IPAddress.Parse(proxy));
     });
-var notificationOrigins = builder.Configuration.GetSection("Notifications:AllowedOrigins").Get<string[]>() ?? [];
-if (notificationOrigins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
-        uri.AbsolutePath != "/" || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.UserInfo.Length != 0 ||
-        (uri.Scheme != "https" && !(builder.Environment.IsDevelopment() && uri.Scheme == "http" && uri.IsLoopback))))
-    throw new InvalidOperationException("Notification origins must be HTTPS origins (localhost HTTP is allowed in Development).");
+
+
+
+var origins = builder.Configuration
+    .GetSection("Notifications:AllowedOrigins")
+    .Get<string[]>() ?? [];
+
+var allowedOrigins = origins
+    .Where(origin =>
+        Uri.TryCreate(origin, UriKind.Absolute, out var uri)
+        && (
+            uri.Scheme == Uri.UriSchemeHttps
+            || (
+                builder.Environment.IsDevelopment()
+                && uri.Scheme == Uri.UriSchemeHttp
+                && uri.IsLoopback
+            )
+        ))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+
+if (allowedOrigins.Length != origins.Length)
+{
+    Console.WriteLine(
+        "Warning: Invalid Notification CORS origins ignored.");
+}
+
+
+
 builder.Services.AddCors(o => o.AddPolicy("NotificationClients", policy =>
     policy.WithOrigins(notificationOrigins.Select(origin => new Uri(origin).GetLeftPart(UriPartial.Authority)).Distinct().ToArray())
         .AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithExposedHeaders("X-Correlation-Id")));

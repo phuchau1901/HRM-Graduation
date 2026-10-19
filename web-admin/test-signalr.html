@@ -1,0 +1,302 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HRM Notification SignalR Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.0/dist/browser/signalr.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f6fa;
+      padding: 30px;
+      max-width: 800px;
+      margin: auto;
+    }
+    .panel {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+    }
+    input, button {
+      padding: 10px;
+      margin: 5px 0;
+      box-sizing: border-box;
+    }
+    input { width: 100%; }
+    button {
+      cursor: pointer;
+      border: 0;
+      border-radius: 6px;
+      background: #2563eb;
+      color: white;
+    }
+    button:disabled { opacity: .5; }
+    .notification {
+      padding: 12px;
+      margin-top: 8px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .unread {
+      background: #eff6ff;
+      border-left: 4px solid #2563eb;
+    }
+    .read { background: #fff; }
+    .status { font-weight: bold; }
+    .error { color: #dc2626; }
+    .success { color: #16a34a; }
+    small { color: #64748b; }
+  </style>
+</head>
+<body>
+
+  <h2>HRM — SignalR Notification Test</h2>
+
+  <div class="panel">
+    <label>Backend URL</label>
+    <input id="apiUrl" value="https://hrm-graduation.up.railway.app">
+
+    <label>Access Token (manager01)</label>
+    <input id="token" type="password"
+           placeholder="Dán JWT vào đây">
+
+    <button id="connectBtn" onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+
+    <p>
+      Trạng thái:
+      <span id="status" class="status">Disconnected</span>
+    </p>
+  </div>
+
+  <div class="panel">
+    <h3>
+      Thông báo
+      <span id="unreadCount">(0 chưa đọc)</span>
+    </h3>
+
+    <button onclick="loadNotifications()">Làm mới</button>
+    <button onclick="markAllRead()">Đọc tất cả</button>
+
+    <div id="notifications"></div>
+  </div>
+
+  <div class="panel">
+    <h3>SignalR Events</h3>
+    <pre id="logs"></pre>
+  </div>
+
+<script>
+let connection = null;
+const seenEvents = new Set();
+
+const $ = id => document.getElementById(id);
+
+function apiBase() {
+  return $("apiUrl").value.trim().replace(/\/$/, "");
+}
+
+function token() {
+  return $("token").value.trim();
+}
+
+function log(message) {
+  const time = new Date().toLocaleTimeString();
+  $("logs").textContent =
+    `[${time}] ${message}\n` + $("logs").textContent;
+}
+
+function setStatus(value, ok = false) {
+  $("status").textContent = value;
+  $("status").className =
+    "status " + (ok ? "success" : "error");
+}
+
+async function api(path, options = {}) {
+  const response = await fetch(apiBase() + path, {
+    ...options,
+    headers: {
+      Authorization: "Bearer " + token(),
+      ...options.headers
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("HTTP " + response.status);
+  }
+
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+async function connect() {
+  if (!token()) {
+    alert("Nhập JWT của manager01 trước.");
+    return;
+  }
+
+  if (!window.signalR) {
+    alert("Không tải được thư viện SignalR.");
+    return;
+  }
+
+  await disconnect();
+
+  connection = new signalR.HubConnectionBuilder()
+    .withUrl(apiBase() + "/hubs/notifications", {
+      accessTokenFactory: () => token()
+    })
+    .withAutomaticReconnect()
+    .build();
+
+  connection.on("notification.available", async event => {
+    const eventId = event.eventId ?? event.EventId;
+
+    if (eventId && seenEvents.has(eventId)) return;
+    if (eventId) seenEvents.add(eventId);
+
+    log("Notification mới: " + JSON.stringify(event));
+
+    await refresh();
+  });
+
+  connection.onreconnecting(() => {
+    setStatus("Reconnecting...");
+    log("Đang kết nối lại...");
+  });
+
+  connection.onreconnected(async () => {
+    setStatus("Connected", true);
+    log("Đã kết nối lại.");
+    await refresh();
+  });
+
+  connection.onclose(() => {
+    setStatus("Disconnected");
+    log("Mất kết nối.");
+  });
+
+  try {
+    await connection.start();
+    setStatus("Connected", true);
+    log("SignalR Connected.");
+    await refresh();
+  } catch (err) {
+    setStatus("Connection Failed");
+    log("Connect failed: " + err.message);
+  }
+}
+
+async function disconnect() {
+  if (connection) {
+    const old = connection;
+    connection = null;
+    await old.stop();
+  }
+  setStatus("Disconnected");
+}
+
+async function refresh() {
+  await Promise.all([
+    loadNotifications(),
+    loadUnreadCount()
+  ]);
+}
+
+async function loadUnreadCount() {
+  try {
+    const result = await api(
+      "/api/notifications/unread-count"
+    );
+    const count = result.count ?? result.unreadCount ?? 0;
+    $("unreadCount").textContent =
+      `(${count} chưa đọc)`;
+  } catch (err) {
+    log("Unread count error: " + err.message);
+  }
+}
+
+async function loadNotifications() {
+  try {
+    const result = await api(
+      "/api/notifications?limit=30"
+    );
+
+    const items = Array.isArray(result)
+      ? result
+      : result.items ?? result.data?.items ?? [];
+
+    const container = $("notifications");
+    container.replaceChildren();
+
+    if (items.length === 0) {
+      container.textContent = "Chưa có thông báo.";
+      return;
+    }
+
+    for (const item of items) {
+      const id = item.id ?? item.notificationId;
+      const isRead = item.readAt != null ||
+        item.isRead === true;
+
+      const div = document.createElement("div");
+      div.className = "notification " +
+        (isRead ? "read" : "unread");
+
+      const title = document.createElement("strong");
+      title.textContent = item.title ?? "Thông báo";
+
+      const content = document.createElement("p");
+      content.textContent = item.content ?? "";
+
+      const state = document.createElement("small");
+      state.textContent = isRead
+        ? "Đã đọc"
+        : "● Chưa đọc";
+
+      div.append(title, content, state);
+
+      if (!isRead && id != null) {
+        div.onclick = () => markRead(id);
+      }
+
+      container.appendChild(div);
+    }
+  } catch (err) {
+    log("Load notification error: " + err.message);
+  }
+}
+
+async function markRead(id) {
+  try {
+    await api(`/api/notifications/${id}/read`, {
+      method: "PATCH"
+    });
+
+    log("Đã đọc Notification ID: " + id);
+    await refresh();
+  } catch (err) {
+    log("Mark read error: " + err.message);
+  }
+}
+
+async function markAllRead() {
+  try {
+    await api("/api/notifications/read-all", {
+      method: "PATCH"
+    });
+
+    log("Đã đánh dấu đọc tất cả.");
+    await refresh();
+  } catch (err) {
+    log("Mark all error: " + err.message);
+  }
+}
+
+</script>
+</body>
+</html>
