@@ -17,9 +17,20 @@ public sealed class PermissionService(AppDbContext db) : IPermissionService
                           join screen in db.Set<Screen>() on detail.ScreenID equals screen.ID
                           where user.UserId == userId && user.Status == "ACTIVE" && screen.IsActive
                           select new { screen.Code, Detail = detail }).ToListAsync(ct);
-        return rows.GroupBy(x => x.Code, StringComparer.Ordinal).OrderBy(x => x.Key, StringComparer.Ordinal)
+        var result = rows.GroupBy(x => x.Code, StringComparer.Ordinal).OrderBy(x => x.Key, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => PermissionActions.Columns
                 .Where(a => g.Any(x => a.Value(x.Detail) == "Y")).Select(a => a.Key).OrderBy(x => x, StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
+        var extended = await (from user in db.Set<User>().AsNoTracking()
+                              join ur in db.Set<UserRole>() on user.UserId equals ur.UserID
+                              join role in db.Set<Role>() on ur.RoleID equals role.ID
+                              join grant in db.Set<RoleScreenAction>() on role.ID equals grant.RoleID
+                              join screen in db.Set<Screen>() on grant.ScreenID equals screen.ID
+                              where user.UserId == userId && user.Status == "ACTIVE" && screen.IsActive
+                              select new { screen.Code, grant.ActionCode }).ToListAsync(ct);
+        foreach (var group in extended.Where(x => PermissionActions.Extended.Contains(x.ActionCode)).GroupBy(x => x.Code))
+            result[group.Key] = (result.GetValueOrDefault(group.Key) ?? []).Concat(group.Select(x => x.ActionCode))
+                .Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        return result;
     }
 
     public Task<bool> HasPermissionAsync(string userId, string screenCode, string action, CancellationToken ct = default)
@@ -28,6 +39,14 @@ public sealed class PermissionService(AppDbContext db) : IPermissionService
         if (string.IsNullOrWhiteSpace(userId) || userId.Length > 100 ||
             string.IsNullOrWhiteSpace(screenCode) || screenCode.Length > 100 || operation is null)
             return Task.FromResult(false);
+        if (PermissionActions.Extended.Contains(operation))
+            return (from user in db.Set<User>().AsNoTracking()
+                    join ur in db.Set<UserRole>() on user.UserId equals ur.UserID
+                    join role in db.Set<Role>() on ur.RoleID equals role.ID
+                    join grant in db.Set<RoleScreenAction>() on role.ID equals grant.RoleID
+                    join screen in db.Set<Screen>() on grant.ScreenID equals screen.ID
+                    where user.UserId == userId && user.Status == "ACTIVE" && screen.IsActive &&
+                        screen.Code == screenCode && grant.ActionCode == operation select grant).AnyAsync(ct);
         // Database permission lookup for callers explicitly requiring current grants; API handlers use JWT snapshots.
         var grants = from user in db.Set<User>().AsNoTracking()
                      join ur in db.Set<UserRole>().AsNoTracking() on user.UserId equals ur.UserID

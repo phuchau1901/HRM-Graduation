@@ -1,5 +1,8 @@
 # JWT Authorization V2 và API access logging
 
+> Cập nhật Notification Center: năm action SEND_USER/SEND_GROUP/SEND_ALL/SCHEDULE/CANCEL nay được cấp tường minh qua role_screen_actions và gộp vào JWT. Xem [thiết kế Notification Center](NOTIFICATION_CENTER.md); không thay sáu cột RoleDetail cũ. Phần đề xuất mở rộng ở tài liệu V2 bên dưới được cập nhật bởi triển khai này.
+
+
 ## Quyền trong JWT
 
 Login xác thực bằng PasswordService hiện có, đọc users → user_roles → roles → role_details → screens đang hoạt động, tổng hợp OR từng action qua các role. JWT chứa sub=UserId chuỗi, role và snapshot hrm_p có phiên bản hrm_pv=1, ví dụ:

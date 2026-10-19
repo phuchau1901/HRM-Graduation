@@ -4,7 +4,7 @@
 .vscode/
 .DS_Store
 .obj/Debug/
-
+.backend/HRM.API.TESTS/
 .env
 .env.*
 **/appsettings.Production.json

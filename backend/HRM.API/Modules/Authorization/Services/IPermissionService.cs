@@ -14,9 +14,11 @@ internal static class PermissionActions
             ["VIEW"] = x => x.CanView, ["NEW"] = x => x.CanNew, ["UPDATE"] = x => x.CanUpdate,
             ["DELETE"] = x => x.CanDelete, ["APPROVE"] = x => x.CanApprove, ["EXPORT"] = x => x.CanExport
         };
+    internal static readonly HashSet<string> Extended = new(StringComparer.Ordinal)
+        { "SEND_USER", "SEND_GROUP", "SEND_ALL", "SCHEDULE", "CANCEL" };
     internal static string? Normalize(string? action)
     {
         var code = action?.Trim().ToUpperInvariant();
-        return code is not null && Columns.ContainsKey(code) ? code : null;
+        return code is not null && (Columns.ContainsKey(code) || Extended.Contains(code)) ? code : null;
     }
 }

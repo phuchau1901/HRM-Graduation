@@ -22,7 +22,7 @@ public class ScreenPermissionAttribute : AuthorizeAttribute
     {
         var operation = PermissionActions.Normalize(action);
         if (string.IsNullOrWhiteSpace(screenCode) || screenCode.Length > 100 || screenCode.Contains(':') || operation is null)
-            throw new ArgumentException("A valid screen code and VIEW/NEW/UPDATE/DELETE/APPROVE/EXPORT action are required.");
+            throw new ArgumentException("A valid screen code and registered action code are required.");
         ScreenCode = screenCode;
         ActionCode = operation;
         Policy = $"HRM.Screen:{screenCode}:{operation}";

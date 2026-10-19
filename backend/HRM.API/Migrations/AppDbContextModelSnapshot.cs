@@ -461,6 +461,28 @@ namespace HRM.API.Migrations
                     b.ToTable("role_details", (string)null);
                 });
 
+            modelBuilder.Entity("HRM.API.Modules.Authorization.Entities.RoleScreenAction", b =>
+                {
+                    b.Property<long>("RoleID")
+                        .HasColumnType("bigint")
+                        .HasColumnName("role_id");
+
+                    b.Property<long>("ScreenID")
+                        .HasColumnType("bigint")
+                        .HasColumnName("screen_id");
+
+                    b.Property<string>("ActionCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("action_code");
+
+                    b.HasKey("RoleID", "ScreenID", "ActionCode");
+
+                    b.HasIndex("ScreenID");
+
+                    b.ToTable("role_screen_actions", (string)null);
+                });
+
             modelBuilder.Entity("HRM.API.Modules.Authorization.Entities.Screen", b =>
                 {
                     b.Property<long>("ID")
@@ -493,37 +515,16 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(200)")
                         .HasColumnName("name");
 
-                    b.Property<long?>("ParentID")
-                        .HasColumnType("bigint")
-                        .HasColumnName("parent_id");
-
                     b.Property<string>("Platform")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)")
                         .HasColumnName("platform");
 
-                    b.Property<string>("Route")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)")
-                        .HasColumnName("route");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int")
-                        .HasColumnName("sort_order");
-
-                    b.Property<string>("SupportedActions")
-                        .IsRequired()
-                        .HasColumnType("json")
-                        .HasColumnName("supported_actions");
-
                     b.HasKey("ID");
 
                     b.HasIndex("Code")
                         .IsUnique();
-
-                    b.HasIndex("ParentID");
 
                     b.ToTable("screens", (string)null);
                 });
@@ -1061,6 +1062,139 @@ namespace HRM.API.Migrations
                     b.HasIndex("EmployeeID");
 
                     b.ToTable("overtime_requests", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Notifications.Entities.NotificationOutbox", b =>
+                {
+                    b.Property<long>("NotificationID")
+                        .HasColumnType("bigint")
+                        .HasColumnName("notification_id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int")
+                        .HasColumnName("attempts");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("available_at");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<string>("LeaseToken")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTime?>("LockedUntil")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("locked_until");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("NotificationID");
+
+                    b.HasIndex("Status", "AvailableAt", "LockedUntil");
+
+                    b.ToTable("notification_outbox", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Notifications.Entities.NotificationRecipient", b =>
+                {
+                    b.Property<long>("NotificationID")
+                        .HasColumnType("bigint")
+                        .HasColumnName("notification_id");
+
+                    b.Property<string>("UserID")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("DeliveryAttempts")
+                        .HasColumnType("int")
+                        .HasColumnName("delivery_attempts");
+
+                    b.Property<string>("DeliveryStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("delivery_status");
+
+                    b.Property<string>("EventID")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)")
+                        .HasColumnName("event_id");
+
+                    b.Property<string>("LeaseToken")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTime?>("LockedUntil")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("locked_until");
+
+                    b.Property<DateTime>("NextAttemptAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("read_at");
+
+                    b.Property<DateTime?>("SentAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("sent_at");
+
+                    b.HasKey("NotificationID", "UserID");
+
+                    b.HasIndex("DeliveryStatus", "NextAttemptAt", "LockedUntil");
+
+                    b.HasIndex("UserID", "ReadAt", "NotificationID");
+
+                    b.ToTable("notification_recipients", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Notifications.Entities.NotificationTarget", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<string>("CriteriaJSON")
+                        .IsRequired()
+                        .HasColumnType("json")
+                        .HasColumnName("criteria_json");
+
+                    b.Property<long>("NotificationID")
+                        .HasColumnType("bigint")
+                        .HasColumnName("notification_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("target_type");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("NotificationID");
+
+                    b.ToTable("notification_targets", (string)null);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Organization.Entities.Department", b =>
@@ -1679,6 +1813,10 @@ namespace HRM.API.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
 
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("cancelled_at");
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasMaxLength(1000)
@@ -1689,11 +1827,56 @@ namespace HRM.API.Migrations
                         .HasColumnType("datetime(6)")
                         .HasColumnName("created_at");
 
-                    b.Property<bool>("IsRead")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_read");
+                    b.Property<string>("CreatedByUserID")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("DeduplicationKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("deduplication_key");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("published_at");
+
+                    b.Property<int>("RecipientCount")
+                        .HasColumnType("int")
+                        .HasColumnName("recipient_count");
+
+                    b.Property<string>("ReferenceID")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("reference_id");
+
+                    b.Property<string>("ReferenceType")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)")
+                        .HasColumnName("reference_type");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("request_hash");
+
+                    b.Property<DateTime?>("ScheduledAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("scheduled_at");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -1701,15 +1884,20 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(200)")
                         .HasColumnName("title");
 
-                    b.Property<string>("UserID")
+                    b.Property<string>("TraceID")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("user_id");
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("trace_id");
 
                     b.HasKey("ID");
 
-                    b.HasIndex("UserID");
+                    b.HasIndex("CreatedByUserID");
+
+                    b.HasIndex("DeduplicationKey")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "ScheduledAt");
 
                     b.ToTable("notifications", (string)null);
                 });
@@ -1815,12 +2003,19 @@ namespace HRM.API.Migrations
                     b.Navigation("Screen");
                 });
 
-            modelBuilder.Entity("HRM.API.Modules.Authorization.Entities.Screen", b =>
+            modelBuilder.Entity("HRM.API.Modules.Authorization.Entities.RoleScreenAction", b =>
                 {
+                    b.HasOne("HRM.API.Modules.Authorization.Entities.Role", null)
+                        .WithMany()
+                        .HasForeignKey("RoleID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("HRM.API.Modules.Authorization.Entities.Screen", null)
                         .WithMany()
-                        .HasForeignKey("ParentID")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .HasForeignKey("ScreenID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Authorization.Entities.User", b =>
@@ -1981,6 +2176,39 @@ namespace HRM.API.Migrations
                         .HasConstraintName("fk_overtime_requests_employee_id");
                 });
 
+            modelBuilder.Entity("HRM.API.Modules.Notifications.Entities.NotificationOutbox", b =>
+                {
+                    b.HasOne("HRM.API.Modules.System.Entities.Notification", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Notifications.Entities.NotificationRecipient", b =>
+                {
+                    b.HasOne("HRM.API.Modules.System.Entities.Notification", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Notifications.Entities.NotificationTarget", b =>
+                {
+                    b.HasOne("HRM.API.Modules.System.Entities.Notification", null)
+                        .WithMany()
+                        .HasForeignKey("NotificationID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.PayrollDetail", b =>
                 {
                     b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
@@ -2131,10 +2359,8 @@ namespace HRM.API.Migrations
                 {
                     b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
                         .WithMany()
-                        .HasForeignKey("UserID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_notifications_user_id");
+                        .HasForeignKey("CreatedByUserID")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Authorization.Entities.Screen", b =>

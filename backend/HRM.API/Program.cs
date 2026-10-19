@@ -1,3 +1,6 @@
+using HRM.API.Modules.Notifications.Services;
+using HRM.API.Modules.Notifications.Realtime;
+using Microsoft.AspNetCore.SignalR;
 using HRM.API.Security;
 using HRM.API.Middleware;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -33,6 +36,24 @@ if (trustedProxies.Length > 0)
         o.KnownNetworks.Clear(); o.KnownProxies.Clear();
         foreach (var proxy in trustedProxies) o.KnownProxies.Add(IPAddress.Parse(proxy));
     });
+var notificationOrigins = builder.Configuration.GetSection("Notifications:AllowedOrigins").Get<string[]>() ?? [];
+if (notificationOrigins.Any(origin => !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+        uri.AbsolutePath != "/" || uri.Query.Length != 0 || uri.Fragment.Length != 0 || uri.UserInfo.Length != 0 ||
+        (uri.Scheme != "https" && !(builder.Environment.IsDevelopment() && uri.Scheme == "http" && uri.IsLoopback))))
+    throw new InvalidOperationException("Notification origins must be HTTPS origins (localhost HTTP is allowed in Development).");
+builder.Services.AddCors(o => o.AddPolicy("NotificationClients", policy =>
+    policy.WithOrigins(notificationOrigins.Select(origin => new Uri(origin).GetLeftPart(UriPartial.Authority)).Distinct().ToArray())
+        .AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithExposedHeaders("X-Correlation-Id")));
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IUserIdProvider, NotificationUserIdProvider>();
+builder.Services.AddScoped<INotificationTransport, SignalRNotificationTransport>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddScoped<NotificationDispatcher>();
+builder.Services.AddOptions<NotificationOptions>().Bind(builder.Configuration.GetSection("Notifications"))
+    .Validate(x => x.PollSeconds is >= 1 and <= 60 && x.RecipientBatchSize is >= 1 and <= 1000 &&
+        x.DeliveryBatchSize is >= 1 and <= 500 && x.MaxAttempts is >= 1 and <= 10 && x.LeaseSeconds is >= 30 and <= 600,
+        "Invalid notification worker limits.").ValidateOnStart();
+builder.Services.AddHostedService<NotificationWorker>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -71,6 +92,15 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         {
             OnMessageReceived = context =>
             {
+                // Browser WebSocket/SSE clients cannot always set Authorization. Accept query tokens only on this hub.
+                if (context.Request.Path.StartsWithSegments("/hubs/notifications") &&
+                    string.IsNullOrEmpty(context.Request.Headers.Authorization.ToString()) &&
+                    context.Request.Query.TryGetValue("access_token", out var queryToken))
+                {
+                    if (queryToken.Count != 1 || Encoding.UTF8.GetByteCount(queryToken.ToString()) > config.MaxTokenBytes)
+                        context.Fail("Invalid token.");
+                    else context.Token = queryToken.ToString();
+                }
                 var header = context.Request.Headers.Authorization.ToString();
                 if (header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
                     Encoding.UTF8.GetByteCount(header.AsSpan(7)) > config.MaxTokenBytes)
@@ -88,7 +118,8 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 context.HandleResponse();
                 context.Response.Headers.WWWAuthenticate = "Bearer";
                 var expired = context.HttpContext.Items["HRM.TokenExpired"] is true;
-                var missing = string.IsNullOrEmpty(context.Request.Headers.Authorization.ToString());
+                var missing = string.IsNullOrEmpty(context.Request.Headers.Authorization.ToString()) &&
+                    !(context.Request.Path.StartsWithSegments("/hubs/notifications") && context.Request.Query.ContainsKey("access_token"));
                 await ApiErrors.WriteAsync(context.HttpContext, 401,
                     expired ? "HRM_AUTH_002" : "HRM_AUTH_001",
                     expired ? "TOKEN_EXPIRED" : missing ? "MISSING_TOKEN" : "INVALID_TOKEN",
@@ -184,11 +215,13 @@ else
 if (trustedProxies.Length > 0) app.UseForwardedHeaders();
 app.UseMiddleware<ApiAccessLoggingMiddleware>();
 app.UseRouting();
+app.UseCors();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<NotificationHub>("/hubs/notifications", o => o.CloseOnAuthenticationExpiration = true).RequireCors("NotificationClients");
 
 app.Run();
 

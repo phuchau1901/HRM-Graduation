@@ -143,7 +143,7 @@ public sealed class AuthServiceTests : IDisposable
         using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseMySql(
             "Server=localhost;Database=unused;User=unused", new MySqlServerVersion(new Version(8, 0, 36))).Options);
         var assembly = db.GetService<IMigrationsAssembly>();
-        var migrationType = Assert.Single(assembly.Migrations);
+        var migrationType = Assert.Single(assembly.Migrations, x => x.Key.EndsWith("_InitialHRMDatabase", StringComparison.Ordinal));
         Assert.EndsWith("_InitialHRMDatabase", migrationType.Key);
         var migration = assembly.CreateMigration(migrationType.Value, db.Database.ProviderName!);
         var tables = migration.UpOperations.OfType<CreateTableOperation>().ToArray();

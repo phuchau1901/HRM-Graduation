@@ -171,6 +171,7 @@ public sealed class AuthenticationApiTests
 internal sealed class AuthApiFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
+    public string? NotificationOrigin { get; init; }
     public string Password { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
     public string SigningKey { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -181,6 +182,8 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:Issuer", "hrm-test"); builder.UseSetting("Jwt:Audience", "hrm-test-client");
         builder.UseSetting("Jwt:SigningKey", SigningKey);
         builder.UseSetting("AuthSeed:Enabled", "false");
+        builder.UseSetting("Notifications:WorkerEnabled", "false");
+        if (NotificationOrigin is not null) builder.UseSetting("Notifications:AllowedOrigins:0", NotificationOrigin);
         builder.ConfigureTestServices(services =>
         {
             services.AddControllers().AddApplicationPart(typeof(PermissionProbeController).Assembly);
@@ -211,7 +214,10 @@ internal sealed class AuthorizationTestContext(DbContextOptions<AppDbContext> op
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-        var keep = new[] { typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department) };
+        var keep = new[] { typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction),
+            typeof(HRM.API.Modules.Employees.Entities.Employee), typeof(HRM.API.Modules.System.Entities.Notification),
+            typeof(HRM.API.Modules.System.Entities.AuditLog), typeof(HRM.API.Modules.Notifications.Entities.NotificationTarget),
+            typeof(HRM.API.Modules.Notifications.Entities.NotificationRecipient), typeof(HRM.API.Modules.Notifications.Entities.NotificationOutbox) };
         foreach (var entity in builder.Model.GetEntityTypes().Where(x => !keep.Contains(x.ClrType)).ToArray()) builder.Ignore(entity.ClrType);
         SqliteTestModel.UseSqliteIdentityTypes(builder);
     }
