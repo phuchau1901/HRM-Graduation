@@ -34,32 +34,13 @@ public class ScreenConfiguration : IEntityTypeConfiguration<Screen>
             .HasMaxLength(20)
             .IsRequired();
 
-        builder.Property(x => x.Route)
-            .HasColumnName("route")
-            .HasMaxLength(255);
-
         builder.Property(x => x.Icon)
             .HasColumnName("icon")
             .HasMaxLength(100);
-
-        builder.Property(x => x.ParentID)
-            .HasColumnName("parent_id");
-
-        builder.Property(x => x.SortOrder)
-            .HasColumnName("sort_order");
 
         builder.Property(x => x.IsActive)
             .HasColumnName("is_active")
             .HasDefaultValue(true);
 
-        builder.Property(x => x.SupportedActions)
-            .HasColumnName("supported_actions")
-            .HasColumnType("json")
-            .IsRequired();
-
-        builder.HasOne<Screen>()
-            .WithMany()
-            .HasForeignKey(x => x.ParentID)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }
