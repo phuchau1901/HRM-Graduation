@@ -1,0 +1,504 @@
+MIGRATION 20261012105318_InitialHRMDatabase targetTables=2 UpOperations=7
+AlterDatabaseOperation Collation=
+CreateTableOperation Name=departments Schema= Comment=
+  PK=Id
+  COLUMN Id int nullable=False maxLength= default= defaultSql=
+  COLUMN DepartmentCode varchar(20) nullable=False maxLength=20 default= defaultSql=
+  COLUMN DepartmentName varchar(150) nullable=False maxLength=150 default= defaultSql=
+  COLUMN Description longtext nullable=True maxLength= default= defaultSql=
+  COLUMN IsActive tinyint(1) nullable=False maxLength= default= defaultSql=
+  COLUMN CreatedAt datetime(6) nullable=False maxLength= default= defaultSql=
+CreateTableOperation Name=employees Schema= Comment=
+  PK=Id
+  COLUMN Id int nullable=False maxLength= default= defaultSql=
+  COLUMN EmployeeCode varchar(20) nullable=False maxLength=20 default= defaultSql=
+  COLUMN FullName varchar(150) nullable=False maxLength=150 default= defaultSql=
+  COLUMN Email varchar(255) nullable=False maxLength=255 default= defaultSql=
+  COLUMN DateOfBirth date nullable=True maxLength= default= defaultSql=
+  COLUMN PhoneNumber longtext nullable=True maxLength= default= defaultSql=
+  COLUMN HireDate date nullable=False maxLength= default= defaultSql=
+  COLUMN DepartmentId int nullable=False maxLength= default= defaultSql=
+  COLUMN EmploymentStatus longtext nullable=False maxLength= default= defaultSql=
+  COLUMN CreatedAt datetime(6) nullable=False maxLength= default= defaultSql=
+  FK FK_employees_departments_DepartmentId (DepartmentId) => departments (Id) DELETE=Restrict
+CreateIndexOperation Name=IX_departments_DepartmentCode Schema= Table=departments Filter=
+  COLUMNS=DepartmentCode UNIQUE=True
+CreateIndexOperation Name=IX_employees_DepartmentId Schema= Table=employees Filter=
+  COLUMNS=DepartmentId UNIQUE=False
+CreateIndexOperation Name=IX_employees_Email Schema= Table=employees Filter=
+  COLUMNS=Email UNIQUE=True
+CreateIndexOperation Name=IX_employees_EmployeeCode Schema= Table=employees Filter=
+  COLUMNS=EmployeeCode UNIQUE=True
+MIGRATION 20261018065734_AddHRMProposedSchema targetTables=33 UpOperations=93
+AlterColumnOperation Name=PhoneNumber Schema= Table=employees ColumnType=varchar(20) DefaultValueSql= ComputedColumnSql= Comment= Collation=
+  OLD=longtext NEW=varchar(20) NULL=True
+AlterColumnOperation Name=EmploymentStatus Schema= Table=employees ColumnType=varchar(20) DefaultValueSql= ComputedColumnSql= Comment= Collation=
+  OLD=longtext NEW=varchar(20) NULL=False
+AlterColumnOperation Name=Description Schema= Table=departments ColumnType=varchar(500) DefaultValueSql= ComputedColumnSql= Comment= Collation=
+  OLD=longtext NEW=varchar(500) NULL=True
+CreateTableOperation Name=contracts Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN contract_no varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN contract_type longtext nullable=False maxLength= default= defaultSql=
+  COLUMN start_date date nullable=False maxLength= default= defaultSql=
+  COLUMN end_date date nullable=True maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  COLUMN attachment_url longtext nullable=True maxLength= default= defaultSql=
+  FK fk_contracts_employee_id (employee_id) => employees (Id) DELETE=Restrict
+CreateTableOperation Name=kpi_templates Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN code varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN name longtext nullable=False maxLength= default= defaultSql=
+  COLUMN period_type longtext nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+CreateTableOperation Name=leave_types Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN code varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN name longtext nullable=False maxLength= default= defaultSql=
+  COLUMN paid tinyint(1) nullable=False maxLength= default=False defaultSql=
+  COLUMN requires_balance tinyint(1) nullable=False maxLength= default=True defaultSql=
+CreateTableOperation Name=overtime_requests Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN start_at datetime(6) nullable=False maxLength= default= defaultSql=
+  COLUMN end_at datetime(6) nullable=False maxLength= default= defaultSql=
+  COLUMN requested_hours decimal(65,30) nullable=False maxLength= default= defaultSql=
+  COLUMN approved_hours decimal(65,30) nullable=True maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  FK fk_overtime_requests_employee_id (employee_id) => employees (Id) DELETE=Restrict
+CreateTableOperation Name=positions Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN code varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN name longtext nullable=False maxLength= default= defaultSql=
+  COLUMN is_active tinyint(1) nullable=False maxLength= default=True defaultSql=
+CreateTableOperation Name=qr_sessions Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN location_code longtext nullable=False maxLength= default= defaultSql=
+  COLUMN nonce_hash varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN valid_from datetime(6) nullable=False maxLength= default= defaultSql=
+  COLUMN expires_at datetime(6) nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+CreateTableOperation Name=roles Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN code varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN name longtext nullable=False maxLength= default= defaultSql=
+CreateTableOperation Name=salary_profiles Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN base_salary decimal(65,30) nullable=False maxLength= default= defaultSql=
+  COLUMN allowance_amount decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN effective_from date nullable=False maxLength= default= defaultSql=
+  COLUMN effective_to date nullable=True maxLength= default= defaultSql=
+  COLUMN currency_code longtext nullable=False maxLength= default=VND defaultSql=
+  FK fk_salary_profiles_employee_id (employee_id) => employees (Id) DELETE=Restrict
+CreateTableOperation Name=shifts Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN code varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN name longtext nullable=False maxLength= default= defaultSql=
+  COLUMN start_time time(6) nullable=False maxLength= default= defaultSql=
+  COLUMN end_time time(6) nullable=False maxLength= default= defaultSql=
+  COLUMN break_minutes int nullable=False maxLength= default=0 defaultSql=
+  COLUMN late_grace_minutes int nullable=False maxLength= default=0 defaultSql=
+  COLUMN is_active tinyint(1) nullable=False maxLength= default=True defaultSql=
+CreateTableOperation Name=users Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=True maxLength= default= defaultSql=
+  COLUMN username varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN email varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN password_hash longtext nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default=ACTIVE defaultSql=
+  COLUMN created_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_users_employee_id (employee_id) => employees (Id) DELETE=Restrict
+CreateTableOperation Name=kpi_criteria Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN template_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN code longtext nullable=False maxLength= default= defaultSql=
+  COLUMN name longtext nullable=False maxLength= default= defaultSql=
+  COLUMN weight_percent decimal(65,30) nullable=False maxLength= default= defaultSql=
+  COLUMN max_score decimal(65,30) nullable=False maxLength= default= defaultSql=
+  FK fk_kpi_criteria_template_id (template_id) => kpi_templates (id) DELETE=Restrict
+CreateTableOperation Name=leave_balances Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN leave_type_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN year_no int nullable=False maxLength= default= defaultSql=
+  COLUMN entitled_days decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN used_days decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN reserved_days decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  FK fk_leave_balances_employee_id (employee_id) => employees (Id) DELETE=Restrict
+  FK fk_leave_balances_leave_type_id (leave_type_id) => leave_types (id) DELETE=Restrict
+CreateTableOperation Name=leave_requests Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN leave_type_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN from_date date nullable=False maxLength= default= defaultSql=
+  COLUMN to_date date nullable=False maxLength= default= defaultSql=
+  COLUMN requested_days decimal(65,30) nullable=False maxLength= default= defaultSql=
+  COLUMN reason longtext nullable=True maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  COLUMN created_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_leave_requests_employee_id (employee_id) => employees (Id) DELETE=Restrict
+  FK fk_leave_requests_leave_type_id (leave_type_id) => leave_types (id) DELETE=Restrict
+CreateTableOperation Name=work_schedules Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN shift_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN work_date date nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default=SCHEDULED defaultSql=
+  COLUMN unique_work_key varchar(255) nullable=False maxLength= default= defaultSql=
+  FK fk_work_schedules_employee_id (employee_id) => employees (Id) DELETE=Restrict
+  FK fk_work_schedules_shift_id (shift_id) => shifts (id) DELETE=Restrict
+CreateTableOperation Name=approval_requests Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN request_type longtext nullable=False maxLength= default= defaultSql=
+  COLUMN reference_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN requested_by_user_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  COLUMN created_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_approval_requests_requested_by_user_id (requested_by_user_id) => users (id) DELETE=Restrict
+CreateTableOperation Name=audit_logs Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN actor_user_id bigint nullable=True maxLength= default= defaultSql=
+  COLUMN action longtext nullable=False maxLength= default= defaultSql=
+  COLUMN entity_type longtext nullable=False maxLength= default= defaultSql=
+  COLUMN entity_id longtext nullable=False maxLength= default= defaultSql=
+  COLUMN before_json longtext nullable=True maxLength= default= defaultSql=
+  COLUMN after_json longtext nullable=True maxLength= default= defaultSql=
+  COLUMN created_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_audit_logs_actor_user_id (actor_user_id) => users (id) DELETE=Restrict
+CreateTableOperation Name=employee_histories Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN old_department_id int nullable=True maxLength= default= defaultSql=
+  COLUMN new_department_id int nullable=True maxLength= default= defaultSql=
+  COLUMN old_position_id bigint nullable=True maxLength= default= defaultSql=
+  COLUMN new_position_id bigint nullable=True maxLength= default= defaultSql=
+  COLUMN effective_date date nullable=False maxLength= default= defaultSql=
+  COLUMN reason longtext nullable=True maxLength= default= defaultSql=
+  COLUMN changed_by_user_id bigint nullable=True maxLength= default= defaultSql=
+  FK fk_employee_histories_changed_by_user_id (changed_by_user_id) => users (id) DELETE=Restrict
+  FK fk_employee_histories_employee_id (employee_id) => employees (Id) DELETE=Restrict
+  FK fk_employee_histories_new_department_id (new_department_id) => departments (Id) DELETE=Restrict
+  FK fk_employee_histories_new_position_id (new_position_id) => positions (id) DELETE=Restrict
+  FK fk_employee_histories_old_department_id (old_department_id) => departments (Id) DELETE=Restrict
+  FK fk_employee_histories_old_position_id (old_position_id) => positions (id) DELETE=Restrict
+CreateTableOperation Name=kpi_targets Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN template_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN period_key longtext nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  COLUMN assigned_by_user_id bigint nullable=False maxLength= default= defaultSql=
+  FK fk_kpi_targets_assigned_by_user_id (assigned_by_user_id) => users (id) DELETE=Restrict
+  FK fk_kpi_targets_employee_id (employee_id) => employees (Id) DELETE=Restrict
+  FK fk_kpi_targets_template_id (template_id) => kpi_templates (id) DELETE=Restrict
+CreateTableOperation Name=notifications Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN user_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN title longtext nullable=False maxLength= default= defaultSql=
+  COLUMN content longtext nullable=False maxLength= default= defaultSql=
+  COLUMN is_read tinyint(1) nullable=False maxLength= default=False defaultSql=
+  COLUMN created_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_notifications_user_id (user_id) => users (id) DELETE=Restrict
+CreateTableOperation Name=refresh_tokens Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN user_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN token_hash varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN expires_at datetime(6) nullable=False maxLength= default= defaultSql=
+  COLUMN revoked_at datetime(6) nullable=True maxLength= default= defaultSql=
+  COLUMN created_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_refresh_tokens_user_id (user_id) => users (id) DELETE=Restrict
+CreateTableOperation Name=timesheet_periods Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN period_key varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  COLUMN closed_at datetime(6) nullable=True maxLength= default= defaultSql=
+  COLUMN closed_by_user_id bigint nullable=True maxLength= default= defaultSql=
+  FK fk_timesheet_periods_closed_by_user_id (closed_by_user_id) => users (id) DELETE=Restrict
+CreateTableOperation Name=user_roles Schema= Comment=
+  PK=user_id,role_id
+  COLUMN user_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN role_id bigint nullable=False maxLength= default= defaultSql=
+  FK fk_user_roles_role_id (role_id) => roles (id) DELETE=Restrict
+  FK fk_user_roles_user_id (user_id) => users (id) DELETE=Restrict
+CreateTableOperation Name=attendances Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN schedule_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN check_in_at datetime(6) nullable=True maxLength= default= defaultSql=
+  COLUMN check_out_at datetime(6) nullable=True maxLength= default= defaultSql=
+  COLUMN check_in_qr_id bigint nullable=True maxLength= default= defaultSql=
+  COLUMN check_out_qr_id bigint nullable=True maxLength= default= defaultSql=
+  COLUMN late_minutes int nullable=False maxLength= default=0 defaultSql=
+  COLUMN early_minutes int nullable=False maxLength= default=0 defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  FK fk_attendances_check_in_qr_id (check_in_qr_id) => qr_sessions (id) DELETE=Restrict
+  FK fk_attendances_check_out_qr_id (check_out_qr_id) => qr_sessions (id) DELETE=Restrict
+  FK fk_attendances_schedule_id (schedule_id) => work_schedules (id) DELETE=Restrict
+CreateTableOperation Name=approval_steps Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN approval_request_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN step_no int nullable=False maxLength= default= defaultSql=
+  COLUMN approver_user_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN decision longtext nullable=False maxLength= default=PENDING defaultSql=
+  COLUMN comment longtext nullable=True maxLength= default= defaultSql=
+  COLUMN decided_at datetime(6) nullable=True maxLength= default= defaultSql=
+  FK fk_approval_steps_approval_request_id (approval_request_id) => approval_requests (id) DELETE=Restrict
+  FK fk_approval_steps_approver_user_id (approver_user_id) => users (id) DELETE=Restrict
+CreateTableOperation Name=kpi_results Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN target_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN criterion_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN self_score decimal(65,30) nullable=True maxLength= default= defaultSql=
+  COLUMN manager_score decimal(65,30) nullable=True maxLength= default= defaultSql=
+  COLUMN comment longtext nullable=True maxLength= default= defaultSql=
+  FK fk_kpi_results_criterion_id (criterion_id) => kpi_criteria (id) DELETE=Restrict
+  FK fk_kpi_results_target_id (target_id) => kpi_targets (id) DELETE=Restrict
+CreateTableOperation Name=performance_reviews Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN target_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN final_score decimal(65,30) nullable=False maxLength= default= defaultSql=
+  COLUMN rating longtext nullable=False maxLength= default= defaultSql=
+  COLUMN reviewed_by_user_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN reviewed_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_performance_reviews_reviewed_by_user_id (reviewed_by_user_id) => users (id) DELETE=Restrict
+  FK fk_performance_reviews_target_id (target_id) => kpi_targets (id) DELETE=Restrict
+CreateTableOperation Name=payroll_periods Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN period_key varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN timesheet_period_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  COLUMN approved_by_user_id bigint nullable=True maxLength= default= defaultSql=
+  COLUMN published_at datetime(6) nullable=True maxLength= default= defaultSql=
+  FK fk_payroll_periods_approved_by_user_id (approved_by_user_id) => users (id) DELETE=Restrict
+  FK fk_payroll_periods_timesheet_period_id (timesheet_period_id) => timesheet_periods (id) DELETE=Restrict
+CreateTableOperation Name=timesheet_details Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN period_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN worked_days decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN paid_leave_days decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN overtime_hours decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN late_minutes int nullable=False maxLength= default=0 defaultSql=
+  COLUMN calculated_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_timesheet_details_employee_id (employee_id) => employees (Id) DELETE=Restrict
+  FK fk_timesheet_details_period_id (period_id) => timesheet_periods (id) DELETE=Restrict
+CreateTableOperation Name=attendance_adjustments Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN attendance_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN proposed_check_in datetime(6) nullable=True maxLength= default= defaultSql=
+  COLUMN proposed_check_out datetime(6) nullable=True maxLength= default= defaultSql=
+  COLUMN reason longtext nullable=False maxLength= default= defaultSql=
+  COLUMN status longtext nullable=False maxLength= default= defaultSql=
+  FK fk_attendance_adjustments_attendance_id (attendance_id) => attendances (id) DELETE=Restrict
+  FK fk_attendance_adjustments_employee_id (employee_id) => employees (Id) DELETE=Restrict
+CreateTableOperation Name=attendance_requests Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN request_key varchar(255) nullable=False maxLength= default= defaultSql=
+  COLUMN attendance_id bigint nullable=True maxLength= default= defaultSql=
+  COLUMN operation longtext nullable=False maxLength= default= defaultSql=
+  COLUMN created_at datetime(6) nullable=False maxLength= default= defaultSql=
+  FK fk_attendance_requests_attendance_id (attendance_id) => attendances (id) DELETE=Restrict
+  FK fk_attendance_requests_employee_id (employee_id) => employees (Id) DELETE=Restrict
+CreateTableOperation Name=payroll_details Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN payroll_period_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN employee_id int nullable=False maxLength= default= defaultSql=
+  COLUMN base_salary decimal(65,30) nullable=False maxLength= default= defaultSql=
+  COLUMN allowances decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN overtime_pay decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN kpi_bonus decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN deductions decimal(65,30) nullable=False maxLength= default=0 defaultSql=
+  COLUMN net_salary decimal(65,30) nullable=False maxLength= default= defaultSql=
+  COLUMN calculation_snapshot longtext nullable=False maxLength= default= defaultSql=
+  FK fk_payroll_details_employee_id (employee_id) => employees (Id) DELETE=Restrict
+  FK fk_payroll_details_payroll_period_id (payroll_period_id) => payroll_periods (id) DELETE=Restrict
+CreateIndexOperation Name=IX_approval_requests_requested_by_user_id Schema= Table=approval_requests Filter=
+  COLUMNS=requested_by_user_id UNIQUE=False
+CreateIndexOperation Name=IX_approval_steps_approval_request_id Schema= Table=approval_steps Filter=
+  COLUMNS=approval_request_id UNIQUE=False
+CreateIndexOperation Name=IX_approval_steps_approver_user_id Schema= Table=approval_steps Filter=
+  COLUMNS=approver_user_id UNIQUE=False
+CreateIndexOperation Name=IX_attendance_adjustments_attendance_id Schema= Table=attendance_adjustments Filter=
+  COLUMNS=attendance_id UNIQUE=False
+CreateIndexOperation Name=IX_attendance_adjustments_employee_id Schema= Table=attendance_adjustments Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_attendance_requests_attendance_id Schema= Table=attendance_requests Filter=
+  COLUMNS=attendance_id UNIQUE=False
+CreateIndexOperation Name=IX_attendance_requests_employee_id Schema= Table=attendance_requests Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=uq_attendance_requests_request_key Schema= Table=attendance_requests Filter=
+  COLUMNS=request_key UNIQUE=True
+CreateIndexOperation Name=IX_attendances_check_in_qr_id Schema= Table=attendances Filter=
+  COLUMNS=check_in_qr_id UNIQUE=False
+CreateIndexOperation Name=IX_attendances_check_out_qr_id Schema= Table=attendances Filter=
+  COLUMNS=check_out_qr_id UNIQUE=False
+CreateIndexOperation Name=uq_attendances_schedule_id Schema= Table=attendances Filter=
+  COLUMNS=schedule_id UNIQUE=True
+CreateIndexOperation Name=IX_audit_logs_actor_user_id Schema= Table=audit_logs Filter=
+  COLUMNS=actor_user_id UNIQUE=False
+CreateIndexOperation Name=IX_contracts_employee_id Schema= Table=contracts Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=uq_contracts_contract_no Schema= Table=contracts Filter=
+  COLUMNS=contract_no UNIQUE=True
+CreateIndexOperation Name=IX_employee_histories_changed_by_user_id Schema= Table=employee_histories Filter=
+  COLUMNS=changed_by_user_id UNIQUE=False
+CreateIndexOperation Name=IX_employee_histories_employee_id Schema= Table=employee_histories Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_employee_histories_new_department_id Schema= Table=employee_histories Filter=
+  COLUMNS=new_department_id UNIQUE=False
+CreateIndexOperation Name=IX_employee_histories_new_position_id Schema= Table=employee_histories Filter=
+  COLUMNS=new_position_id UNIQUE=False
+CreateIndexOperation Name=IX_employee_histories_old_department_id Schema= Table=employee_histories Filter=
+  COLUMNS=old_department_id UNIQUE=False
+CreateIndexOperation Name=IX_employee_histories_old_position_id Schema= Table=employee_histories Filter=
+  COLUMNS=old_position_id UNIQUE=False
+CreateIndexOperation Name=IX_kpi_criteria_template_id Schema= Table=kpi_criteria Filter=
+  COLUMNS=template_id UNIQUE=False
+CreateIndexOperation Name=IX_kpi_results_criterion_id Schema= Table=kpi_results Filter=
+  COLUMNS=criterion_id UNIQUE=False
+CreateIndexOperation Name=IX_kpi_results_target_id Schema= Table=kpi_results Filter=
+  COLUMNS=target_id UNIQUE=False
+CreateIndexOperation Name=IX_kpi_targets_assigned_by_user_id Schema= Table=kpi_targets Filter=
+  COLUMNS=assigned_by_user_id UNIQUE=False
+CreateIndexOperation Name=IX_kpi_targets_employee_id Schema= Table=kpi_targets Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_kpi_targets_template_id Schema= Table=kpi_targets Filter=
+  COLUMNS=template_id UNIQUE=False
+CreateIndexOperation Name=uq_kpi_templates_code Schema= Table=kpi_templates Filter=
+  COLUMNS=code UNIQUE=True
+CreateIndexOperation Name=IX_leave_balances_employee_id Schema= Table=leave_balances Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_leave_balances_leave_type_id Schema= Table=leave_balances Filter=
+  COLUMNS=leave_type_id UNIQUE=False
+CreateIndexOperation Name=IX_leave_requests_employee_id Schema= Table=leave_requests Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_leave_requests_leave_type_id Schema= Table=leave_requests Filter=
+  COLUMNS=leave_type_id UNIQUE=False
+CreateIndexOperation Name=uq_leave_types_code Schema= Table=leave_types Filter=
+  COLUMNS=code UNIQUE=True
+CreateIndexOperation Name=IX_notifications_user_id Schema= Table=notifications Filter=
+  COLUMNS=user_id UNIQUE=False
+CreateIndexOperation Name=IX_overtime_requests_employee_id Schema= Table=overtime_requests Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_payroll_details_employee_id Schema= Table=payroll_details Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_payroll_details_payroll_period_id Schema= Table=payroll_details Filter=
+  COLUMNS=payroll_period_id UNIQUE=False
+CreateIndexOperation Name=IX_payroll_periods_approved_by_user_id Schema= Table=payroll_periods Filter=
+  COLUMNS=approved_by_user_id UNIQUE=False
+CreateIndexOperation Name=IX_payroll_periods_timesheet_period_id Schema= Table=payroll_periods Filter=
+  COLUMNS=timesheet_period_id UNIQUE=False
+CreateIndexOperation Name=uq_payroll_periods_period_key Schema= Table=payroll_periods Filter=
+  COLUMNS=period_key UNIQUE=True
+CreateIndexOperation Name=IX_performance_reviews_reviewed_by_user_id Schema= Table=performance_reviews Filter=
+  COLUMNS=reviewed_by_user_id UNIQUE=False
+CreateIndexOperation Name=uq_performance_reviews_target_id Schema= Table=performance_reviews Filter=
+  COLUMNS=target_id UNIQUE=True
+CreateIndexOperation Name=uq_positions_code Schema= Table=positions Filter=
+  COLUMNS=code UNIQUE=True
+CreateIndexOperation Name=uq_qr_sessions_nonce_hash Schema= Table=qr_sessions Filter=
+  COLUMNS=nonce_hash UNIQUE=True
+CreateIndexOperation Name=IX_refresh_tokens_user_id Schema= Table=refresh_tokens Filter=
+  COLUMNS=user_id UNIQUE=False
+CreateIndexOperation Name=uq_refresh_tokens_token_hash Schema= Table=refresh_tokens Filter=
+  COLUMNS=token_hash UNIQUE=True
+CreateIndexOperation Name=uq_roles_code Schema= Table=roles Filter=
+  COLUMNS=code UNIQUE=True
+CreateIndexOperation Name=IX_salary_profiles_employee_id Schema= Table=salary_profiles Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=uq_shifts_code Schema= Table=shifts Filter=
+  COLUMNS=code UNIQUE=True
+CreateIndexOperation Name=IX_timesheet_details_employee_id Schema= Table=timesheet_details Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_timesheet_details_period_id Schema= Table=timesheet_details Filter=
+  COLUMNS=period_id UNIQUE=False
+CreateIndexOperation Name=IX_timesheet_periods_closed_by_user_id Schema= Table=timesheet_periods Filter=
+  COLUMNS=closed_by_user_id UNIQUE=False
+CreateIndexOperation Name=uq_timesheet_periods_period_key Schema= Table=timesheet_periods Filter=
+  COLUMNS=period_key UNIQUE=True
+CreateIndexOperation Name=IX_user_roles_role_id Schema= Table=user_roles Filter=
+  COLUMNS=role_id UNIQUE=False
+CreateIndexOperation Name=uq_users_email Schema= Table=users Filter=
+  COLUMNS=email UNIQUE=True
+CreateIndexOperation Name=uq_users_employee_id Schema= Table=users Filter=
+  COLUMNS=employee_id UNIQUE=True
+CreateIndexOperation Name=uq_users_username Schema= Table=users Filter=
+  COLUMNS=username UNIQUE=True
+CreateIndexOperation Name=IX_work_schedules_employee_id Schema= Table=work_schedules Filter=
+  COLUMNS=employee_id UNIQUE=False
+CreateIndexOperation Name=IX_work_schedules_shift_id Schema= Table=work_schedules Filter=
+  COLUMNS=shift_id UNIQUE=False
+CreateIndexOperation Name=uq_work_schedules_unique_work_key Schema= Table=work_schedules Filter=
+  COLUMNS=unique_work_key UNIQUE=True
+TARGET-MODEL DIFF operation count=93
+MIGRATION 20261019080000_AddUserSalt targetTables=33 UpOperations=1
+AddColumnOperation Name=salt Schema= Table=users ColumnType=longtext DefaultValueSql= ComputedColumnSql= Comment= Collation=
+  TYPE=longtext NULL=False MAX_LENGTH= DEFAULT=
+TARGET-MODEL DIFF operation count=1
+LAST TARGET TO SNAPSHOT DIFF=0
+SNAPSHOT TABLES=33 CURRENT TABLES=35
+PENDING OPERATIONS=5
+CreateTableOperation Name=screens Schema= Comment=
+  PK=id
+  COLUMN id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN code varchar(100) nullable=False maxLength=100 default= defaultSql=
+  COLUMN name varchar(200) nullable=False maxLength=200 default= defaultSql=
+  COLUMN platform varchar(20) nullable=False maxLength=20 default= defaultSql=
+  COLUMN route varchar(255) nullable=False maxLength=255 default= defaultSql=
+  COLUMN icon varchar(100) nullable=True maxLength=100 default= defaultSql=
+  COLUMN parent_id bigint nullable=True maxLength= default= defaultSql=
+  COLUMN sort_order int nullable=False maxLength= default= defaultSql=
+  COLUMN is_active tinyint(1) nullable=False maxLength= default=True defaultSql=
+  COLUMN supported_actions json nullable=False maxLength= default= defaultSql=
+  FK FK_screens_screens_parent_id (parent_id) => screens (id) DELETE=Restrict
+CreateTableOperation Name=role_details Schema= Comment=
+  PK=role_id,screen_id
+  COLUMN role_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN screen_id bigint nullable=False maxLength= default= defaultSql=
+  COLUMN can_new varchar(1) nullable=False maxLength=1 default=N defaultSql=
+  COLUMN can_view varchar(1) nullable=False maxLength=1 default=N defaultSql=
+  COLUMN can_update varchar(1) nullable=False maxLength=1 default=N defaultSql=
+  COLUMN can_delete varchar(1) nullable=False maxLength=1 default=N defaultSql=
+  COLUMN can_approve varchar(1) nullable=False maxLength=1 default=N defaultSql=
+  COLUMN can_export varchar(1) nullable=False maxLength=1 default=N defaultSql=
+  FK FK_role_details_roles_role_id (role_id) => roles (id) DELETE=Cascade
+  FK FK_role_details_screens_screen_id (screen_id) => screens (id) DELETE=Cascade
+CreateIndexOperation Name=IX_role_details_screen_id Schema= Table=role_details Filter=
+  COLUMNS=screen_id UNIQUE=False
+CreateIndexOperation Name=IX_screens_code Schema= Table=screens Filter=
+  COLUMNS=code UNIQUE=True
+CreateIndexOperation Name=IX_screens_parent_id Schema= Table=screens Filter=
+  COLUMNS=parent_id UNIQUE=False

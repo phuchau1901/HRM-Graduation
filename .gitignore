@@ -3,7 +3,7 @@
 .vs/
 .vscode/
 .DS_Store
-
+.obj/Debug/
 
 .env
 .env.*

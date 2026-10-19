@@ -1,0 +1,306 @@
+{
+  "Database": [
+    {
+      "database_name": "railway",
+      "server_version": "8.4.11"
+    }
+  ],
+  "Tables": [
+    {
+      "TABLE_NAME": "__EFMigrationsHistory",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 1
+    },
+    {
+      "TABLE_NAME": "approval_requests",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "approval_steps",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "attendance_adjustments",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "attendance_requests",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "attendances",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "contracts",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "departments",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "employee_histories",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "employees",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "kpi_criteria",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "kpi_results",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "kpi_targets",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "kpi_templates",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "leave_balances",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "leave_requests",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "leave_types",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "overtime_requests",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "payroll_details",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "payroll_periods",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "performance_reviews",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "positions",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "qr_sessions",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "refresh_tokens",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "role_details",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "roles",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "salary_profiles",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "screens",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "shifts",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "timesheet_details",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "timesheet_periods",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "user_roles",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "users",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    },
+    {
+      "TABLE_NAME": "work_schedules",
+      "TABLE_TYPE": "BASE TABLE",
+      "TABLE_ROWS": 0
+    }
+  ],
+  "AppliedMigrations": [
+    {
+      "MigrationId": "20261019072502_InitialHRMDatabase",
+      "ProductVersion": "8.0.13"
+    }
+  ],
+  "UserColumns": [
+    {
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "bigint",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "employee_id",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "COLUMN_NAME": "username",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "email",
+      "COLUMN_TYPE": "varchar(255)",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "password_hash",
+      "COLUMN_TYPE": "varchar(500)",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "salt",
+      "COLUMN_TYPE": "varchar(44)",
+      "IS_NULLABLE": "YES"
+    },
+    {
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(20)",
+      "IS_NULLABLE": "NO"
+    },
+    {
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "datetime(6)",
+      "IS_NULLABLE": "NO"
+    }
+  ],
+  "UserForeignKeys": [
+    {
+      "TABLE_NAME": "approval_requests",
+      "COLUMN_NAME": "requested_by_user_id",
+      "CONSTRAINT_NAME": "fk_approval_requests_requested_by_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "approval_steps",
+      "COLUMN_NAME": "approver_user_id",
+      "CONSTRAINT_NAME": "fk_approval_steps_approver_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "audit_logs",
+      "COLUMN_NAME": "actor_user_id",
+      "CONSTRAINT_NAME": "fk_audit_logs_actor_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "employee_histories",
+      "COLUMN_NAME": "changed_by_user_id",
+      "CONSTRAINT_NAME": "fk_employee_histories_changed_by_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "kpi_targets",
+      "COLUMN_NAME": "assigned_by_user_id",
+      "CONSTRAINT_NAME": "fk_kpi_targets_assigned_by_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "notifications",
+      "COLUMN_NAME": "user_id",
+      "CONSTRAINT_NAME": "fk_notifications_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "payroll_periods",
+      "COLUMN_NAME": "approved_by_user_id",
+      "CONSTRAINT_NAME": "fk_payroll_periods_approved_by_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "performance_reviews",
+      "COLUMN_NAME": "reviewed_by_user_id",
+      "CONSTRAINT_NAME": "fk_performance_reviews_reviewed_by_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "refresh_tokens",
+      "COLUMN_NAME": "user_id",
+      "CONSTRAINT_NAME": "fk_refresh_tokens_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "timesheet_periods",
+      "COLUMN_NAME": "closed_by_user_id",
+      "CONSTRAINT_NAME": "fk_timesheet_periods_closed_by_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    },
+    {
+      "TABLE_NAME": "user_roles",
+      "COLUMN_NAME": "user_id",
+      "CONSTRAINT_NAME": "fk_user_roles_user_id",
+      "REFERENCED_COLUMN_NAME": "id"
+    }
+  ]
+}
