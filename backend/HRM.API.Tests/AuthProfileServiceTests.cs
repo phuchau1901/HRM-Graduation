@@ -4,6 +4,7 @@ using HRM.API.Data;
 using HRM.API.Modules.Auth.Services;
 using HRM.API.Modules.Authorization.Entities;
 using HRM.API.Modules.Authorization.Policies;
+using HRM.API.Modules.Authorization.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
@@ -86,7 +87,7 @@ public sealed class AuthProfileServiceTests : IDisposable
     [Theory]
     [InlineData(ScreenAction.New)] [InlineData(ScreenAction.View)] [InlineData(ScreenAction.Update)]
     [InlineData(ScreenAction.Delete)] [InlineData(ScreenAction.Approve)] [InlineData(ScreenAction.Export)]
-    public async Task BackendRequiresCurrentGrantForEachAction(ScreenAction action)
+    public async Task NewSnapshotReflectsCurrentGrantForEachAction(ScreenAction action)
     {
         var role = new Role { Code = "ADMIN", Name = "Admin" };
         var screen = new Screen { Code = "STAFF", Name = "Staff" };
@@ -94,10 +95,13 @@ public sealed class AuthProfileServiceTests : IDisposable
         await _db.SaveChangesAsync();
         var detail = new RoleDetail { RoleID = role.ID, ScreenID = screen.ID, CanView = "Y" };
         _db.AddRange(detail, new UserRole { UserID = "admin", RoleID = role.ID }); await _db.SaveChangesAsync();
-        var handler = new ScreenPermissionHandler(_service, new HttpContextAccessor());
+        var handler = new ScreenPermissionHandler();
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("sub", "admin") }, "test"));
         async Task<bool> Allowed()
         {
+            var snapshot = await new PermissionService(_db).GetSnapshotAsync("admin");
+            principal = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim("sub", "admin"), new Claim("hrm_pv", "1"),
+                new Claim("hrm_p", System.Text.Json.JsonSerializer.Serialize(snapshot)) }, "test"));
             var context = new AuthorizationHandlerContext(new[] { new ScreenPermissionRequirement("STAFF", action) }, principal, null);
             await handler.HandleAsync(context);
             return context.HasSucceeded;

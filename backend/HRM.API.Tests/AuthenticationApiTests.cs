@@ -113,15 +113,21 @@ public sealed class AuthenticationApiTests
         using (var scope = app.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var screen = new Screen { Code = "DEPARTMENTS", Name = "Departments", IsActive = true };
+            var screen = new Screen { Code = "WEB_DEPARTMENTS", Name = "Departments", IsActive = true };
             db.Add(screen); await db.SaveChangesAsync();
             db.Add(new RoleDetail { RoleID = login.Roles.First().Id, ScreenID = screen.ID, CanView = "Y" });
             await db.SaveChangesAsync();
         }
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/departments")).StatusCode);
+        var renewed = await client.PostAsJsonAsync("/api/auth/login", new { userId = "api-user", password = app.Password });
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await renewed.Content.ReadFromJsonAsync<LoginResponse>())!.AccessToken);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/departments")).StatusCode);
         using (var scope = app.Services.CreateScope())
             await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<RoleDetail>()
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.CanView, "N"));
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/departments")).StatusCode);
+        renewed = await client.PostAsJsonAsync("/api/auth/login", new { userId = "api-user", password = app.Password });
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await renewed.Content.ReadFromJsonAsync<LoginResponse>())!.AccessToken);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/departments")).StatusCode);
     }
 
@@ -151,7 +157,10 @@ public sealed class AuthenticationApiTests
         var wrong = await client.PostAsJsonAsync("/api/auth/login", new { username = "api-user", password = "" });
         var unknown = await client.PostAsJsonAsync("/api/auth/login", new { username = "missing", password = app.Password });
         Assert.Equal(HttpStatusCode.Unauthorized, wrong.StatusCode); Assert.Equal(wrong.StatusCode, unknown.StatusCode);
-        Assert.Equal(await wrong.Content.ReadAsStringAsync(), await unknown.Content.ReadAsStringAsync());
+        using var wrongJson = System.Text.Json.JsonDocument.Parse(await wrong.Content.ReadAsStringAsync());
+        using var unknownJson = System.Text.Json.JsonDocument.Parse(await unknown.Content.ReadAsStringAsync());
+        Assert.Equal(wrongJson.RootElement.GetProperty("error").GetString(), unknownJson.RootElement.GetProperty("error").GetString());
+        Assert.Equal(wrongJson.RootElement.GetProperty("message").GetString(), unknownJson.RootElement.GetProperty("message").GetString());
         for (var i = 0; i < 3; i++)
             Assert.Equal(HttpStatusCode.Unauthorized, (await client.PostAsJsonAsync("/api/auth/login", new { username = "missing", password = app.Password })).StatusCode);
         var limited = await client.PostAsJsonAsync("/api/auth/login", new { username = "api-user", password = app.Password });
@@ -174,6 +183,7 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("AuthSeed:Enabled", "false");
         builder.ConfigureTestServices(services =>
         {
+            services.AddControllers().AddApplicationPart(typeof(PermissionProbeController).Assembly);
             services.RemoveAll<AppDbContext>();
             services.AddScoped<AppDbContext>(_ => new AuthorizationTestContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).Options));
         });

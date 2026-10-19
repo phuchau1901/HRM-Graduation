@@ -1,54 +1,62 @@
 using System.IdentityModel.Tokens.Jwt;
-using HRM.API.Modules.Auth.Services;
+using HRM.API.Modules.Authorization.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 
 namespace HRM.API.Modules.Authorization.Policies;
 
+// Keep the typed attribute usable by existing endpoints while exposing the requested string API.
 public enum ScreenAction { New, View, Update, Delete, Approve, Export }
-public sealed record ScreenPermissionRequirement(string ScreenCode, ScreenAction Action) : IAuthorizationRequirement;
+public sealed record ScreenPermissionRequirement(string ScreenCode, string Action) : IAuthorizationRequirement
+{
+    public ScreenPermissionRequirement(string screenCode, ScreenAction action) : this(screenCode, action.ToString()) { }
+}
 
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
-public sealed class RequireScreenPermissionAttribute : AuthorizeAttribute
+public class ScreenPermissionAttribute : AuthorizeAttribute
 {
-    public RequireScreenPermissionAttribute(string screenCode, ScreenAction action)
+    public string ScreenCode { get; }
+    public string ActionCode { get; }
+    public ScreenPermissionAttribute(string screenCode, string action)
     {
-        if (string.IsNullOrWhiteSpace(screenCode) || screenCode.Contains(':') || !Enum.IsDefined(action))
-            throw new ArgumentException("A screen code and valid action are required.");
-        Policy = $"HRM.Screen:{screenCode}:{action}";
+        var operation = PermissionActions.Normalize(action);
+        if (string.IsNullOrWhiteSpace(screenCode) || screenCode.Length > 100 || screenCode.Contains(':') || operation is null)
+            throw new ArgumentException("A valid screen code and VIEW/NEW/UPDATE/DELETE/APPROVE/EXPORT action are required.");
+        ScreenCode = screenCode;
+        ActionCode = operation;
+        Policy = $"HRM.Screen:{screenCode}:{operation}";
     }
+}
+
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
+public sealed class RequireScreenPermissionAttribute : ScreenPermissionAttribute
+{
+    public RequireScreenPermissionAttribute(string screenCode, ScreenAction action) : base(screenCode, action.ToString()) { }
 }
 
 public sealed class ScreenPermissionPolicyProvider(IOptions<AuthorizationOptions> options) : DefaultAuthorizationPolicyProvider(options)
 {
     public override Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
+        if (!policyName.StartsWith("HRM.Screen:", StringComparison.Ordinal)) return base.GetPolicyAsync(policyName);
+        var policy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser();
         var parts = policyName.Split(':');
-        if (parts.Length == 3 && parts[0] == "HRM.Screen" && !string.IsNullOrWhiteSpace(parts[1]) &&
-            Enum.TryParse<ScreenAction>(parts[2], out var action) && Enum.IsDefined(action))
-            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser().AddRequirements(new ScreenPermissionRequirement(parts[1], action)).Build());
-        return base.GetPolicyAsync(policyName);
+        var action = parts.Length == 3 ? PermissionActions.Normalize(parts[2]) : null;
+        if (parts.Length == 3 && !string.IsNullOrWhiteSpace(parts[1]) && parts[1].Length <= 100 && action is not null)
+            policy.AddRequirements(new ScreenPermissionRequirement(parts[1], action));
+        else
+            policy.RequireAssertion(_ => false);
+        return Task.FromResult<AuthorizationPolicy?>(policy.Build());
     }
 }
 
-public sealed class ScreenPermissionHandler(AuthProfileService profiles, IHttpContextAccessor accessor)
-    : AuthorizationHandler<ScreenPermissionRequirement>
+public sealed class ScreenPermissionHandler : AuthorizationHandler<ScreenPermissionRequirement>
 {
-    protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, ScreenPermissionRequirement requirement)
+    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, ScreenPermissionRequirement requirement)
     {
-        var userId = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-        if (context.User.Identity?.IsAuthenticated != true || string.IsNullOrWhiteSpace(userId) || userId.Length > 100) return;
-        var profile = await profiles.GetAsync(userId, accessor.HttpContext?.RequestAborted ?? default);
-        var permission = profile?.Permissions.SingleOrDefault(x => x.Code == requirement.ScreenCode);
-        if (permission is null) return;
-        var flag = requirement.Action switch
-        {
-            ScreenAction.New => permission.CanNew, ScreenAction.View => permission.CanView,
-            ScreenAction.Update => permission.CanUpdate, ScreenAction.Delete => permission.CanDelete,
-            ScreenAction.Approve => permission.CanApprove, ScreenAction.Export => permission.CanExport,
-            _ => "N"
-        };
-        if (flag == "Y") context.Succeed(requirement);
+        if (HRM.API.Security.JwtPermissions.HasPermission(context.User, requirement.ScreenCode, requirement.Action))
+            context.Succeed(requirement);
+        return Task.CompletedTask;
     }
 }

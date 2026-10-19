@@ -19,7 +19,7 @@ public class DepartmentsController : ControllerBase
 
     // GET: api/departments
     [HttpGet]
-    [RequireScreenPermission("DEPARTMENTS", ScreenAction.View)]
+    [ScreenPermission("WEB_DEPARTMENTS", "VIEW")]
     public async Task<IActionResult> GetDepartments()
     {
         var departments = await _context.Departments

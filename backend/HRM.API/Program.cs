@@ -1,6 +1,11 @@
+using HRM.API.Security;
+using HRM.API.Middleware;
+using Microsoft.AspNetCore.HttpOverrides;
+using System.Net;
 
 using HRM.API.Data;
 using HRM.API.Modules.Authorization.Policies;
+using HRM.API.Modules.Authorization.Services;
 using Microsoft.AspNetCore.Authorization;
 using HRM.API.Data.Seeders;
 using HRM.API.Modules.Authorization.Entities;
@@ -14,6 +19,20 @@ using HRM.API.Modules.Auth.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.ClearProviders();
+builder.Logging.AddJsonConsole(o => { o.UseUtcTimestamp = true; o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ"; });
+// Hosting diagnostics include raw URLs; the access middleware records safe route templates instead.
+builder.Logging.AddFilter("Microsoft.AspNetCore.Hosting.Diagnostics", LogLevel.Warning);
+builder.Services.Configure<ApiAccessLoggingOptions>(builder.Configuration.GetSection("ApiAccessLogging"));
+var trustedProxies = builder.Configuration.GetSection("ReverseProxy:KnownProxies").Get<string[]>() ?? [];
+if (trustedProxies.Length > 0)
+    builder.Services.Configure<ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+        o.ForwardLimit = 1;
+        o.KnownNetworks.Clear(); o.KnownProxies.Clear();
+        foreach (var proxy in trustedProxies) o.KnownProxies.Add(IPAddress.Parse(proxy));
+    });
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -25,10 +44,11 @@ builder.Services.AddScoped<AuthProfileService>();
 builder.Services.AddScoped<JwtService>();
 builder.Services.AddScoped<AuthSeeder>();
 builder.Services.AddOptions<JwtOptions>().Bind(builder.Configuration.GetSection("Jwt"))
-    .Validate(x => x.IsValid(), "Jwt requires Issuer, Audience, a signing key of at least 32 UTF-8 bytes, and AccessTokenMinutes between 1 and 120.")
+    .Validate(x => x.IsValid(), "Jwt requires Issuer, Audience, a signing key of at least 32 UTF-8 bytes, AccessTokenMinutes between 1 and 120, and MaxTokenBytes between 2048 and 32768.")
     .ValidateOnStart();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, ScreenPermissionPolicyProvider>();
 builder.Services.AddScoped<IAuthorizationHandler, ScreenPermissionHandler>();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -49,6 +69,33 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
         options.Events = new JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                var header = context.Request.Headers.Authorization.ToString();
+                if (header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) &&
+                    Encoding.UTF8.GetByteCount(header.AsSpan(7)) > config.MaxTokenBytes)
+                    context.Fail("Invalid token.");
+                return Task.CompletedTask;
+            },
+            OnAuthenticationFailed = context =>
+            {
+                if (context.Exception is SecurityTokenExpiredException)
+                    context.HttpContext.Items["HRM.TokenExpired"] = true;
+                return Task.CompletedTask;
+            },
+            OnChallenge = async context =>
+            {
+                context.HandleResponse();
+                context.Response.Headers.WWWAuthenticate = "Bearer";
+                var expired = context.HttpContext.Items["HRM.TokenExpired"] is true;
+                var missing = string.IsNullOrEmpty(context.Request.Headers.Authorization.ToString());
+                await ApiErrors.WriteAsync(context.HttpContext, 401,
+                    expired ? "HRM_AUTH_002" : "HRM_AUTH_001",
+                    expired ? "TOKEN_EXPIRED" : missing ? "MISSING_TOKEN" : "INVALID_TOKEN",
+                    expired ? "Access token has expired." : "Authentication required.");
+            },
+            OnForbidden = context => ApiErrors.WriteAsync(context.HttpContext, 403,
+                "HRM_AUTH_003", "PERMISSION_DENIED", "Permission denied."),
             OnTokenValidated = async context =>
             {
                 var sub = context.Principal?.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
@@ -59,6 +106,7 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
                 var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
                 if (!await db.Set<User>().AsNoTracking().AnyAsync(x => x.UserId == sub && x.Status == "ACTIVE", context.HttpContext.RequestAborted))
                     context.Fail("Invalid identity.");
+                else context.HttpContext.Items[ApiErrors.ValidatedUserItem] = sub;
             }
         };
     });
@@ -133,6 +181,9 @@ else
     );
 }
 
+if (trustedProxies.Length > 0) app.UseForwardedHeaders();
+app.UseMiddleware<ApiAccessLoggingMiddleware>();
+app.UseRouting();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
