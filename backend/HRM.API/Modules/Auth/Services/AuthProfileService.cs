@@ -14,24 +14,33 @@ public sealed class AuthProfileService(AppDbContext db)
         if (user is null) return null;
         var roles = await (from ur in db.Set<UserRole>().AsNoTracking()
                            join r in db.Set<Role>().AsNoTracking() on ur.RoleID equals r.ID
-                           where ur.UserID == userId orderby r.Code
+                           where ur.UserID == user.UserId orderby r.Code
                            select new RoleDto(r.ID, r.Code, r.Name)).ToListAsync(ct);
-        var roleIds = roles.Select(x => x.Id).ToArray();
-        var details = roleIds.Length == 0 ? new List<RoleDetail>()
-            : await db.Set<RoleDetail>().AsNoTracking().Where(x => roleIds.Contains(x.RoleID)).ToListAsync(ct);
-        var screens = await db.Set<Screen>().AsNoTracking().Where(x => x.IsActive)
-            .OrderBy(x => x.SortOrder).ThenBy(x => x.Code).ToListAsync(ct);
-        // Permissions are additive: an explicit Y in any assigned role grants that action.
-        // Missing/invalid flags deny; there is no implicit ADMIN bypass or permission mutation.
-        var byScreen = details.ToLookup(x => x.ScreenID);
-        var permissions = screens.Select(s =>
+        // Fetch only grants attached to this user's roles. Do not filter CanView here:
+        // another role may supply a different action that must participate in the OR.
+        var grants = await (from ur in db.Set<UserRole>().AsNoTracking()
+                            join detail in db.Set<RoleDetail>().AsNoTracking() on ur.RoleID equals detail.RoleID
+                            join screen in db.Set<Screen>().AsNoTracking() on detail.ScreenID equals screen.ID
+                            where ur.UserID == user.UserId && screen.IsActive
+                            select new
+                            {
+                                ScreenId = screen.ID, screen.Code, screen.Name, screen.Platform, screen.Icon,
+                                detail.CanNew, detail.CanView, detail.CanUpdate, detail.CanDelete,
+                                detail.CanApprove, detail.CanExport
+                            }).ToListAsync(ct);
+        // Actual entity flags are Y/N strings. Aggregate every role first, then include
+        // only viewable screens; ADMIN follows exactly the same grant path.
+        var permissions = grants.GroupBy(x => x.ScreenId).Select(group =>
         {
-            var grants = byScreen[s.ID].ToArray();
-            string Flag(Func<RoleDetail, string> selector) => grants.Any(x => selector(x) == "Y") ? "Y" : "N";
-            return new ScreenPermissionDto(s.ID, s.Code, s.Name, s.Platform, s.Route, s.Icon, s.ParentID, s.SortOrder,
-                Flag(x => x.CanNew), Flag(x => x.CanView), Flag(x => x.CanUpdate),
-                Flag(x => x.CanDelete), Flag(x => x.CanApprove), Flag(x => x.CanExport));
-        }).ToList();
+            var screen = group.First();
+            return new ScreenPermissionDto(screen.ScreenId, screen.Code, screen.Name, screen.Platform, screen.Icon,
+                group.Any(x => x.CanNew == "Y") ? "Y" : "N",
+                group.Any(x => x.CanView == "Y") ? "Y" : "N",
+                group.Any(x => x.CanUpdate == "Y") ? "Y" : "N",
+                group.Any(x => x.CanDelete == "Y") ? "Y" : "N",
+                group.Any(x => x.CanApprove == "Y") ? "Y" : "N",
+                group.Any(x => x.CanExport == "Y") ? "Y" : "N");
+        }).Where(x => x.CanView == "Y").OrderBy(x => x.Code).ThenBy(x => x.ScreenId).ToList();
         return new(user, roles, permissions);
     }
 }

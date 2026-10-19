@@ -47,12 +47,12 @@ public sealed class AuthenticationApiTests
             await db.Set<RoleDetail>().ExecuteUpdateAsync(s => s.SetProperty(x => x.CanView, "N"));
         }
         var current = (await client.GetFromJsonAsync<List<ScreenPermissionDto>>("/api/auth/me/permissions"))!;
-        Assert.Equal("N", Assert.Single(current).CanView);
+        Assert.Empty(current);
         using (var scope = app.Services.CreateScope())
             await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<UserRole>().ExecuteDeleteAsync();
         var withoutRoles = (await client.GetFromJsonAsync<AuthProfileDto>("/api/auth/me"))!;
         Assert.Empty(withoutRoles.Roles);
-        Assert.Equal("N", Assert.Single(withoutRoles.Permissions).CanUpdate);
+        Assert.Empty(withoutRoles.Permissions);
         using (var scope = app.Services.CreateScope())
             await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<User>().ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "DISABLED"));
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);

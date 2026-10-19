@@ -144,25 +144,16 @@ namespace HRM.API.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     platform = table.Column<string>(type: "varchar(20)", maxLength: 20, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    route = table.Column<string>(type: "varchar(255)", maxLength: 255, nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    
                     icon = table.Column<string>(type: "varchar(100)", maxLength: 100, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    parent_id = table.Column<long>(type: "bigint", nullable: true),
-                    sort_order = table.Column<int>(type: "int", nullable: false),
                     is_active = table.Column<bool>(type: "tinyint(1)", nullable: false, defaultValue: true),
-                    supported_actions = table.Column<string>(type: "json", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4")
+                    
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_screens", x => x.id);
-                    table.ForeignKey(
-                        name: "FK_screens_screens_parent_id",
-                        column: x => x.parent_id,
-                        principalTable: "screens",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Restrict);
+                    
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 
