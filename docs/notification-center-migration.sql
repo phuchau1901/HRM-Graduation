@@ -1,8 +1,10 @@
 ﻿START TRANSACTION;
 
-ALTER TABLE `notifications` DROP FOREIGN KEY `fk_notifications_user_id`;
-
 ALTER TABLE `notifications` DROP INDEX `IX_notifications_user_id`;
+
+ALTER TABLE `notifications` DROP COLUMN `is_read`;
+
+ALTER TABLE `notifications` DROP COLUMN `user_id`;
 
 ALTER TABLE `notifications` ADD `cancelled_at` datetime(6) NULL;
 
@@ -75,26 +77,6 @@ CREATE TABLE `role_screen_actions` (
     CONSTRAINT `FK_role_screen_actions_screens_screen_id` FOREIGN KEY (`screen_id`) REFERENCES `screens` (`id`) ON DELETE RESTRICT
 ) CHARACTER SET=utf8mb4;
 
-
-UPDATE `notifications`
-SET `source` = 'SYSTEM', `status` = 'PUBLISHED', `published_at` = `created_at`,
-    `recipient_count` = 1, `deduplication_key` = SHA2(CONCAT('legacy:', `id`), 256),
-    `request_hash` = SHA2(CONCAT('legacy-request:', `id`), 256), `trace_id` = CONCAT('legacy:', `id`);
-INSERT INTO `notification_recipients`
-    (`notification_id`, `user_id`, `created_at`, `read_at`, `delivery_status`, `delivery_attempts`,
-     `next_attempt_at`, `sent_at`, `event_id`)
-SELECT `id`, `user_id`, `created_at`, CASE WHEN `is_read` = 1 THEN `created_at` ELSE NULL END,
-       'LEGACY', 0, `created_at`, NULL, MD5(CONCAT('legacy:', `id`, ':', `user_id`))
-FROM `notifications`;
-INSERT INTO `notification_targets` (`notification_id`, `target_type`, `criteria_json`)
-SELECT `id`, 'USER', JSON_OBJECT('Type', 'USER', 'UserIds', JSON_ARRAY(`user_id`),
-       'RoleIds', JSON_ARRAY(), 'DepartmentIds', JSON_ARRAY(), 'FilterCode', NULL)
-FROM `notifications`;
-
-ALTER TABLE `notifications` DROP COLUMN `is_read`;
-
-ALTER TABLE `notifications` DROP COLUMN `user_id`;
-
 CREATE INDEX `IX_notifications_created_by_user_id` ON `notifications` (`created_by_user_id`);
 
 CREATE UNIQUE INDEX `IX_notifications_deduplication_key` ON `notifications` (`deduplication_key`);
@@ -114,7 +96,7 @@ CREATE INDEX `IX_role_screen_actions_screen_id` ON `role_screen_actions` (`scree
 ALTER TABLE `notifications` ADD CONSTRAINT `FK_notifications_users_created_by_user_id` FOREIGN KEY (`created_by_user_id`) REFERENCES `users` (`user_id`) ON DELETE RESTRICT;
 
 INSERT INTO `__EFMigrationsHistory` (`MigrationId`, `ProductVersion`)
-VALUES ('20261019143357_AddNotificationCenter', '8.0.13');
+VALUES ('20261019145341_AddNotificationCenter', '8.0.13');
 
 COMMIT;
 

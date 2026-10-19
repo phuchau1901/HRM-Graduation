@@ -133,19 +133,11 @@ AuditLog ghi create, enqueue/publish, cancel, group/all distribution, delivery/d
 
 ## Migration cần duyệt
 
-`20261019143357_AddNotificationCenter`, sau `20261019074710_InitialHRMDatabase` trong Git hiện tại. SQL đã xuất: [notification-center-migration.sql](notification-center-migration.sql). Đây là script để kiểm tra, **chưa thực thi**.
+`20261019145341_AddNotificationCenter`, sau `20261019074710_InitialHRMDatabase`. Đã đối chiếu Railway DEV bằng SELECT: notifications trống, không có FK legacy; screens chỉ có sáu cột; bốn bảng mới chưa tồn tại. Up giữ id/title/content/created_at, bỏ user_id/is_read/index cũ và thêm metadata/bảng mới. Không cần backfill trên DEV trống; không dùng bản này cho database đã có dữ liệu Notification cần giữ. Không thao tác schema screens hoặc xóa FK không tồn tại.
 
-- Thêm metadata vào notifications và tạo bốn bảng nêu trên.
-- Copy mỗi legacy notifications.user_id sang recipient và USER target trước khi drop user_id/is_read; giữ title/content/created_at.
-- Legacy is_read=true chuyển thành read_at=created_at vì schema cũ không có thời điểm đọc thật; chỉ bảo toàn cờ đã đọc, không giả định đây là thời điểm đọc thực tế.
-- Legacy records gán SYSTEM/PUBLISHED, creator NULL vì không biết tác giả; delivery LEGACY để không phát lại push cũ. Không tự merge các legacy notification có nội dung giống nhau vì không đủ bằng chứng cùng sự kiện.
-- Unique dedup key được backfill riêng từng ID trước tạo unique index.
-- Down bị chặn: không thể chuyển notification nhiều người về bảng một người mà bảo toàn dữ liệu. Rollback cần backup hoặc kế hoạch conversion được duyệt riêng.
-- Không có ALTER/DROP schema screens/employees/departments/users trong Migration này. Chỉ có FK tới users/roles/screens cần thiết.
+Down dừng trước mọi DDL để tránh mất dữ liệu sau khi đã có nhiều recipient. Designer/Snapshot hiện khớp model; has-pending-model-changes báo không có thay đổi. Migration vẫn chưa áp dụng vào Railway.
 
-Model/Snapshot có lệch từ trước: snapshot còn screens.parent_id, route, sort_order, supported_actions và self FK/index, entity hiện tại đã bỏ. Giữ các metadata này trong snapshot/designer để không âm thầm coi chúng đã migrate; NotificationMigrationTests xác nhận pending diff chỉ còn phần Screen cũ, không còn phần Notification. Lệnh has-pending-model-changes vẫn báo có thay đổi vì vậy. Không tạo migration xóa Screen ngoài phạm vi yêu cầu.
-
-Trước khi operator chạy thật cần xác nhận history/schema Railway khớp baseline Git và thử chuyển dữ liệu trên MySQL staging/backup. Chưa kiểm chứng trực tiếp SQL backfill/locking trên MySQL Railway. MySQL DDL có implicit commit; không coi START TRANSACTION trong script là bảo đảm rollback toàn bộ schema. Không deploy code đọc role_screen_actions trước khi bảng mới tồn tại vì Login cũng đọc bảng này.
+Xem [báo cáo DEV và danh sách thay đổi chính xác](NOTIFICATION_MIGRATION_DEV_REVIEW.md), [SQL để duyệt](notification-center-migration.sql), [metadata thực tế](notification-center-dev-inspection.json) và [preflight chỉ SELECT](notification-center-preflight.sql). Chưa chạy DDL/database update. Giữ worker tắt cho đến khi được duyệt/applied và đã cấp quyền.
 
 ## File tạo/sửa
 
@@ -158,7 +150,7 @@ Tạo:
 - Modules/Notifications/Controllers/NotificationsController.cs
 - Modules/Notifications/Realtime/NotificationHub.cs
 - Modules/Authorization/Entities/RoleScreenAction.cs và Configurations/RoleScreenActionConfiguration.cs
-- Migrations/20261019143357_AddNotificationCenter.cs và .Designer.cs
+- Migrations/20261019145341_AddNotificationCenter.cs và .Designer.cs
 - ../HRM.API.Tests/NotificationCenterTests.cs, NotificationMigrationTests.cs
 - docs/NOTIFICATION_CENTER.md, docs/notification-center-migration.sql
 
@@ -176,8 +168,10 @@ Giữ các file Controller người dùng đã chuyển về Modules trước kh
 
 ## Kiểm thử
 
-TestServer/SQLite cục bộ, không kết nối Railway; test MySQL model/migration chỉ chạy design-time offline. Kết quả cuối: dotnet build HRM.API.csproj thành công, 0 warning/0 error; 22 test Notification/Migration đều đạt; toàn bộ suite 118 đạt, 2 lỗi có trước, tổng 120, không skip. git diff --check sạch. Các test bao phủ USER/USERS/ROLE/DEPARTMENT/ALL 5.000/CUSTOM, OR/distinct, eligibility, snapshot, offline, API owner/read-all, JWT quyền gửi/lịch/cancel, idempotency, worker replay/lease/retry/dead, rollback workflow, SignalR authentication/user identity, CORS và Migration copy trước drop.
+Build thành công: 0 warning/0 error. Toàn bộ test: 121 đạt, 1 lỗi seed có trước, tổng 122. Ba test Migration mới xác nhận baseline DEV, kiểu/FK/index/table scope, Snapshot/target model và Down an toàn; không kiểm thử bằng cách thực thi DDL trên Railway. SQL/metadata đã được đối chiếu read-only.
 
-Hai lỗi regression có trước vẫn giữ để báo cáo: AuthSeederTests kỳ vọng 4 role nhưng seeder hiện có ADMIN; AuthServiceTests.HasPendingModelChanges do Screen drift nêu trên. Không tự sửa seed hoặc schema Screen để che lỗi.
+Các test Notification trước đó dùng TestServer/SQLite, bao phủ USER/USERS/ROLE/DEPARTMENT/ALL 5.000/CUSTOM, OR/distinct, eligibility, snapshot, offline, API owner/read-all, JWT quyền gửi/lịch/cancel, idempotency, worker replay/lease/retry/dead, rollback workflow, SignalR authentication/user identity và CORS.
+
+Lỗi còn lại AuthSeederTests kỳ vọng 4 Role nhưng seeder hiện chỉ có ADMIN; không thay đổi seed trong lần sửa Migration. has-pending-model-changes không còn báo Screen drift trên Snapshot hiện tại.
 
 Tài liệu chuẩn: [SignalR authentication/UserIdProvider](https://learn.microsoft.com/aspnet/core/signalr/authn-and-authz), [EF Core ExecuteUpdate và transaction](https://learn.microsoft.com/en-us/ef/core/saving/execute-insert-update-delete).

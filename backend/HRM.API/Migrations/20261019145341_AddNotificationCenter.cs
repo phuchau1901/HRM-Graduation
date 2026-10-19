@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Migrations;
 
@@ -12,37 +12,12 @@ namespace HRM.API.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "fk_notifications_user_id",
-                table: "notifications");
-
-            migrationBuilder.DropForeignKey(
-                name: "FK_screens_screens_parent_id",
-                table: "screens");
-
-            migrationBuilder.DropIndex(
-                name: "IX_screens_parent_id",
-                table: "screens");
-
+            // Railway DEV baseline: notifications is empty, has the user_id index but no user FK.
+            // Retain id/title/content/created_at unchanged. No legacy data backfill is necessary.
+            // Do not touch screens: only id/code/name/platform/icon/is_active exist there.
             migrationBuilder.DropIndex(
                 name: "IX_notifications_user_id",
                 table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "parent_id",
-                table: "screens");
-
-            migrationBuilder.DropColumn(
-                name: "route",
-                table: "screens");
-
-            migrationBuilder.DropColumn(
-                name: "sort_order",
-                table: "screens");
-
-            migrationBuilder.DropColumn(
-                name: "supported_actions",
-                table: "screens");
 
             migrationBuilder.DropColumn(
                 name: "is_read",
@@ -315,152 +290,11 @@ namespace HRM.API.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_notifications_users_created_by_user_id",
-                table: "notifications");
-
-            migrationBuilder.DropTable(
-                name: "notification_outbox");
-
-            migrationBuilder.DropTable(
-                name: "notification_recipients");
-
-            migrationBuilder.DropTable(
-                name: "notification_targets");
-
-            migrationBuilder.DropTable(
-                name: "role_screen_actions");
-
-            migrationBuilder.DropIndex(
-                name: "IX_notifications_created_by_user_id",
-                table: "notifications");
-
-            migrationBuilder.DropIndex(
-                name: "IX_notifications_deduplication_key",
-                table: "notifications");
-
-            migrationBuilder.DropIndex(
-                name: "IX_notifications_status_scheduled_at",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "cancelled_at",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "created_by_user_id",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "deduplication_key",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "published_at",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "recipient_count",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "reference_id",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "reference_type",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "request_hash",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "scheduled_at",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "source",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "status",
-                table: "notifications");
-
-            migrationBuilder.DropColumn(
-                name: "trace_id",
-                table: "notifications");
-
-            migrationBuilder.AddColumn<long>(
-                name: "parent_id",
-                table: "screens",
-                type: "bigint",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "route",
-                table: "screens",
-                type: "varchar(255)",
-                maxLength: 255,
-                nullable: false,
-                defaultValue: "")
-                .Annotation("MySql:CharSet", "utf8mb4");
-
-            migrationBuilder.AddColumn<int>(
-                name: "sort_order",
-                table: "screens",
-                type: "int",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<string>(
-                name: "supported_actions",
-                table: "screens",
-                type: "json",
-                nullable: false)
-                .Annotation("MySql:CharSet", "utf8mb4");
-
-            migrationBuilder.AddColumn<bool>(
-                name: "is_read",
-                table: "notifications",
-                type: "tinyint(1)",
-                nullable: false,
-                defaultValue: false);
-
-            migrationBuilder.AddColumn<string>(
-                name: "user_id",
-                table: "notifications",
-                type: "varchar(100)",
-                maxLength: 100,
-                nullable: false,
-                defaultValue: "")
-                .Annotation("MySql:CharSet", "utf8mb4");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_screens_parent_id",
-                table: "screens",
-                column: "parent_id");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_notifications_user_id",
-                table: "notifications",
-                column: "user_id");
-
-            migrationBuilder.AddForeignKey(
-                name: "fk_notifications_user_id",
-                table: "notifications",
-                column: "user_id",
-                principalTable: "users",
-                principalColumn: "user_id",
-                onDelete: ReferentialAction.Restrict);
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_screens_screens_parent_id",
-                table: "screens",
-                column: "parent_id",
-                principalTable: "screens",
-                principalColumn: "id",
-                onDelete: ReferentialAction.Restrict);
+            // The new model can hold several recipients with independent read/delivery state.
+            // An automatic downgrade cannot preserve that data in the old one-user schema.
+            // Fail before producing any DDL; never recreate the nonexistent Screen fields/FKs
+            // or fk_notifications_user_id. A rollback requires a separately reviewed conversion.
+            throw new NotSupportedException("NotificationCenter downgrade requires a reviewed data conversion or backup restore.");
         }
     }
 }
