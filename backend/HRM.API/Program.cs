@@ -126,6 +126,13 @@ builder.Services.AddOptions<NotificationOptions>().Bind(builder.Configuration.Ge
 
 builder.Services.AddHostedService<NotificationWorker>();
 
+builder.Services.AddScoped<HRM.API.Common.BusinessExceptionFilter>();
+builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationService>();
+builder.Services.AddOptions<HRM.API.Modules.Employees.Services.EmployeeDataScopeOptions>()
+    .Bind(builder.Configuration.GetSection("EmployeeDataScopes"))
+    .Validate(x => x.IsValid(), "EmployeeDataScopes users must map to SELF, DEPARTMENT or ALL.").ValidateOnStart();
+builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeDataScope>();
+builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeService>();
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();

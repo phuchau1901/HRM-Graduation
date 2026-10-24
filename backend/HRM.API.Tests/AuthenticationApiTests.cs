@@ -172,6 +172,8 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
 {
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     public string? NotificationOrigin { get; init; }
+    public string? EmployeeScope { get; init; }
+    public bool FailNotificationWrites { get; init; }
     public string Password { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
     public string SigningKey { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -183,12 +185,13 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:SigningKey", SigningKey);
         builder.UseSetting("AuthSeed:Enabled", "false");
         builder.UseSetting("Notifications:WorkerEnabled", "false");
+        if (EmployeeScope is not null) builder.UseSetting("EmployeeDataScopes:Users:api-user", EmployeeScope);
         if (NotificationOrigin is not null) builder.UseSetting("Notifications:AllowedOrigins:0", NotificationOrigin);
         builder.ConfigureTestServices(services =>
         {
             services.AddControllers().AddApplicationPart(typeof(PermissionProbeController).Assembly);
             services.RemoveAll<AppDbContext>();
-            services.AddScoped<AppDbContext>(_ => new AuthorizationTestContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).Options));
+            services.AddScoped<AppDbContext>(_ => new AuthorizationTestContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).AddInterceptors(new FailNotificationInsertInterceptor(FailNotificationWrites)).Options));
         });
     }
     public async Task PrepareAsync()
@@ -214,7 +217,8 @@ internal sealed class AuthorizationTestContext(DbContextOptions<AppDbContext> op
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-        var keep = new[] { typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction),
+        var keep = new[] { typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction), typeof(HRM.API.Modules.Organization.Entities.Position),
+            typeof(HRM.API.Modules.Employees.Entities.EmployeeHistory), typeof(HRM.API.Modules.Employees.Entities.Contract),
             typeof(HRM.API.Modules.Employees.Entities.Employee), typeof(HRM.API.Modules.System.Entities.Notification),
             typeof(HRM.API.Modules.System.Entities.AuditLog), typeof(HRM.API.Modules.Notifications.Entities.NotificationTarget),
             typeof(HRM.API.Modules.Notifications.Entities.NotificationRecipient), typeof(HRM.API.Modules.Notifications.Entities.NotificationOutbox) };

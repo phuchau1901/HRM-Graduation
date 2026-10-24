@@ -1,45 +1,25 @@
+using HRM.API.Common;
 using HRM.API.Modules.Authorization.Policies;
-
-using HRM.API.Data;
+using HRM.API.Modules.Organization.DTOs;
+using HRM.API.Modules.Organization.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-
 namespace HRM.API.Modules.Organization.Controllers;
-
-[ApiController]
-[Route("api/departments")]
-public class DepartmentsController : ControllerBase
+[ApiController, Authorize, Route("api/departments"), ServiceFilter(typeof(BusinessExceptionFilter))]
+public sealed class DepartmentsController(OrganizationService service) : ControllerBase
 {
-    private readonly AppDbContext _context;
-
-    public DepartmentsController(AppDbContext context)
+    [HttpGet, ScreenPermission("WEB_DEPARTMENTS", "VIEW")]
+    public async Task<IActionResult> List([FromQuery] OrganizationQuery query, CancellationToken ct) => Ok(await service.DepartmentsAsync(query, ct));
+    [HttpGet("{id:int}"), ScreenPermission("WEB_DEPARTMENTS", "VIEW")]
+    public async Task<IActionResult> Get(int id, CancellationToken ct) => Ok(await service.DepartmentAsync(id, ct));
+    [HttpPost, ScreenPermission("WEB_DEPARTMENTS", "NEW")]
+    public async Task<IActionResult> Create(DepartmentRequest request, CancellationToken ct)
     {
-        _context = context;
+        var result = await service.SaveDepartmentAsync(null, request, ct);
+        return CreatedAtAction(nameof(Get), new { id = result.Id }, result);
     }
-
-    // GET: api/departments
-    [HttpGet]
-    [ScreenPermission("WEB_DEPARTMENTS", "VIEW")]
-    public async Task<IActionResult> GetDepartments()
-    {
-        var departments = await _context.Departments
-            .AsNoTracking()
-            .OrderBy(x => x.Id)
-            .Select(x => new
-            {
-                x.Id,
-                x.DepartmentCode,
-                x.DepartmentName,
-                x.Description,
-                x.IsActive
-            })
-            .ToListAsync();
-
-        return Ok(new
-        {
-            success = true,
-            total = departments.Count,
-            data = departments
-        });
-    }
+    [HttpPut("{id:int}"), ScreenPermission("WEB_DEPARTMENTS", "UPDATE")]
+    public async Task<IActionResult> Update(int id, DepartmentRequest request, CancellationToken ct) => Ok(await service.SaveDepartmentAsync(id, request, ct));
+    [HttpDelete("{id:int}"), ScreenPermission("WEB_DEPARTMENTS", "DELETE")]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct) { await service.DeleteDepartmentAsync(id, ct); return NoContent(); }
 }

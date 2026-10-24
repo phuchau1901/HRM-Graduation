@@ -1,0 +1,659 @@
+{
+  "info": {
+    "name": "HRM.API — Organization & Employees + existing APIs",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "31 source-backed REST requests. Configure local credentials/permissions/scope. Cleanup is manual. No real password/token included."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://localhost:5001",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "loginPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "departmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "otherDepartmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "positionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employeeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "contractId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationKey",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /api/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Đăng nhập bằng UserId chuỗi, giữ alias username\nPermission: Anonymous; LoginRateLimiter\nBody userId hoặc username; password.\nKhông gửi hai alias khác tài khoản. Không ghi log password/token. Giữ PasswordService và JWT hiện tại.\nExpected 200; errors 400, 401, 429, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) { const b = pm.response.json(); if (b.accessToken) pm.collectionVariables.set('token', b.accessToken); if (!pm.collectionVariables.get('targetUserId') && b.user) pm.collectionVariables.set('targetUserId', b.user.userId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/auth/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "Profile hiện tại\nPermission: JWT + User ACTIVE\nKhông có query/path/body.\nKhông phụ thuộc quyền màn hình; giữ nguyên JSON.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/auth/me/permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me/permissions",
+            "description": "Danh sách màn hình xem được\nPermission: JWT + User ACTIVE\nKhông có query/path/body.\nOR nhiều Role, chỉ CanView=Y, không tự bypass ADMIN.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "GET /api/notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications?limit=30",
+            "description": "Inbox riêng của JWT sub\nPermission: JWT; recipient ownership\nQuery limit=30 (clamp 1–100), beforeId nullable (cursor ID).\nChỉ PUBLISHED và user hiện tại; không tin userId query. Offline đồng bộ API.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/notifications/unread-count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/unread-count",
+            "description": "Đếm chưa đọc\nPermission: JWT; recipient ownership\nKhông có query/path/body.\nChỉ thông báo đã phát hành của sub.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/notifications/{notificationId}/read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+            "description": "Đánh dấu một thông báo\nPermission: JWT; recipient ownership\nPath notificationId BIGINT.\nIdempotent; non-recipient trả 404.\nExpected 204; errors 401, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/notifications/read-all",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/read-all",
+            "description": "Đánh dấu toàn bộ inbox hiện tại\nPermission: JWT; recipient ownership\nKhông có query/path/body.\nKhông thay đổi trạng thái đọc của user khác.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/notifications/announcements",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{notificationKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/notifications/announcements",
+            "description": "Lưu announcement draft hoặc lịch\nPermission: WEB_NOTIFICATIONS: USER→SEND_USER; USERS/ROLE/DEPARTMENT/CUSTOM→SEND_GROUP; ALL→SEND_ALL; thêm SCHEDULE khi có scheduledAt\nHeader Idempotency-Key bắt buộc <=100 ký tự; scheduledAt UTC tương lai tùy chọn.\nTarget allowlist/OR/distinct, không SQL; cùng key khác payload 409. Worker xử lý sau. Xem NOTIFICATION_CENTER.md cho đầy đủ target.\nExpected 201; errors 400, 401, 403, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Thông báo demo\",\n  \"content\": \"Vui lòng mở ứng dụng để kiểm tra.\",\n  \"targets\": [\n    {\n      \"type\": \"USER\",\n      \"userIds\": [\n        \"{{targetUserId}}\"\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('notificationKey')) pm.collectionVariables.set('notificationKey', pm.variables.replaceIn('{{$guid}}')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('notificationId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/notifications/{notificationId}/publish",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/{{notificationId}}/publish",
+            "description": "Đưa draft vào outbox\nPermission: WEB_NOTIFICATIONS: kiểm tra từng quyền gửi của target đã lưu; SCHEDULE nếu có lịch\nPath notificationId BIGINT.\nKhông fanout đồng bộ HTTP. Không publish source nội bộ qua API này.\nExpected 202; errors 401, 403, 404, 409, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/notifications/{notificationId}/cancel",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/{{notificationId}}/cancel",
+            "description": "Hủy trước phát hành\nPermission: WEB_NOTIFICATIONS / CANCEL\nPath notificationId BIGINT.\nChỉ DRAFT/SCHEDULED; PUBLISHED trả 409; cancel lặp idempotent.\nExpected 200; errors 401, 403, 404, 409, 500."
+          },
+          "response": []
+        }
+      ],
+      "description": "Existing async module. Run create → publish → wait for worker → inbox/count/read manually. Cancel a DRAFT/SCHEDULED before publication. Set notificationId before read requests."
+    },
+    {
+      "name": "Organization",
+      "item": [
+        {
+          "name": "POST /api/departments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/departments",
+            "description": "Tạo danh mục\nPermission: WEB_DEPARTMENTS / NEW\nBody DTO; ID/CreatedAt do server tạo.\nCode unique sau Trim; không rỗng; code<=20, name<=150, description<=500. Trả Location header.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentCode\": \"DEMO-D01\",\n  \"departmentName\": \"Demo Department\",\n  \"description\": \"Dữ liệu thử nghiệm\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('departmentId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/positions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/positions",
+            "description": "Tạo danh mục\nPermission: WEB_POSITIONS / NEW\nBody DTO; ID/CreatedAt do server tạo.\nCode unique sau Trim; không rỗng; code<=30, name<=150. Trả Location header.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"DEMO-P01\",\n  \"name\": \"Demo Position\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('positionId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/departments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/departments?page=1&pageSize=30",
+            "description": "Danh mục có phân trang\nPermission: WEB_DEPARTMENTS / VIEW\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query isActive nullable.\nDanh mục chung: không áp employee row scope. Query chỉ thu hẹp kết quả.\nExpected 200; errors 400, 401, 403, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/positions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/positions?page=1&pageSize=30",
+            "description": "Danh mục có phân trang\nPermission: WEB_POSITIONS / VIEW\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query isActive nullable.\nDanh mục chung: không áp employee row scope. Query chỉ thu hẹp kết quả.\nExpected 200; errors 400, 401, 403, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/departments/{departmentId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/departments/{{departmentId}}",
+            "description": "Chi tiết danh mục\nPermission: WEB_DEPARTMENTS / VIEW\nPath departmentId số nguyên dương.\nKhông tồn tại: 404.\nExpected 200; errors 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/positions/{positionId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/positions/{{positionId}}",
+            "description": "Chi tiết danh mục\nPermission: WEB_POSITIONS / VIEW\nPath positionId số nguyên dương.\nKhông tồn tại: 404.\nExpected 200; errors 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/departments/{departmentId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/departments/{{departmentId}}",
+            "description": "Cập nhật danh mục\nPermission: WEB_DEPARTMENTS / UPDATE\nPath departmentId; body DTO đầy đủ.\nCode unique sau Trim; không rỗng; code<=20, name<=150, description<=500. isActive=false dùng để ngừng sử dụng thay vì xóa danh mục đang tham chiếu.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentCode\": \"DEMO-D01\",\n  \"departmentName\": \"Demo Department\",\n  \"description\": \"Dữ liệu thử nghiệm\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/positions/{positionId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/positions/{{positionId}}",
+            "description": "Cập nhật danh mục\nPermission: WEB_POSITIONS / UPDATE\nPath positionId; body DTO đầy đủ.\nCode unique sau Trim; không rỗng; code<=30, name<=150. isActive=false dùng để ngừng sử dụng thay vì xóa danh mục đang tham chiếu.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"DEMO-P01\",\n  \"name\": \"Demo Position\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "POST /api/employees",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees",
+            "description": "Tạo hồ sơ nhân viên\nPermission: WEB_EMPLOYEES / NEW + ALL, hoặc DEPARTMENT đúng phòng ban\nBody departmentId phải là số nguyên.\nMã<=20/email<=255 unique; tên<=150/phone<=20; Department ACTIVE; hireDate bắt buộc; birth<=hireDate và không tương lai; status ACTIVE/INACTIVE/TERMINATED. SELF không được ghi.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\",\n  \"employeeCode\": \"DEMO-E01\",\n  \"hireDate\": \"2024-01-01\",\n  \"departmentId\": {{departmentId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('employeeId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/employees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees?page=1&pageSize=30",
+            "description": "Danh sách hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + SELF/DEPARTMENT/ALL\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query departmentId positive nullable; employmentStatus<=20.\nScope áp trước count/paging/search. Department query không mở rộng scope.\nExpected 200; errors 400, 401, 403, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/employees/{employeeId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+            "description": "Chi tiết hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId INT.\nNgoài scope hoặc không tồn tại: 404; không làm lộ danh sách user/auth.\nExpected 200; errors 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/employees/{employeeId}/history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/history?page=1&pageSize=30",
+            "description": "Xem lịch sử hồ sơ\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId; Query page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope.\nLịch sử được tạo qua nghiệp vụ chuyển phòng ban; không cho client ghi lại actor hoặc sửa/xóa lịch sử. Chưa gán chức danh vì Employee không có PositionId.\nExpected 200; errors 400, 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/employees/{employeeId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+            "description": "Cập nhật thông tin hồ sơ\nPermission: WEB_EMPLOYEES / UPDATE + ALL/DEPARTMENT\nPath employeeId; body DTO đầy đủ.\nKhông đổi employeeCode/hireDate/department qua endpoint này. Birth/email/length/status validation. PUT giống dữ liệu hiện tại không phát thêm audit/notification. Notification + audit cùng transaction.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/employees/{employeeId}/department",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/department",
+            "description": "Chuyển phòng ban, tạo lịch sử\nPermission: WEB_EMPLOYEES / UPDATE + ALL\nPath employeeId; body departmentId là số nguyên.\nPhòng đích ACTIVE và khác phòng hiện tại; effectiveDate từ hire/latest history đến hôm nay UTC; không lên lịch tương lai. Actor từ JWT. Employee/History/Audit/Notification/Outbox commit hoặc rollback cùng nhau.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": {{otherDepartmentId}},\n  \"effectiveDate\": \"2026-10-24\",\n  \"reason\": \"Điều chuyển thử nghiệm\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Contracts",
+      "item": [
+        {
+          "name": "POST /api/employees/{employeeId}/contracts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts",
+            "description": "Tạo hồ sơ hợp đồng\nPermission: WEB_CONTRACTS / NEW + ALL/DEPARTMENT\nPath employeeId; không nhận employeeId khác trong body.\nNo<=50 unique; type<=30; start>=hireDate; end>=start; status allowlist; ACTIVE chứa hôm nay và không trùng khoảng ACTIVE khác. HTTPS attachment<=500, không có credentials, server không fetch URL. Audit/notification atomic.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contractNo\": \"DEMO-C01\",\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('contractId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/employees/{employeeId}/contracts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts?page=1&pageSize=30",
+            "description": "Danh sách hợp đồng nhân viên\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId; Query page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope.\nKhông truy vấn hợp đồng nhân viên ngoài scope. search chỉ theo contractNo.\nExpected 200; errors 400, 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/employees/{employeeId}/contracts/{contractId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts/{{contractId}}",
+            "description": "Chi tiết hợp đồng\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId INT, contractId BIGINT.\nContract phải thuộc đúng employeeId; mismatch/outside scope trả 404.\nExpected 200; errors 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/employees/{employeeId}/contracts/{contractId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts/{{contractId}}",
+            "description": "Sửa hợp đồng / chuyển trạng thái\nPermission: WEB_CONTRACTS / UPDATE + ALL/DEPARTMENT\nPath employeeId, contractId; body DTO đầy đủ.\nGiữ quy tắc tạo. ACTIVE chỉ giữ ACTIVE hoặc sang EXPIRED/TERMINATED; đóng cần endDate<=hôm nay; bản ghi đóng immutable, PUT dữ liệu giống hệt vẫn 200 không tạo event trùng. Không có DELETE hợp đồng.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contractNo\": \"DEMO-C01\",\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cleanup — manual demo data only",
+      "item": [
+        {
+          "name": "DELETE /api/departments/{departmentId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/departments/{{departmentId}}",
+            "description": "Xóa danh mục chưa được sử dụng\nPermission: WEB_DEPARTMENTS / DELETE\nPath departmentId.\nChặn 409 nếu Department có Employee/History hoặc Position có History; FK RESTRICT bảo vệ thêm khi race.\nExpected 204; errors 400, 401, 403, 404, 409, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/positions/{positionId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/positions/{{positionId}}",
+            "description": "Xóa danh mục chưa được sử dụng\nPermission: WEB_POSITIONS / DELETE\nPath positionId.\nChặn 409 nếu Department có Employee/History hoặc Position có History; FK RESTRICT bảo vệ thêm khi race.\nExpected 204; errors 400, 401, 403, 404, 409, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/employees/{employeeId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+            "description": "Ngừng hoạt động hồ sơ (soft deactivation)\nPermission: WEB_EMPLOYEES / DELETE + ALL/DEPARTMENT\nPath employeeId.\nĐặt INACTIVE; không xóa row/contract/history. Không đổi tài khoản Auth hoặc tự kết thúc hợp đồng. TERMINATED trả 409; lặp INACTIVE không tạo event trùng.\nExpected 204; errors 400, 401, 403, 404, 409, 500."
+          },
+          "response": []
+        }
+      ],
+      "description": "Manual cleanup only. DELETE Employee means INACTIVE; Department/Position referenced by Employee/History returns 409. Never run writes on Railway without approval."
+    }
+  ]
+}
