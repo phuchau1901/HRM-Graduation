@@ -217,7 +217,7 @@ internal sealed class AuthorizationTestContext(DbContextOptions<AppDbContext> op
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-        var keep = new[] { typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction), typeof(HRM.API.Modules.Organization.Entities.Position),
+        var keep = new[] { typeof(HRM.API.Modules.Auth.Entities.RefreshToken), typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction), typeof(HRM.API.Modules.Organization.Entities.Position),
             typeof(HRM.API.Modules.Employees.Entities.EmployeeHistory), typeof(HRM.API.Modules.Employees.Entities.Contract),
             typeof(HRM.API.Modules.Employees.Entities.Employee), typeof(HRM.API.Modules.System.Entities.Notification),
             typeof(HRM.API.Modules.System.Entities.AuditLog), typeof(HRM.API.Modules.Notifications.Entities.NotificationTarget),

@@ -6,7 +6,7 @@ namespace HRM.API.Modules.Auth.Services;
 
 public enum LoginStatus { Success, InvalidCredentials, RateLimited }
 // Return only authentication identity; never expose credential fields or issue replacement JWTs here.
-public sealed record LoginResult(LoginStatus Status, string? UserId = null);
+public sealed record LoginResult(LoginStatus Status, string? UserId = null, long AuthVersion = 0);
 
 public sealed class AuthService(AppDbContext db, PasswordService passwords,
     LoginRateLimiter limiter, IHttpContextAccessor httpContextAccessor)
@@ -42,7 +42,7 @@ public sealed class AuthService(AppDbContext db, PasswordService passwords,
                     .SetProperty(x => x.Salt, credentials.Salt), ct);
             if (updated != 1) return new(LoginStatus.InvalidCredentials);
         }
-        return new(LoginStatus.Success, user.UserId);
+        return new(LoginStatus.Success, user.UserId, user.AuthVersion);
     }
 
     /// <summary>Server-side creation primitive. The caller must authorize account creation.</summary>
@@ -72,7 +72,7 @@ public sealed class AuthService(AppDbContext db, PasswordService passwords,
         var credentials = passwords.Hash(newPassword);
         return await db.Set<User>().Where(x => x.UserId == userId && x.PasswordHash == user.PasswordHash && x.Salt == user.Salt && x.Status == "ACTIVE")
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.PasswordHash, credentials.PasswordHash)
-                .SetProperty(x => x.Salt, credentials.Salt), ct) == 1;
+                .SetProperty(x => x.Salt, credentials.Salt).SetProperty(x => x.AuthVersion, x => x.AuthVersion + 1), ct) == 1;
     }
 
     /// <summary>Trusted primitive ONLY: caller must validate a single-use reset token or administrator permission.
@@ -82,6 +82,6 @@ public sealed class AuthService(AppDbContext db, PasswordService passwords,
         var credentials = passwords.Hash(newPassword);
         return await db.Set<User>().Where(x => x.UserId == userId && x.Status == "ACTIVE")
             .ExecuteUpdateAsync(set => set.SetProperty(x => x.PasswordHash, credentials.PasswordHash)
-                .SetProperty(x => x.Salt, credentials.Salt), ct) == 1;
+                .SetProperty(x => x.Salt, credentials.Salt).SetProperty(x => x.AuthVersion, x => x.AuthVersion + 1), ct) == 1;
     }
 }

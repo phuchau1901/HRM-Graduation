@@ -19,6 +19,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
 
         entity.Property(x => x.Status).HasColumnName("status").HasColumnType("varchar(20)").HasMaxLength(20).IsRequired().HasDefaultValue("ACTIVE");
         entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime(6)").IsRequired();
+        entity.Property(x => x.AuthVersion).HasColumnName("auth_version").HasColumnType("bigint").HasDefaultValue(0L).IsRequired();
         entity.HasIndex(x => new { x.EmployeeId }).HasDatabaseName("uq_users_employee_id").IsUnique();
         entity.HasIndex(x => new { x.Email }).HasDatabaseName("uq_users_email").IsUnique();
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_users_employee_id");

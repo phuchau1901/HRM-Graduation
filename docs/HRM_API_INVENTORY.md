@@ -1,3 +1,35 @@
+# API Inventory — cập nhật 2026-10-26
+
+Audit source trước đợt Administration: 31 REST endpoints, Auth/Notification/Organization/Employees đã triển khai; chưa có Controller quản trị Screens/Users/Roles/matrix. Sau đợt này: **52 REST endpoints**, route/method unique được kiểm tra automated, thêm21 quản trị. IMPLEMENTED nghĩa source + test cục bộ, chưa deploy hoặc cấp quyền Railway.
+
+| Endpoint mới | Trạng thái | ScreenPermission |
+| --- | --- | --- |
+| GET /api/screens?platform=WEB&page=1&pageSize=30 | IMPLEMENTED | WEB_PERMISSIONS/VIEW |
+| GET /api/screens/{screenId} | IMPLEMENTED | WEB_PERMISSIONS/VIEW |
+| POST /api/screens | IMPLEMENTED | WEB_PERMISSIONS/NEW |
+| PUT /api/screens/{screenId} | IMPLEMENTED | WEB_PERMISSIONS/UPDATE |
+| PATCH /api/screens/{screenId}/status | IMPLEMENTED | WEB_PERMISSIONS/UPDATE |
+| GET /api/users?page=1&pageSize=30 | IMPLEMENTED | WEB_USERS/VIEW |
+| GET /api/users/{targetUserId} | IMPLEMENTED | WEB_USERS/VIEW |
+| POST /api/users | IMPLEMENTED | WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds |
+| PUT /api/users/{targetUserId} | IMPLEMENTED | WEB_USERS/UPDATE |
+| PATCH /api/users/{targetUserId}/status | IMPLEMENTED | WEB_USERS/UPDATE |
+| POST /api/users/{targetUserId}/reset-password | IMPLEMENTED | WEB_USERS/APPROVE |
+| PUT /api/users/{targetUserId}/roles | IMPLEMENTED | WEB_USERS/APPROVE |
+| GET /api/roles?page=1&pageSize=30 | IMPLEMENTED | WEB_ROLES/VIEW |
+| GET /api/roles/{roleId} | IMPLEMENTED | WEB_ROLES/VIEW |
+| POST /api/roles | IMPLEMENTED | WEB_ROLES/NEW |
+| PUT /api/roles/{roleId} | IMPLEMENTED | WEB_ROLES/UPDATE |
+| DELETE /api/roles/{roleId} | IMPLEMENTED | WEB_ROLES/DELETE |
+| GET /api/roles/{roleId}/users?page=1&pageSize=30 | IMPLEMENTED | WEB_ROLES/VIEW AND WEB_USERS/VIEW |
+| GET /api/roles/{roleId}/permissions | IMPLEMENTED | WEB_PERMISSIONS/VIEW |
+| PUT /api/roles/{roleId}/permissions | IMPLEMENTED | WEB_PERMISSIONS/UPDATE AND WEB_PERMISSIONS/APPROVE |
+| GET /api/authorization/actions | IMPLEMENTED | WEB_PERMISSIONS/VIEW |
+
+Migration cần duyệt: `20261026065757_AddUserAuthVersion` chỉ thêm `users.auth_version`; SQL [administration-auth-version-migration.sql](administration-auth-version-migration.sql). Bootstrap/grants, rủi ro và kiểm thử: [HRM_ADMINISTRATION_REVIEW.md](HRM_ADMINISTRATION_REVIEW.md). Attendance/Leave/Payroll/Performance/Dashboard vẫn MISSING; Data Scope admin configuration API/MFA/two-person workflow vẫn MISSING. Không thay thế Employee Data Scope hiện có.
+
+Phần dưới là lịch sử audit 2026-10-24, số lượng/trạng thái tại thời điểm đó.
+
 # API Inventory — audit trước triển khai (2026-10-24)
 
 Đã quét toàn bộ source HRM.API, không tính bin/obj, bản backup migration, wwwroot demo hoặc test-only controller. Chỉ tìm thấy 3 controller production, 11 REST endpoint và 1 SignalR hub. Entity/configuration không được tính là API đã triển khai.

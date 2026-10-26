@@ -13,4 +13,6 @@ public class User
     public string? Salt { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    [global::System.Text.Json.Serialization.JsonIgnore]
+    public long AuthVersion { get; set; }
 }

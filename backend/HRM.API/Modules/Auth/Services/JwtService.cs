@@ -22,7 +22,7 @@ public sealed class JwtOptions
 
 public sealed class JwtService(IOptions<JwtOptions> options)
 {
-    public LoginResponse Issue(AuthProfileDto profile, Dictionary<string, string[]> permissions)
+    public LoginResponse Issue(AuthProfileDto profile, Dictionary<string, string[]> permissions, long authVersion = 0)
     {
         var config = options.Value;
         var now = DateTime.UtcNow;
@@ -36,6 +36,7 @@ public sealed class JwtService(IOptions<JwtOptions> options)
         };
         claims.Add(new Claim(HRM.API.Security.JwtPermissions.ClaimType, global::System.Text.Json.JsonSerializer.Serialize(permissions)));
         claims.Add(new Claim("hrm_pv", "1"));
+        claims.Add(new Claim("av", authVersion.ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64));
         claims.AddRange(profile.Roles.Select(r => new Claim("role", r.Code)));
         var token = new JwtSecurityToken(config.Issuer, config.Audience, claims, now, expires,
             new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config.SigningKey)), SecurityAlgorithms.HmacSha256));

@@ -30,7 +30,7 @@ public sealed class AuthController(AuthService auth, AuthProfileService profiles
         }
         if (result.Status != LoginStatus.Success || result.UserId is null) return InvalidCredentials();
         var profile = await profiles.GetAsync(result.UserId, ct);
-        return profile is null ? InvalidCredentials() : Ok(jwt.Issue(profile, await permissions.GetSnapshotAsync(result.UserId, ct)));
+        return profile is null ? InvalidCredentials() : Ok(jwt.Issue(profile, await permissions.GetSnapshotAsync(result.UserId, ct), result.AuthVersion));
     }
 
     [Authorize]

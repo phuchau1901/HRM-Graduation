@@ -14,14 +14,14 @@ namespace HRM.API.Tests;
 
 public sealed class AuthSeederTests
 {
-    private static readonly string[] Names = ["admin", "hr01", "manager01", "employee01", "employee02"];
+    private static readonly string[] Names = ["admin"];
     private static IConfiguration Secrets() => new ConfigurationBuilder().AddInMemoryCollection(Names.ToDictionary(
         x => $"AuthSeed:Passwords:{x}", _ => (string?)Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)))).Build();
     private static IConfiguration Settings(bool enabled) => new ConfigurationBuilder().AddInMemoryCollection(
         new Dictionary<string, string?> { ["AuthSeed:Enabled"] = enabled.ToString() }).Build();
 
     [Fact]
-    public async Task SeedCreatesDemoAccountsAndNeverRestoresEditedPasswordsRolesOrPermissions()
+    public async Task SeedCreatesConfiguredAdminAndNeverRestoresEditedPasswordsRolesOrPermissions()
     {
         using var connection = new SqliteConnection("Data Source=:memory:"); await connection.OpenAsync();
         await using var db = new AuthorizationTestContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options);
@@ -29,8 +29,10 @@ public sealed class AuthSeederTests
         var passwords = new PasswordService(); var secrets = Secrets();
         var seeder = new AuthSeeder(db, passwords, new TestEnvironment("Development"), Settings(true));
         await seeder.SeedAsync(secrets);
-        Assert.Equal(4, await db.Set<Role>().CountAsync()); Assert.Equal(5, await db.Set<User>().CountAsync());
-        Assert.Equal(5, await db.Set<UserRole>().CountAsync());
+        Assert.Equal(1, await db.Set<Role>().CountAsync()); Assert.Equal(1, await db.Set<User>().CountAsync());
+        Assert.Equal(1, await db.Set<UserRole>().CountAsync());
+        Assert.Equal("admin", (await db.Set<User>().SingleAsync()).UserId);
+        Assert.Equal("ADMIN", (await db.Set<Role>().SingleAsync()).Code);
         foreach (var u in await db.Set<User>().AsNoTracking().ToListAsync())
             Assert.Equal(PasswordCheck.Success, passwords.Verify(secrets[$"AuthSeed:Passwords:{u.UserId}"], u.PasswordHash, u.Salt));
         var admin = await db.Set<User>().SingleAsync(x => x.UserId == "admin");
@@ -41,7 +43,7 @@ public sealed class AuthSeederTests
         db.Add(new RoleDetail { RoleID = role.ID, ScreenID = screen.ID, CanView = "N", CanDelete = "Y" });
         db.RemoveRange(await db.Set<UserRole>().Where(x => x.UserID == admin.UserId).ToListAsync()); await db.SaveChangesAsync();
         await seeder.SeedAsync(new ConfigurationBuilder().Build()); // Existing accounts no longer need seed passwords.
-        Assert.Equal(5, await db.Set<User>().CountAsync()); Assert.Equal(4, await db.Set<Role>().CountAsync());
+        Assert.Equal(1, await db.Set<User>().CountAsync()); Assert.Equal(1, await db.Set<Role>().CountAsync());
         Assert.False(await db.Set<UserRole>().AnyAsync(x => x.UserID == admin.UserId));
         Assert.Equal(edited.PasswordHash, (await db.Set<User>().AsNoTracking().SingleAsync(x => x.UserId == admin.UserId)).PasswordHash);
         Assert.Equal("Edited role name", (await db.Set<Role>().AsNoTracking().SingleAsync(x => x.ID == role.ID)).Name);

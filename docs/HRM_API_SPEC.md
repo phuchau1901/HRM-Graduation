@@ -1,6 +1,6 @@
-# HRM API Specification — Organization và Employees (2026-10-24)
+# HRM API Specification — cập nhật Administration 2026-10-26
 
-Kết quả audit ban đầu: [HRM_API_INVENTORY.md](HRM_API_INVENTORY.md). Spec này mô tả **31 REST endpoint thực tế** sau đợt đầu; không mô tả endpoint tưởng tượng cho module chưa triển khai. Auth/Notification được giữ nguyên và chỉ tích hợp service có sẵn.
+Kết quả audit ban đầu: [HRM_API_INVENTORY.md](HRM_API_INVENTORY.md). Spec này mô tả **31 REST endpoint thực tế** sau đợt đầu (52 sau phần Administration bổ sung cuối tài liệu); không mô tả endpoint tưởng tượng cho module chưa triển khai. Auth/Notification được giữ nguyên và chỉ tích hợp service có sẵn.
 
 ## Quy ước
 
@@ -1087,3 +1087,679 @@ Build/test và danh sách file xem báo cáo bàn giao; automated test dùng Tes
 File sửa: Program.cs (DI của module mới), DepartmentsController.cs hiện có, AuthenticationApiTests.cs (fixture cho entity/scope/fault injection mới). File tạo: Common/BusinessApi.cs; Organization/DTOs/OrganizationDtos.cs, Services/OrganizationService.cs, Controllers/PositionsController.cs; Employees/DTOs/EmployeeDtos.cs, Services/EmployeeDataScope.cs, EmployeeService.cs, Controllers/EmployeesController.cs, EmployeeContractsController.cs; Tests OrganizationApiTests.cs, EmployeeApiTests.cs, ApiInventoryTests.cs; ba tài liệu/collection HRM_API_INVENTORY.md, HRM_API_SPEC.md, HRM-API.postman_collection.json. Prefix runtime là backend/HRM.API/Modules; Common ở backend/HRM.API/Common; tests ở backend/HRM.API.Tests.
 
 Auth, JWT, RBAC, Notification runtime, các Entity/Configuration và Migrations được giữ nguyên. Backup trước sửa: /private/tmp/hrm-org-employees/before.tar.gz.
+
+## System Administration — 2026-10-26
+
+21 endpoint mới dưới đây được triển khai trong module Authorization; tổng production hiện **52 REST endpoints + 1 SignalR hub**. Không tạo lại Login, Notification, User/Role/Screen hoặc DTO nghiệp vụ cũ. Catalog DEV được đọc qua SELECT ngày 2026-10-26: `WEB_USERS` id8, `WEB_ROLES` id9, `WEB_PERMISSIONS` id10 đều ACTIVE/WEB; không có WEB_SCREENS. Screens API và action catalog dùng WEB_PERMISSIONS, không giả định mã mới. Đọc catalog không phải xác nhận đã cấp grant hoặc đã deploy.
+
+### Quy ước bảo mật quản trị
+
+- Mọi API yêu cầu JWT hợp lệ, User ACTIVE và ScreenPermission. Đọc/ghi quản trị kiểm tra grant DB mới nhất thêm vào snapshot JWT. Không có quyền ngầm từ Role name. Metadata tài khoản là scope quản trị global được cấp qua WEB_USERS/VIEW; không trả dữ liệu Employee ngoài EmployeeId. Scope SELF/DEPARTMENT/ALL của API Employee giữ nguyên.
+- PUT/PATCH/DELETE/reset/gán Role bắt buộc header `If-Match: "<version từ GET>"`. GET detail, create và update trả ETag và `version`; thiếu header428, khác412; wildcard/weak/multiple ETag không được chấp nhận. Đọc lại detail sau khi membership/matrix thay đổi. Body quản trị giới hạn64KiB; pageSize<=100.
+- Mọi mutation trong Serializable transaction, khóa cùng row catalog WEB_PERMISSIONS trước khi đọc quyền/check ETag; audit và dữ liệu cùng commit. User/Role đích không được có quyền vượt quyền DB hiện tại của actor. Không tự gán Role, reset chính mình hoặc sửa matrix của Role gán cho mình. Tạo Role không tạo grant.
+- Giữ ít nhất một User ACTIVE có credential, với union grant `WEB_USERS: VIEW UPDATE APPROVE`, `WEB_ROLES: VIEW UPDATE`, `WEB_PERMISSIONS: VIEW UPDATE APPROVE` trên screen ACTIVE. Chặn cả việc mất quyền gián tiếp qua status/screen. Không suy quyền từ tên ADMIN. Bootstrap ngoài API phải do operator khác phê duyệt; không chạy seed/grant tự động.
+- Reset yêu cầu WEB_USERS/APPROVE và **mật khẩu hiện tại của actor** trong currentPassword; 5 lần/phút/actor; không tự reset; target phải trong authority actor. Không có cơ chế MFA/two-person workflow sẵn có trong source; reauthentication + explicit grant là policy hiện tại. Mật khẩu mới chỉ truyền HTTPS, không trả/audit/log/Notification. Không có forced-first-login schema trong lần này; nếu tổ chức yêu cầu MFA hoặc forced change cần phê duyệt thêm thiết kế.
+- Migration cần duyệt `20261026065757_AddUserAuthVersion`: chỉ `users.auth_version BIGINT NOT NULL DEFAULT 0`. Chưa áp dụng. Phải apply được duyệt trước khi chạy binary mới; phiên bản source mới đọc cột này cả khi Login/validate JWT. Không chạy code mới trên DB chưa có cột.
+- JWT mới thêm claim nội bộ `av`; JSON Login và /me không đổi. Middleware đối chiếu auth_version với DB mỗi request. User status/profile/roles/reset; Role metadata/matrix; Screen edits đều tăng version user bị ảnh hưởng và revoke RefreshToken. Token cũ trả401 ở request kế tiếp, cần login lại để lấy quyền mới. Token legacy không av chỉ dùng khi version=0. Ghi grant trực tiếp bằng SQL ngoài API không tăng version: snapshot business cũ còn hiệu lực tối đa thời hạnJWT15phút; operator cần quy trình bump version/revoke được duyệt. Admin APIs vẫn kiểm tra live grants.
+- SignalR dùng group server theo canonical UserId + session version; transport chỉ gửi vào version hiện hành, payload notification.available giữ nguyên. Socket cũ có thể còn kết nối nhưng không nhận thông báo mới sau revoke; reconnect bằng token mới và đồng bộ API. Durable Notification/outbox không đổi.
+- Lỗi model400 problem+json; nghiệp vụ `{success:false,code,error,message,traceId}`; 401/403 chung; HRM_ADMIN_403; 404; 409 unique/reference/last-admin; HRM_ADMIN_428/412; reset429; payload quá lớn413; sự cố DB500. Không trả SQL/secret.
+
+### Endpoint chi tiết
+
+#### GET /api/screens?platform=WEB&page=1&pageSize=30
+
+Catalog toàn bộ màn hình ACTIVE.
+
+- ScreenPermission: `WEB_PERMISSIONS/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: platform optional WEB|MOBILE, page>=1, pageSize 1..100, search<=150.
+- Validation/nghiệp vụ: Không lọc theo grant màn hình của User; bỏ platform lấy WEB và MOBILE; luôn is_active=true.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 401/403; WEB/MOBILE; bỏ platform; inactive bị loại; pageSize=101 trả 400.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "success": true,
+  "total": 1,
+  "page": 1,
+  "pageSize": 30,
+  "data": [
+    {
+      "id": 40,
+      "code": "WEB_EXAMPLE",
+      "name": "Example",
+      "platform": "WEB",
+      "icon": null,
+      "isActive": true,
+      "version": "VERSION_64_HEX_FROM_GET"
+    }
+  ]
+}
+```
+
+#### GET /api/screens/{screenId}
+
+Chi tiết màn hình kể cả inactive.
+
+- ScreenPermission: `WEB_PERMISSIONS/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: screenId: long.
+- Validation/nghiệp vụ: 404 khi không tồn tại; trả ETag.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: GET lấy version trước sửa; id không tồn tại 404.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "id": 40,
+  "code": "WEB_EXAMPLE",
+  "name": "Example",
+  "platform": "WEB",
+  "icon": null,
+  "isActive": true,
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### POST /api/screens
+
+Tạo catalog entry.
+
+- ScreenPermission: `WEB_PERMISSIONS/NEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: Không có.
+- Validation/nghiệp vụ: Code unique, max100, uppercase [A-Z][A-Z0-9_]*; Name200; Icon100; WEB/MOBILE. Không tự tạo grant.
+- Success: `201`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 201; code trùng 409; platform sai 400.
+
+Request body:
+```json
+{
+  "code": "WEB_EXAMPLE",
+  "name": "Example",
+  "platform": "WEB",
+  "icon": null,
+  "isActive": true
+}
+```
+
+Response thành công:
+```json
+{
+  "id": 40,
+  "code": "WEB_EXAMPLE",
+  "name": "Example",
+  "platform": "WEB",
+  "icon": null,
+  "isActive": true,
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### PUT /api/screens/{screenId}
+
+Sửa catalog entry.
+
+- ScreenPermission: `WEB_PERMISSIONS/UPDATE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: screenId; If-Match.
+- Validation/nghiệp vụ: Không đổi code/platform của màn hình có Role tham chiếu hoặc 3 mã bootstrap. Kích hoạt không được hồi sinh quyền vượt người thao tác.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 428 thiếu If-Match; 412 version cũ; rename màn hình referenced 409.
+
+Request body:
+```json
+{
+  "code": "WEB_EXAMPLE",
+  "name": "Updated example",
+  "platform": "WEB",
+  "icon": null,
+  "isActive": true
+}
+```
+
+Response thành công:
+```json
+{
+  "id": 40,
+  "code": "WEB_EXAMPLE",
+  "name": "Updated example",
+  "platform": "WEB",
+  "icon": null,
+  "isActive": true,
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### PATCH /api/screens/{screenId}/status
+
+Bật/tắt màn hình.
+
+- ScreenPermission: `WEB_PERMISSIONS/UPDATE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: screenId; If-Match.
+- Validation/nghiệp vụ: Không xóa cứng; chặn mất quản trị cuối cùng và kích hoạt dormant grants vượt quyền; thu hồi phiên user chịu ảnh hưởng.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Tắt entry thường OK; tắt WEB_PERMISSIONS 409; dormant privilege escalation 403.
+
+Request body:
+```json
+{
+  "isActive": false
+}
+```
+
+Response thành công:
+```json
+{
+  "id": 40,
+  "code": "WEB_EXAMPLE",
+  "name": "Example",
+  "platform": "WEB",
+  "icon": null,
+  "isActive": false,
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### GET /api/users?page=1&pageSize=30
+
+Danh sách metadata tài khoản.
+
+- ScreenPermission: `WEB_USERS/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: page, pageSize, search (UserId/email).
+- Validation/nghiệp vụ: Toàn cục theo quyền quản trị; không trả employee PII, hash, salt, password, authVersion.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 401/403; phân trang; không có trường bí mật.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "success": true,
+  "total": 1,
+  "page": 1,
+  "pageSize": 30,
+  "data": [
+    {
+      "userId": "new.account",
+      "email": "new.account@example.invalid",
+      "employeeId": null,
+      "status": "ACTIVE",
+      "createdAt": "2026-10-26T00:00:00Z",
+      "roles": [],
+      "version": "VERSION_64_HEX_FROM_GET"
+    }
+  ]
+}
+```
+
+#### GET /api/users/{targetUserId}
+
+Chi tiết metadata và Role.
+
+- ScreenPermission: `WEB_USERS/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: targetUserId: string<=100.
+- Validation/nghiệp vụ: Chỉ các trường DTO; UserId giữ nguyên dạng chuỗi; ETag bao gồm auth version nội bộ.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 404; ETag; không hash/salt.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "userId": "new.account",
+  "email": "new.account@example.invalid",
+  "employeeId": null,
+  "status": "ACTIVE",
+  "createdAt": "2026-10-26T00:00:00Z",
+  "roles": [],
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### POST /api/users
+
+Tạo tài khoản quản trị nội bộ.
+
+- ScreenPermission: `WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: Không có.
+- Validation/nghiệp vụ: UserId string max100, [A-Za-z0-9][A-Za-z0-9_.-]*; email255 unique; Employee tồn tại, chưa gán account; Role hợp lệ không trùng; password12..128, không blank; dùng PasswordService random salt32 PBKDF2. Role chỉ được gán trong quyền hiện có của actor.
+- Success: `201`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 201; ID/email trùng409; employee/Role sai400; vượt quyền403; không password trong response/audit.
+
+Request body:
+```json
+{
+  "userId": "{{newUserId}}",
+  "email": "new.account@example.invalid",
+  "password": "{{newPassword}}",
+  "employeeId": null,
+  "roleIds": []
+}
+```
+
+Response thành công:
+```json
+{
+  "userId": "new.account",
+  "email": "new.account@example.invalid",
+  "employeeId": null,
+  "status": "ACTIVE",
+  "createdAt": "2026-10-26T00:00:00Z",
+  "roles": [],
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### PUT /api/users/{targetUserId}
+
+Sửa email/liên kết nhân viên.
+
+- ScreenPermission: `WEB_USERS/UPDATE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: targetUserId; If-Match.
+- Validation/nghiệp vụ: Không đổi UserId qua body; email và employee unique; chặn takeover tài khoản có quyền vượt actor; thu hồi phiên.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Email trùng409; employee sai400; stale412; tài khoản đặc quyền cao hơn403.
+
+Request body:
+```json
+{
+  "email": "updated@example.invalid",
+  "employeeId": null
+}
+```
+
+Response thành công:
+```json
+{
+  "userId": "new.account",
+  "email": "updated@example.invalid",
+  "employeeId": null,
+  "status": "ACTIVE",
+  "createdAt": "2026-10-26T00:00:00Z",
+  "roles": [],
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### PATCH /api/users/{targetUserId}/status
+
+Thay trạng thái tài khoản.
+
+- ScreenPermission: `WEB_USERS/UPDATE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: targetUserId; If-Match.
+- Validation/nghiệp vụ: ACTIVE|LOCKED|INACTIVE; không khóa tài khoản quản trị cuối cùng; revoke access/refresh token.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Root cuối409; khóa user thường200; token cũ401.
+
+Request body:
+```json
+{
+  "status": "LOCKED"
+}
+```
+
+Response thành công:
+```json
+{
+  "userId": "new.account",
+  "email": "new.account@example.invalid",
+  "employeeId": null,
+  "status": "LOCKED",
+  "createdAt": "2026-10-26T00:00:00Z",
+  "roles": [],
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### POST /api/users/{targetUserId}/reset-password
+
+Reset bởi quản trị viên đã xác thực lại.
+
+- ScreenPermission: `WEB_USERS/APPROVE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: targetUserId; If-Match.
+- Validation/nghiệp vụ: currentPassword là mật khẩu hiện tại của ACTOR, không phải của target; từ chối tự reset, sai xác thực và target vượt quyền; 5 lần/phút/actor; newPassword12..128; audit không chứa credential; revoke access và refresh; không Notification mật khẩu. Không tự tạo mật khẩu.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Sai reauth403; thiếu quyền403; lần6=429; thành công200; token cũ401; password cũ login401.
+
+Request body:
+```json
+{
+  "currentPassword": "{{reauthPassword}}",
+  "newPassword": "{{newPassword}}"
+}
+```
+
+Response thành công:
+```json
+{
+  "userId": "new.account",
+  "email": "new.account@example.invalid",
+  "employeeId": null,
+  "status": "ACTIVE",
+  "createdAt": "2026-10-26T00:00:00Z",
+  "roles": [],
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### PUT /api/users/{targetUserId}/roles
+
+Thay toàn bộ Role assignments.
+
+- ScreenPermission: `WEB_USERS/APPROVE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: targetUserId; If-Match.
+- Validation/nghiệp vụ: Role tồn tại, unique, positive; [] xóa membership; không sửa Role chính mình; cả quyền cũ của target và quyền mới phải nằm trong quyền actor; transaction/audit/revoke.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Role sai400; tự gán403; nâng quyền403; nhiều Role OR; token cũ401.
+
+Request body:
+```json
+{
+  "roleIds": [
+    "{{roleId}}"
+  ]
+}
+```
+
+Response thành công:
+```json
+{
+  "userId": "new.account",
+  "email": "new.account@example.invalid",
+  "employeeId": null,
+  "status": "ACTIVE",
+  "createdAt": "2026-10-26T00:00:00Z",
+  "roles": [
+    {
+      "id": 5,
+      "code": "REVIEWED_ROLE",
+      "name": "Reviewed role"
+    }
+  ],
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### GET /api/roles?page=1&pageSize=30
+
+Danh sách Role.
+
+- ScreenPermission: `WEB_ROLES/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: page, pageSize, search (code/name).
+- Validation/nghiệp vụ: Không hardcode quyền từ tên ADMIN/ALLROLL.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Phân trang; 401/403.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "success": true,
+  "total": 1,
+  "page": 1,
+  "pageSize": 30,
+  "data": [
+    {
+      "id": 5,
+      "code": "REVIEWED_ROLE",
+      "name": "Reviewed role",
+      "version": "VERSION_64_HEX_FROM_GET"
+    }
+  ]
+}
+```
+
+#### GET /api/roles/{roleId}
+
+Chi tiết Role.
+
+- ScreenPermission: `WEB_ROLES/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: roleId: long.
+- Validation/nghiệp vụ: ETag gồm metadata, matrix và membership của Role.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 404; lấy ETag trước cập nhật.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "id": 5,
+  "code": "REVIEWED_ROLE",
+  "name": "Reviewed role",
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### POST /api/roles
+
+Tạo Role rỗng.
+
+- ScreenPermission: `WEB_ROLES/NEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: Không có.
+- Validation/nghiệp vụ: Code30 uppercase unique; Name100; không tự thêm quyền hoặc membership, kể cả code ADMIN.
+- Success: `201`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 201; code trùng409; Role mới không quyền.
+
+Request body:
+```json
+{
+  "code": "REVIEWED_ROLE",
+  "name": "Reviewed role"
+}
+```
+
+Response thành công:
+```json
+{
+  "id": 5,
+  "code": "REVIEWED_ROLE",
+  "name": "Reviewed role",
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### PUT /api/roles/{roleId}
+
+Sửa code/name Role.
+
+- ScreenPermission: `WEB_ROLES/UPDATE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: roleId; If-Match.
+- Validation/nghiệp vụ: Chỉ được quản trị Role có quyền nằm trong quyền actor; revoke phiên user thuộc Role. Không đổi grant.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 403 vượt quyền; 409 code trùng; 412 stale.
+
+Request body:
+```json
+{
+  "code": "REVIEWED_ROLE",
+  "name": "Updated role"
+}
+```
+
+Response thành công:
+```json
+{
+  "id": 5,
+  "code": "REVIEWED_ROLE",
+  "name": "Updated role",
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### DELETE /api/roles/{roleId}
+
+Xóa Role không còn tham chiếu.
+
+- ScreenPermission: `WEB_ROLES/DELETE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: roleId; If-Match.
+- Validation/nghiệp vụ: Phải gỡ UserRole, RoleDetail, RoleScreenAction tường minh trước; không cascade xóa âm thầm.
+- Success: `204`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 204 khi Role rỗng; 409 nếu còn grant/membership; 428/412.
+
+Request body: không có.
+
+Response thành công: 204, không body.
+
+#### GET /api/roles/{roleId}/users?page=1&pageSize=30
+
+Danh sách tài khoản của Role.
+
+- ScreenPermission: `WEB_ROLES/VIEW AND WEB_USERS/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: roleId; page, pageSize, search.
+- Validation/nghiệp vụ: Không lộ user metadata chỉ bằng quyền xem Role; cần cả WEB_USERS/VIEW.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Thiếu một trong hai grant403; Role không tồn tại404; phân trang.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "success": true,
+  "total": 1,
+  "page": 1,
+  "pageSize": 30,
+  "data": [
+    {
+      "userId": "new.account",
+      "email": "new.account@example.invalid",
+      "employeeId": null,
+      "status": "ACTIVE",
+      "createdAt": "2026-10-26T00:00:00Z",
+      "roles": [],
+      "version": "VERSION_64_HEX_FROM_GET"
+    }
+  ]
+}
+```
+
+#### GET /api/roles/{roleId}/permissions
+
+Đọc ma trận của Role.
+
+- ScreenPermission: `WEB_PERMISSIONS/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: roleId: long.
+- Validation/nghiệp vụ: Các Screen đã có RoleDetail/extended grant, gồm inactive; giữ đầy đủ extended actions; catalog toàn bộ đọc qua /api/screens; ETag chung aggregate Role.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Nhiều screen không trùng; Role rỗng screens[]; ETag.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "roleId": 5,
+  "screens": [
+    {
+      "screenId": 40,
+      "screenCode": "WEB_EXAMPLE",
+      "name": "Example",
+      "platform": "WEB",
+      "isActive": true,
+      "standard": {
+        "VIEW": true,
+        "NEW": false,
+        "UPDATE": false,
+        "DELETE": false,
+        "APPROVE": false,
+        "EXPORT": false
+      },
+      "extendedActions": []
+    }
+  ],
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### PUT /api/roles/{roleId}/permissions
+
+Patch các quyền đã được phê duyệt.
+
+- ScreenPermission: `WEB_PERMISSIONS/UPDATE AND WEB_PERMISSIONS/APPROVE`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: roleId; If-Match.
+- Validation/nghiệp vụ: Chỉ 6 standard action chính xác uppercase. Omit flag giữ giá trị cũ. Omit extendedActions giữ nguyên, [] gỡ các extended đã đăng ký cho screen đó; cung cấp array thay các extended đã đăng ký; action lạ đã lưu giữ nguyên/read-only. Screen không có trong request không đổi. Không sửa Role đang gán cho actor. Quyền cũ/mới không vượt actor; toàn bộ transaction; audit before/after; phiên user ảnh hưởng hết hiệu lực.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: 401/403; Screen/action sai400; request có screen trùng400; stale412; lỗi một mục rollback toàn bộ; không mất extended.
+
+Request body:
+```json
+{
+  "screens": [
+    {
+      "screenCode": "WEB_EXAMPLE",
+      "standard": {
+        "VIEW": true,
+        "NEW": false
+      },
+      "extendedActions": [
+        "SEND_USER"
+      ]
+    }
+  ]
+}
+```
+
+Response thành công:
+```json
+{
+  "roleId": 5,
+  "screens": [
+    {
+      "screenId": 40,
+      "screenCode": "WEB_EXAMPLE",
+      "name": "Example",
+      "platform": "WEB",
+      "isActive": true,
+      "standard": {
+        "VIEW": true,
+        "NEW": false,
+        "UPDATE": false,
+        "DELETE": false,
+        "APPROVE": false,
+        "EXPORT": false
+      },
+      "extendedActions": []
+    }
+  ],
+  "version": "VERSION_64_HEX_FROM_GET"
+}
+```
+
+#### GET /api/authorization/actions
+
+Catalog action được Backend cho phép.
+
+- ScreenPermission: `WEB_PERMISSIONS/VIEW`. Role: bất kỳ Role được cấp đúng grant; không mặc định ADMIN.
+- Parameters: Không có.
+- Validation/nghiệp vụ: Không nhận ActionCode mới tùy ý từ client. Mở rộng sau này phải thêm registry PermissionActions và kiểm thử handler/service trước khi cấp quyền.
+- Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
+- Test cases: Đủ6 standard+5 extended; 401/403.
+
+Request body: không có.
+
+Response thành công:
+```json
+{
+  "standard": [
+    "APPROVE",
+    "DELETE",
+    "EXPORT",
+    "NEW",
+    "UPDATE",
+    "VIEW"
+  ],
+  "extended": [
+    "CANCEL",
+    "SCHEDULE",
+    "SEND_ALL",
+    "SEND_GROUP",
+    "SEND_USER"
+  ]
+}
+```

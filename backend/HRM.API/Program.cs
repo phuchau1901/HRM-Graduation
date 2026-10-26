@@ -1,3 +1,5 @@
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using HRM.API.Modules.Notifications.Services;
 
 using HRM.API.Modules.Notifications.Realtime;
@@ -164,6 +166,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
 builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<AdministrationService>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("AdministrationReset", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    options.OnRejected = (context, _) => new ValueTask(ApiErrors.WriteAsync(context.HttpContext, 429,
+        "HRM_AUTH_005", "RATE_LIMITED", "Too many password reset attempts."));
+});
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, ScreenPermissionPolicyProvider>();
 
@@ -295,10 +306,11 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
 
                 var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
 
-                if (!await db.Set<User>().AsNoTracking().AnyAsync(x => x.UserId == sub && x.Status == "ACTIVE", context.HttpContext.RequestAborted))
-
+                var identity = await db.Set<User>().AsNoTracking()
+                    .Where(x => x.UserId == sub && x.Status == "ACTIVE")
+                    .Select(x => new { x.AuthVersion }).SingleOrDefaultAsync(context.HttpContext.RequestAborted);
+                if (identity is null || !AuthSessionVersion.Matches(context.Principal, identity.AuthVersion))
                     context.Fail("Invalid identity.");
-
                 else context.HttpContext.Items[ApiErrors.ValidatedUserItem] = sub;
 
             }
@@ -433,6 +445,7 @@ app.UseHttpsRedirection();
 app.UseAuthentication();
 
 app.UseAuthorization();
+app.UseRateLimiter();
 
 
 

@@ -25,7 +25,7 @@ public sealed class BusinessExceptionFilter : IExceptionFilter
             error = BusinessException.Conflict("A unique key or reference constraint prevents this operation.");
         if (error is null) return;
         context.Result = new ObjectResult(ApiErrors.Create(context.HttpContext, error.Code,
-            error.Status == 403 ? "DATA_SCOPE_DENIED" : "BUSINESS_ERROR", error.Message)) { StatusCode = error.Status };
+            error.Status == 403 ? (error.Code == "HRM_ADMIN_403" ? "PERMISSION_DENIED" : "DATA_SCOPE_DENIED") : "BUSINESS_ERROR", error.Message)) { StatusCode = error.Status };
         context.ExceptionHandled = true;
     }
 }

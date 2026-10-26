@@ -536,6 +536,12 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(100)")
                         .HasColumnName("user_id");
 
+                    b.Property<long>("AuthVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("auth_version");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("created_at");
