@@ -1,0 +1,1384 @@
+{
+  "info": {
+    "name": "HRM.API — Organization, Employees & System Administration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "52 source-backed REST requests. Administration requires reviewed grants and auth_version migration. No real secrets. Run mutations manually in approved environments."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "loginPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "targetUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "departmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "otherDepartmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "positionId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employeeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "contractId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "notificationKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "screenId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "roleId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "screenEtag",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userEtag",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "roleEtag",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "newUserId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "newPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reauthPassword",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /api/auth/login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Đăng nhập bằng UserId chuỗi, giữ alias username\nPermission: Anonymous; LoginRateLimiter\nBody userId hoặc username; password.\nKhông gửi hai alias khác tài khoản. Không ghi log password/token. Giữ PasswordService và JWT hiện tại.\nExpected 200; errors 400, 401, 429, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"password\": \"{{loginPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) { const b = pm.response.json(); if (b.accessToken) pm.collectionVariables.set('token', b.accessToken); if (!pm.collectionVariables.get('targetUserId') && b.user) pm.collectionVariables.set('targetUserId', b.user.userId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/auth/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "Profile hiện tại\nPermission: JWT + User ACTIVE\nKhông có query/path/body.\nKhông phụ thuộc quyền màn hình; giữ nguyên JSON.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/auth/me/permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me/permissions",
+            "description": "Danh sách màn hình xem được\nPermission: JWT + User ACTIVE\nKhông có query/path/body.\nOR nhiều Role, chỉ CanView=Y, không tự bypass ADMIN.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "GET /api/notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications?limit=30",
+            "description": "Inbox riêng của JWT sub\nPermission: JWT; recipient ownership\nQuery limit=30 (clamp 1–100), beforeId nullable (cursor ID).\nChỉ PUBLISHED và user hiện tại; không tin userId query. Offline đồng bộ API.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/notifications/unread-count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/unread-count",
+            "description": "Đếm chưa đọc\nPermission: JWT; recipient ownership\nKhông có query/path/body.\nChỉ thông báo đã phát hành của sub.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/notifications/{notificationId}/read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/{{notificationId}}/read",
+            "description": "Đánh dấu một thông báo\nPermission: JWT; recipient ownership\nPath notificationId BIGINT.\nIdempotent; non-recipient trả 404.\nExpected 204; errors 401, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/notifications/read-all",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/read-all",
+            "description": "Đánh dấu toàn bộ inbox hiện tại\nPermission: JWT; recipient ownership\nKhông có query/path/body.\nKhông thay đổi trạng thái đọc của user khác.\nExpected 200; errors 401, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/notifications/announcements",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{notificationKey}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/notifications/announcements",
+            "description": "Lưu announcement draft hoặc lịch\nPermission: WEB_NOTIFICATIONS: USER→SEND_USER; USERS/ROLE/DEPARTMENT/CUSTOM→SEND_GROUP; ALL→SEND_ALL; thêm SCHEDULE khi có scheduledAt\nHeader Idempotency-Key bắt buộc <=100 ký tự; scheduledAt UTC tương lai tùy chọn.\nTarget allowlist/OR/distinct, không SQL; cùng key khác payload 409. Worker xử lý sau. Xem NOTIFICATION_CENTER.md cho đầy đủ target.\nExpected 201; errors 400, 401, 403, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Thông báo demo\",\n  \"content\": \"Vui lòng mở ứng dụng để kiểm tra.\",\n  \"targets\": [\n    {\n      \"type\": \"USER\",\n      \"userIds\": [\n        \"{{targetUserId}}\"\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('notificationKey')) pm.collectionVariables.set('notificationKey', pm.variables.replaceIn('{{$guid}}')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('notificationId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/notifications/{notificationId}/publish",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/{{notificationId}}/publish",
+            "description": "Đưa draft vào outbox\nPermission: WEB_NOTIFICATIONS: kiểm tra từng quyền gửi của target đã lưu; SCHEDULE nếu có lịch\nPath notificationId BIGINT.\nKhông fanout đồng bộ HTTP. Không publish source nội bộ qua API này.\nExpected 202; errors 401, 403, 404, 409, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/notifications/{notificationId}/cancel",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/notifications/{{notificationId}}/cancel",
+            "description": "Hủy trước phát hành\nPermission: WEB_NOTIFICATIONS / CANCEL\nPath notificationId BIGINT.\nChỉ DRAFT/SCHEDULED; PUBLISHED trả 409; cancel lặp idempotent.\nExpected 200; errors 401, 403, 404, 409, 500."
+          },
+          "response": []
+        }
+      ],
+      "description": "Existing async module. Run create → publish → wait for worker → inbox/count/read manually. Cancel a DRAFT/SCHEDULED before publication. Set notificationId before read requests."
+    },
+    {
+      "name": "Organization",
+      "item": [
+        {
+          "name": "POST /api/departments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/departments",
+            "description": "Tạo danh mục\nPermission: WEB_DEPARTMENTS / NEW\nBody DTO; ID/CreatedAt do server tạo.\nCode unique sau Trim; không rỗng; code<=20, name<=150, description<=500. Trả Location header.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentCode\": \"DEMO-D01\",\n  \"departmentName\": \"Demo Department\",\n  \"description\": \"Dữ liệu thử nghiệm\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('departmentId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/positions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/positions",
+            "description": "Tạo danh mục\nPermission: WEB_POSITIONS / NEW\nBody DTO; ID/CreatedAt do server tạo.\nCode unique sau Trim; không rỗng; code<=30, name<=150. Trả Location header.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"DEMO-P01\",\n  \"name\": \"Demo Position\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('positionId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/departments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/departments?page=1&pageSize=30",
+            "description": "Danh mục có phân trang\nPermission: WEB_DEPARTMENTS / VIEW\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query isActive nullable.\nDanh mục chung: không áp employee row scope. Query chỉ thu hẹp kết quả.\nExpected 200; errors 400, 401, 403, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/positions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/positions?page=1&pageSize=30",
+            "description": "Danh mục có phân trang\nPermission: WEB_POSITIONS / VIEW\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query isActive nullable.\nDanh mục chung: không áp employee row scope. Query chỉ thu hẹp kết quả.\nExpected 200; errors 400, 401, 403, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/departments/{departmentId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/departments/{{departmentId}}",
+            "description": "Chi tiết danh mục\nPermission: WEB_DEPARTMENTS / VIEW\nPath departmentId số nguyên dương.\nKhông tồn tại: 404.\nExpected 200; errors 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/positions/{positionId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/positions/{{positionId}}",
+            "description": "Chi tiết danh mục\nPermission: WEB_POSITIONS / VIEW\nPath positionId số nguyên dương.\nKhông tồn tại: 404.\nExpected 200; errors 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/departments/{departmentId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/departments/{{departmentId}}",
+            "description": "Cập nhật danh mục\nPermission: WEB_DEPARTMENTS / UPDATE\nPath departmentId; body DTO đầy đủ.\nCode unique sau Trim; không rỗng; code<=20, name<=150, description<=500. isActive=false dùng để ngừng sử dụng thay vì xóa danh mục đang tham chiếu.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentCode\": \"DEMO-D01\",\n  \"departmentName\": \"Demo Department\",\n  \"description\": \"Dữ liệu thử nghiệm\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/positions/{positionId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/positions/{{positionId}}",
+            "description": "Cập nhật danh mục\nPermission: WEB_POSITIONS / UPDATE\nPath positionId; body DTO đầy đủ.\nCode unique sau Trim; không rỗng; code<=30, name<=150. isActive=false dùng để ngừng sử dụng thay vì xóa danh mục đang tham chiếu.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"DEMO-P01\",\n  \"name\": \"Demo Position\",\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "item": [
+        {
+          "name": "POST /api/employees",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees",
+            "description": "Tạo hồ sơ nhân viên\nPermission: WEB_EMPLOYEES / NEW + ALL, hoặc DEPARTMENT đúng phòng ban\nBody departmentId phải là số nguyên.\nMã<=20/email<=255 unique; tên<=150/phone<=20; Department ACTIVE; hireDate bắt buộc; birth<=hireDate và không tương lai; status ACTIVE/INACTIVE/TERMINATED. SELF không được ghi.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\",\n  \"employeeCode\": \"DEMO-E01\",\n  \"hireDate\": \"2024-01-01\",\n  \"departmentId\": {{departmentId}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('employeeId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/employees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees?page=1&pageSize=30",
+            "description": "Danh sách hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + SELF/DEPARTMENT/ALL\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query departmentId positive nullable; employmentStatus<=20.\nScope áp trước count/paging/search. Department query không mở rộng scope.\nExpected 200; errors 400, 401, 403, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/employees/{employeeId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+            "description": "Chi tiết hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId INT.\nNgoài scope hoặc không tồn tại: 404; không làm lộ danh sách user/auth.\nExpected 200; errors 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/employees/{employeeId}/history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/history?page=1&pageSize=30",
+            "description": "Xem lịch sử hồ sơ\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId; Query page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope.\nLịch sử được tạo qua nghiệp vụ chuyển phòng ban; không cho client ghi lại actor hoặc sửa/xóa lịch sử. Chưa gán chức danh vì Employee không có PositionId.\nExpected 200; errors 400, 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/employees/{employeeId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+            "description": "Cập nhật thông tin hồ sơ\nPermission: WEB_EMPLOYEES / UPDATE + ALL/DEPARTMENT\nPath employeeId; body DTO đầy đủ.\nKhông đổi employeeCode/hireDate/department qua endpoint này. Birth/email/length/status validation. PUT giống dữ liệu hiện tại không phát thêm audit/notification. Notification + audit cùng transaction.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/employees/{employeeId}/department",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/department",
+            "description": "Chuyển phòng ban, tạo lịch sử\nPermission: WEB_EMPLOYEES / UPDATE + ALL\nPath employeeId; body departmentId là số nguyên.\nPhòng đích ACTIVE và khác phòng hiện tại; effectiveDate từ hire/latest history đến hôm nay UTC; không lên lịch tương lai. Actor từ JWT. Employee/History/Audit/Notification/Outbox commit hoặc rollback cùng nhau.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"departmentId\": {{otherDepartmentId}},\n  \"effectiveDate\": \"2026-10-24\",\n  \"reason\": \"Điều chuyển thử nghiệm\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Contracts",
+      "item": [
+        {
+          "name": "POST /api/employees/{employeeId}/contracts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts",
+            "description": "Tạo hồ sơ hợp đồng\nPermission: WEB_CONTRACTS / NEW + ALL/DEPARTMENT\nPath employeeId; không nhận employeeId khác trong body.\nNo<=50 unique; type<=30; start>=hireDate; end>=start; status allowlist; ACTIVE chứa hôm nay và không trùng khoảng ACTIVE khác. HTTPS attachment<=500, không có credentials, server không fetch URL. Audit/notification atomic.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contractNo\": \"DEMO-C01\",\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) pm.collectionVariables.set('contractId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/employees/{employeeId}/contracts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts?page=1&pageSize=30",
+            "description": "Danh sách hợp đồng nhân viên\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId; Query page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope.\nKhông truy vấn hợp đồng nhân viên ngoài scope. search chỉ theo contractNo.\nExpected 200; errors 400, 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/employees/{employeeId}/contracts/{contractId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts/{{contractId}}",
+            "description": "Chi tiết hợp đồng\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId INT, contractId BIGINT.\nContract phải thuộc đúng employeeId; mismatch/outside scope trả 404.\nExpected 200; errors 401, 403, 404, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/employees/{employeeId}/contracts/{contractId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts/{{contractId}}",
+            "description": "Sửa hợp đồng / chuyển trạng thái\nPermission: WEB_CONTRACTS / UPDATE + ALL/DEPARTMENT\nPath employeeId, contractId; body DTO đầy đủ.\nGiữ quy tắc tạo. ACTIVE chỉ giữ ACTIVE hoặc sang EXPIRED/TERMINATED; đóng cần endDate<=hôm nay; bản ghi đóng immutable, PUT dữ liệu giống hệt vẫn 200 không tạo event trùng. Không có DELETE hợp đồng.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contractNo\": \"DEMO-C01\",\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cleanup — manual demo data only",
+      "item": [
+        {
+          "name": "DELETE /api/departments/{departmentId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/departments/{{departmentId}}",
+            "description": "Xóa danh mục chưa được sử dụng\nPermission: WEB_DEPARTMENTS / DELETE\nPath departmentId.\nChặn 409 nếu Department có Employee/History hoặc Position có History; FK RESTRICT bảo vệ thêm khi race.\nExpected 204; errors 400, 401, 403, 404, 409, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/positions/{positionId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/positions/{{positionId}}",
+            "description": "Xóa danh mục chưa được sử dụng\nPermission: WEB_POSITIONS / DELETE\nPath positionId.\nChặn 409 nếu Department có Employee/History hoặc Position có History; FK RESTRICT bảo vệ thêm khi race.\nExpected 204; errors 400, 401, 403, 404, 409, 500."
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /api/employees/{employeeId}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+            "description": "Ngừng hoạt động hồ sơ (soft deactivation)\nPermission: WEB_EMPLOYEES / DELETE + ALL/DEPARTMENT\nPath employeeId.\nĐặt INACTIVE; không xóa row/contract/history. Không đổi tài khoản Auth hoặc tự kết thúc hợp đồng. TERMINATED trả 409; lặp INACTIVE không tạo event trùng.\nExpected 204; errors 400, 401, 403, 404, 409, 500."
+          },
+          "response": []
+        }
+      ],
+      "description": "Manual cleanup only. DELETE Employee means INACTIVE; Department/Position referenced by Employee/History returns 409. Never run writes on Railway without approval."
+    },
+    {
+      "name": "System Administration — run individually after approval",
+      "item": [
+        {
+          "name": "GET /api/screens?platform=WEB&page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/screens?platform=WEB&page=1&pageSize=30",
+            "description": "Catalog toàn bộ màn hình ACTIVE\nPermission: WEB_PERMISSIONS/VIEW\nParameters: platform optional WEB|MOBILE, page>=1, pageSize 1..100, search<=150\nKhông lọc theo grant màn hình của User; bỏ platform lấy WEB và MOBILE; luôn is_active=true.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 401/403; WEB/MOBILE; bỏ platform; inactive bị loại; pageSize=101 trả 400."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/screens/{screenId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/screens/{{screenId}}",
+            "description": "Chi tiết màn hình kể cả inactive\nPermission: WEB_PERMISSIONS/VIEW\nParameters: screenId: long\n404 khi không tồn tại; trả ETag.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: GET lấy version trước sửa; id không tồn tại 404."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('screenEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/screens",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/screens",
+            "description": "Tạo catalog entry\nPermission: WEB_PERMISSIONS/NEW\nParameters: Không có\nCode unique, max100, uppercase [A-Z][A-Z0-9_]*; Name200; Icon100; WEB/MOBILE. Không tự tạo grant.\nExpected 201. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 201; code trùng 409; platform sai 400.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WEB_EXAMPLE\",\n  \"name\": \"Example\",\n  \"platform\": \"WEB\",\n  \"icon\": null,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 201', () => pm.expect(pm.response.code).to.eql(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('screenEtag', etag);",
+                  "  pm.collectionVariables.set('screenId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/screens/{screenId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{screenEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/screens/{{screenId}}",
+            "description": "Sửa catalog entry\nPermission: WEB_PERMISSIONS/UPDATE\nParameters: screenId; If-Match\nKhông đổi code/platform của màn hình có Role tham chiếu hoặc 3 mã bootstrap. Kích hoạt không được hồi sinh quyền vượt người thao tác.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 428 thiếu If-Match; 412 version cũ; rename màn hình referenced 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WEB_EXAMPLE\",\n  \"name\": \"Updated example\",\n  \"platform\": \"WEB\",\n  \"icon\": null,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('screenEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/screens/{screenId}/status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{screenEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/screens/{{screenId}}/status",
+            "description": "Bật/tắt màn hình\nPermission: WEB_PERMISSIONS/UPDATE\nParameters: screenId; If-Match\nKhông xóa cứng; chặn mất quản trị cuối cùng và kích hoạt dormant grants vượt quyền; thu hồi phiên user chịu ảnh hưởng.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Tắt entry thường OK; tắt WEB_PERMISSIONS 409; dormant privilege escalation 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('screenEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/users?page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users?page=1&pageSize=30",
+            "description": "Danh sách metadata tài khoản\nPermission: WEB_USERS/VIEW\nParameters: page, pageSize, search (UserId/email)\nToàn cục theo quyền quản trị; không trả employee PII, hash, salt, password, authVersion.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 401/403; phân trang; không có trường bí mật."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/users/{targetUserId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/users/{{targetUserId}}",
+            "description": "Chi tiết metadata và Role\nPermission: WEB_USERS/VIEW\nParameters: targetUserId: string<=100\nChỉ các trường DTO; UserId giữ nguyên dạng chuỗi; ETag bao gồm auth version nội bộ.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 404; ETag; không hash/salt."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('userEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/users",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users",
+            "description": "Tạo tài khoản quản trị nội bộ\nPermission: WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds\nParameters: Không có\nUserId string max100, [A-Za-z0-9][A-Za-z0-9_.-]*; email255 unique; Employee tồn tại, chưa gán account; Role hợp lệ không trùng; password12..128, không blank; dùng PasswordService random salt32 PBKDF2. Role chỉ được gán trong quyền hiện có của actor.\nExpected 201. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 201; ID/email trùng409; employee/Role sai400; vượt quyền403; không password trong response/audit.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{newUserId}}\",\n  \"email\": \"new.account@example.invalid\",\n  \"password\": \"{{newPassword}}\",\n  \"employeeId\": null,\n  \"roleIds\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 201', () => pm.expect(pm.response.code).to.eql(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('userEtag', etag);",
+                  "  pm.collectionVariables.set('targetUserId', pm.response.json().userId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/users/{targetUserId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{userEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/{{targetUserId}}",
+            "description": "Sửa email/liên kết nhân viên\nPermission: WEB_USERS/UPDATE\nParameters: targetUserId; If-Match\nKhông đổi UserId qua body; email và employee unique; chặn takeover tài khoản có quyền vượt actor; thu hồi phiên.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Email trùng409; employee sai400; stale412; tài khoản đặc quyền cao hơn403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"updated@example.invalid\",\n  \"employeeId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('userEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /api/users/{targetUserId}/status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{userEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/{{targetUserId}}/status",
+            "description": "Thay trạng thái tài khoản\nPermission: WEB_USERS/UPDATE\nParameters: targetUserId; If-Match\nACTIVE|LOCKED|INACTIVE; không khóa tài khoản quản trị cuối cùng; revoke access/refresh token.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Root cuối409; khóa user thường200; token cũ401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"LOCKED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('userEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/users/{targetUserId}/reset-password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{userEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/{{targetUserId}}/reset-password",
+            "description": "Reset bởi quản trị viên đã xác thực lại\nPermission: WEB_USERS/APPROVE\nParameters: targetUserId; If-Match\ncurrentPassword là mật khẩu hiện tại của ACTOR, không phải của target; từ chối tự reset, sai xác thực và target vượt quyền; 5 lần/phút/actor; newPassword12..128; audit không chứa credential; revoke access và refresh; không Notification mật khẩu. Không tự tạo mật khẩu.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Sai reauth403; thiếu quyền403; lần6=429; thành công200; token cũ401; password cũ login401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"{{reauthPassword}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('userEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/users/{targetUserId}/roles",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{userEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/{{targetUserId}}/roles",
+            "description": "Thay toàn bộ Role assignments\nPermission: WEB_USERS/APPROVE\nParameters: targetUserId; If-Match\nRole tồn tại, unique, positive; [] xóa membership; không sửa Role chính mình; cả quyền cũ của target và quyền mới phải nằm trong quyền actor; transaction/audit/revoke.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Role sai400; tự gán403; nâng quyền403; nhiều Role OR; token cũ401.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleIds\": [\n    {{roleId}}\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('userEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/roles?page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/roles?page=1&pageSize=30",
+            "description": "Danh sách Role\nPermission: WEB_ROLES/VIEW\nParameters: page, pageSize, search (code/name)\nKhông hardcode quyền từ tên ADMIN/ALLROLL.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Phân trang; 401/403."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/roles/{roleId}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/roles/{{roleId}}",
+            "description": "Chi tiết Role\nPermission: WEB_ROLES/VIEW\nParameters: roleId: long\nETag gồm metadata, matrix và membership của Role.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 404; lấy ETag trước cập nhật."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('roleEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/roles",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/roles",
+            "description": "Tạo Role rỗng\nPermission: WEB_ROLES/NEW\nParameters: Không có\nCode30 uppercase unique; Name100; không tự thêm quyền hoặc membership, kể cả code ADMIN.\nExpected 201. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 201; code trùng409; Role mới không quyền.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"REVIEWED_ROLE\",\n  \"name\": \"Reviewed role\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 201', () => pm.expect(pm.response.code).to.eql(201));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('roleEtag', etag);",
+                  "  pm.collectionVariables.set('roleId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/roles/{roleId}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{roleEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/roles/{{roleId}}",
+            "description": "Sửa code/name Role\nPermission: WEB_ROLES/UPDATE\nParameters: roleId; If-Match\nChỉ được quản trị Role có quyền nằm trong quyền actor; revoke phiên user thuộc Role. Không đổi grant.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 403 vượt quyền; 409 code trùng; 412 stale.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"REVIEWED_ROLE\",\n  \"name\": \"Updated role\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('roleEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /api/roles/{roleId}",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "If-Match",
+                "value": "{{roleEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/roles/{{roleId}}",
+            "description": "Xóa Role không còn tham chiếu\nPermission: WEB_ROLES/DELETE\nParameters: roleId; If-Match\nPhải gỡ UserRole, RoleDetail, RoleScreenAction tường minh trước; không cascade xóa âm thầm.\nExpected 204. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 204 khi Role rỗng; 409 nếu còn grant/membership; 428/412."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 204', () => pm.expect(pm.response.code).to.eql(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/roles/{roleId}/users?page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/roles/{{roleId}}/users?page=1&pageSize=30",
+            "description": "Danh sách tài khoản của Role\nPermission: WEB_ROLES/VIEW AND WEB_USERS/VIEW\nParameters: roleId; page, pageSize, search\nKhông lộ user metadata chỉ bằng quyền xem Role; cần cả WEB_USERS/VIEW.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Thiếu một trong hai grant403; Role không tồn tại404; phân trang."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/roles/{roleId}/permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/roles/{{roleId}}/permissions",
+            "description": "Đọc ma trận của Role\nPermission: WEB_PERMISSIONS/VIEW\nParameters: roleId: long\nCác Screen đã có RoleDetail/extended grant, gồm inactive; giữ đầy đủ extended actions; catalog toàn bộ đọc qua /api/screens; ETag chung aggregate Role.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Nhiều screen không trùng; Role rỗng screens[]; ETag."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('roleEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/roles/{roleId}/permissions",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{roleEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/roles/{{roleId}}/permissions",
+            "description": "Patch các quyền đã được phê duyệt\nPermission: WEB_PERMISSIONS/UPDATE AND WEB_PERMISSIONS/APPROVE\nParameters: roleId; If-Match\nChỉ 6 standard action chính xác uppercase. Omit flag giữ giá trị cũ. Omit extendedActions giữ nguyên, [] gỡ các extended đã đăng ký cho screen đó; cung cấp array thay các extended đã đăng ký; action lạ đã lưu giữ nguyên/read-only. Screen không có trong request không đổi. Không sửa Role đang gán cho actor. Quyền cũ/mới không vượt actor; toàn bộ transaction; audit before/after; phiên user ảnh hưởng hết hiệu lực.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 401/403; Screen/action sai400; request có screen trùng400; stale412; lỗi một mục rollback toàn bộ; không mất extended.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"screens\": [\n    {\n      \"screenCode\": \"WEB_EXAMPLE\",\n      \"standard\": {\n        \"VIEW\": true,\n        \"NEW\": false\n      },\n      \"extendedActions\": [\n        \"SEND_USER\"\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "if (pm.response.code < 300) {",
+                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('roleEtag', etag);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/authorization/actions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/authorization/actions",
+            "description": "Catalog action được Backend cho phép\nPermission: WEB_PERMISSIONS/VIEW\nParameters: Không có\nKhông nhận ActionCode mới tùy ý từ client. Mở rộng sau này phải thêm registry PermissionActions và kiểm thử handler/service trước khi cấp quyền.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Đủ6 standard+5 extended; 401/403."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
