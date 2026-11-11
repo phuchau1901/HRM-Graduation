@@ -1,4 +1,4 @@
-# Intelex ERP
+# Intelex ERP 2
 
 Website ERP tĩnh dành cho đội ngũ công nghệ trẻ, dựng từ `intelex-erp-static-spec.md` bằng HTML/CSS/JavaScript thuần. Không cần cài thư viện hoặc chạy build.
 
