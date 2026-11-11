@@ -13,6 +13,11 @@ const apiOrigin =
   process.env.API_ORIGIN ||
   'https://hrm-graduation.up.railway.app';
 
+ 
+  const webOrigin =
+  process.env.webOrigin ||
+  'https://intelex-web-production.up.railway.app';
+
 const types = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -111,5 +116,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, HOST, () => {
   console.log(`Intelex ERP running at http://${HOST}:${PORT}`);
-  console.log(`API Proxy: ${apiOrigin}`);
+  console.log(`API Proxy: ${webOrigin}`);
 });
