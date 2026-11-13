@@ -1,18 +1,23 @@
 const SESSION_KEY = 'intelex-erp-api-session:v1';
-const DEFAULT_BASE_URL = typeof location!=='undefined' && /^https?:$/.test(location.protocol) && /^(127\.0\.0\.1|localhost)$/.test(location.hostname) ? '' : 'https://hrm-graduation.up.railway.app';
+const DEFAULT_BASE_URL = typeof location!=='undefined' && /^https?:$/.test(location.protocol) ? '' : 'https://hrm-graduation.up.railway.app';
 
 function readSession(){try{return JSON.parse(localStorage.getItem(SESSION_KEY))||null;}catch{return null;}}
 let session = readSession();
 
-export function apiBaseUrl(){return window.INTELEX_API_BASE || DEFAULT_BASE_URL;}
-export function apiSession(){return session;}
-export function apiLogout(){session=null;try{localStorage.removeItem(SESSION_KEY);}catch{}}
+export function apiBaseUrl(){return globalThis.window?.INTELEX_API_BASE ?? DEFAULT_BASE_URL;}
+export function apiSession(){
+ if(session?.expiresAtUtc&&Date.parse(session.expiresAtUtc)<=Date.now())apiLogout();
+ return session?.accessToken?session:null;
+}
+export function apiLogout(){session=null;try{localStorage.removeItem(SESSION_KEY);}catch{}
+ globalThis.window?.dispatchEvent?.(new Event('auth-change'));
+}
 
 async function request(path,options={}){
  const headers=new Headers(options.headers||{});
  headers.set('Accept','application/json');
  if(options.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');
- if(session?.accessToken)headers.set('Authorization',`Bearer ${session.accessToken}`);
+ if(path!=='/api/auth/login'&&apiSession()?.accessToken)headers.set('Authorization',`Bearer ${session.accessToken}`);
  const transport=globalThis['fetch'];
  if(typeof transport!=='function')throw Error('Trình duyệt hiện tại không hỗ trợ kết nối API.');
  const response=await transport(apiBaseUrl()+path,{...options,headers});
@@ -23,7 +28,8 @@ async function request(path,options={}){
 
 export async function login(userId,password){
  const result=await request('/api/auth/login',{method:'POST',body:JSON.stringify({userId,password})});
- session={accessToken:result.accessToken,tokenType:result.tokenType,expiresAtUtc:result.expiresAtUtc,user:result.user,roles:result.roles,permissions:result.permissions};
+ if(!result?.accessToken||!result.user||!Array.isArray(result.permissions))throw Error('Phản hồi đăng nhập không hợp lệ.');
+ session={...result};
  try{localStorage.setItem(SESSION_KEY,JSON.stringify(session));}catch{}
  return session;
 }

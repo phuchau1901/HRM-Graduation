@@ -7,10 +7,10 @@ import vm from 'node:vm';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const modules=[
- 'utils.js','data/seed.js','data/document-content.js','permissions.js',
+ 'api/client.js','utils.js','data/seed.js','data/document-content.js','permissions.js',
  'store.js','components/ui.js','components/dialog.js','pages/dashboard.js',
  'pages/attendance-report.js','pages/work.js','pages/operations.js','router.js',
- 'api/client.js','actions.js','app.js'
+ 'actions.js','app.js'
 ];
 const handbook=await readFile(path.join(root,'assets/documents/intelex-handbook.md'),'utf8');
 await writeFile(path.join(root,'assets/js/data/document-content.js'),

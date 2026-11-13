@@ -84,3 +84,21 @@ Giao diện sáng, accent xanh dương, thẻ bo nhẹ, biểu đồ thanh và d
 Chức năng báo cáo và tính công dùng ca mẫu, chưa có ngày lễ/nghỉ nửa ngày, tính lương, bảo hiểm hoặc quy định lao động thực tế. Tăng ca chỉ cộng số giờ đã khai báo và đã duyệt; seed chưa có số giờ thì hiển thị 0. Các milestone là bốn giai đoạn mẫu suy ra từ dự án, chưa có trình biên tập mốc riêng. Danh mục loại phép có thể sửa nhưng không thay engine tính phép năm. Ma trận quyền cho phép thu hồi quyền sẵn có, không cấp thêm nghiệp vụ trái với role trong spec. Tài liệu tải là nội dung mẫu chung, chưa phải bộ tài liệu công ty.
 
 Các thao tác tạo/sửa/giao việc, phê duyệt và quản lý user chỉ cập nhật store trên máy. Khi nối backend, thay tầng service/store bằng API, thực thi permission ở server, chuẩn hóa schema và bổ sung kiểm thử trình duyệt/API. Chưa triển khai hosting/production; ảnh concept gốc chưa được cung cấp để đối chiếu.
+
+
+### Đăng nhập API và quyền màn hình
+
+Ứng dụng yêu cầu đăng nhập qua `POST /api/auth/login` với `{userId, password}`.
+JSON response (accessToken, tokenType, expiresAtUtc, user, roles, permissions) được lưu tại
+localStorage key `intelex-erp-api-session:v1`; mật khẩu không được lưu. API tiếp theo gửi
+`Authorization: Bearer <accessToken>`. Đăng xuất, HTTP 401 hoặc hết hạn sẽ xóa phiên.
+
+Menu và đường dẫn trực tiếp kiểm tra `platform: WEB` và `canView: Y`, không bypass ADMIN.
+Bảng `screenRoutes` trong `assets/js/permissions.js` ánh xạ URL sang code màn hình.
+Tài liệu Auth chỉ xác nhận code mẫu WEB_EMPLOYEES; đối chiếu các code còn lại với danh mục
+Screen thực tế của backend trước khi triển khai. Code chưa ánh xạ không được truy cập.
+Các trang nghiệp vụ vẫn sử dụng dữ liệu demo hiện có, chưa tải dữ liệu theo tài khoản API.
+
+Chạy `npm start` để dùng proxy `/api` cùng origin; cấu hình backend bằng biến `API_ORIGIN`.
+Có thể cấu hình URL API trực tiếp bằng `window.INTELEX_API_BASE` trước khi tải bundle.
+Chạy `npm run build` sau khi sửa source và `npm test` để kiểm tra.

@@ -23,7 +23,7 @@ export function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ct
  case 'toggle-sidebar':if(innerWidth<768)document.body.classList.toggle('mobile-open');else document.body.classList.toggle('collapsed');return;
  case 'refresh':render(true);toast('Đã cập nhật dữ liệu mới nhất');return;
  case 'list':case 'grid':case 'kanban':ctx.setFilters({view:action,page:1});render();return;
- case 'account':{const api=apiSession();openDialog('Không gian của bạn',`${person(user())}<hr><label>Chọn tài khoản demo<select id="demo-user" class="role-switch">${roles.map(role=>`<optgroup label="${role}">${s.users.filter(u=>u.role===role&&u.status==='active').map(u=>`<option value="${u.id}" ${u.id===user().id?'selected':''}>${e(u.name)} · ${e(s.teams.find(t=>t.id===u.teamId)?.name||role)}</option>`).join('')}</optgroup>`).join('')}</select></label><p class="muted" style="font-size:11px;margin-top:10px">Mỗi tài khoản có menu và phạm vi dữ liệu riêng. Đây là chuyển vai trò mô phỏng, không có đăng nhập thật.</p><hr><p class="muted">Backend API: ${api?`đã đăng nhập · ${e(api.user?.userId||'')}`:'chưa đăng nhập'}</p><div class="form-actions">${button('Hồ sơ của tôi','employee','person','',`data-id="${user().id}"`)}${button('Đăng nhập backend','backend-login','shield','')}${api?button('Đăng xuất backend','backend-logout','logout','danger'):''}${button('Reset dữ liệu','confirm-reset','refresh','danger')}</div>`);return;}
+ case 'account':{const api=apiSession();openDialog('Tài khoản',`<p>${e(api?.user?.userId||'')}</p><p>${e(api?.user?.email||'')}</p><div class="form-actions">${button('Đăng xuất','backend-logout','logout','danger')}</div>`);return;}
  case 'backend-login':openDialog('Đăng nhập backend',`<form data-form="backend-login"><p class="dialog-subtitle">Đăng nhập JWT vào HRM.API đang chạy local.</p><div class="form-grid">${field('User ID','userId','text','admin','required autocomplete="username"')}${field('Mật khẩu','password','password','','required autocomplete="current-password"')}</div>${formFooter()}</form>`);return;
  case 'backend-logout':apiLogout();closeDialog();render(true);toast('Đã đăng xuất backend');return;
  case 'confirm-reset':openDialog('Khôi phục bản demo?',`<p>Toàn bộ thay đổi trên trình duyệt sẽ được xóa và khôi phục dữ liệu mẫu ban đầu.</p><div class="form-actions">${button('Hủy','close')}${button('Khôi phục dữ liệu','reset','refresh','danger')}</div>`);return;
@@ -73,9 +73,3 @@ export function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ct
  save();if(document.getElementById('modal').open)closeDialog();render(true);toast('Đã lưu thay đổi thành công');}catch(err){const error=formEl.querySelector('.form-error');if(error)error.textContent=err.message;else toast(err.message);}});
  document.getElementById('modal').addEventListener('click',ev=>{if(ev.target===ev.currentTarget){const box=ev.currentTarget.getBoundingClientRect();if(ev.clientX<box.left||ev.clientX>box.right||ev.clientY<box.top||ev.clientY>box.bottom)closeDialog();}});
 }
-document.addEventListener('click',ev=>{
- const account=ev.target.closest('[data-action="account"]');
- if(account){setTimeout(()=>{document.querySelectorAll('[data-action="backend-login"],[data-action="backend-logout"]').forEach(el=>{el.hidden=user().role!=='Admin';});},0);}
- const backendAction=ev.target.closest('[data-action="backend-login"]');
- if(backendAction&&user().role!=='Admin'){ev.preventDefault();ev.stopImmediatePropagation();toast('Chỉ tài khoản Admin mới được đăng nhập backend.');}
-},true);

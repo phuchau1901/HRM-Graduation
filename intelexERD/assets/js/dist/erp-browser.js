@@ -1,6 +1,51 @@
 // Generated file. Edit source modules, then run node scripts/build-browser.js.
 (()=>{
 "use strict";
+// Source: api/client.js
+const SESSION_KEY = 'intelex-erp-api-session:v1';
+const DEFAULT_BASE_URL = typeof location!=='undefined' && /^https?:$/.test(location.protocol) ? '' : 'https://hrm-graduation.up.railway.app';
+
+function readSession(){try{return JSON.parse(localStorage.getItem(SESSION_KEY))||null;}catch{return null;}}
+let session = readSession();
+
+function apiBaseUrl(){return globalThis.window?.INTELEX_API_BASE ?? DEFAULT_BASE_URL;}
+function apiSession(){
+ if(session?.expiresAtUtc&&Date.parse(session.expiresAtUtc)<=Date.now())apiLogout();
+ return session?.accessToken?session:null;
+}
+function apiLogout(){session=null;try{localStorage.removeItem(SESSION_KEY);}catch{}
+ globalThis.window?.dispatchEvent?.(new Event('auth-change'));
+}
+
+async function request(path,options={}){
+ const headers=new Headers(options.headers||{});
+ headers.set('Accept','application/json');
+ if(options.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');
+ if(path!=='/api/auth/login'&&apiSession()?.accessToken)headers.set('Authorization',`Bearer ${session.accessToken}`);
+ const transport=globalThis['fetch'];
+ if(typeof transport!=='function')throw Error('Trình duyệt hiện tại không hỗ trợ kết nối API.');
+ const response=await transport(apiBaseUrl()+path,{...options,headers});
+ let body=null;try{body=await response.json();}catch{}
+ if(!response.ok){if(response.status===401)apiLogout();throw Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);}
+ return body;
+}
+
+async function login(userId,password){
+ const result=await request('/api/auth/login',{method:'POST',body:JSON.stringify({userId,password})});
+ if(!result?.accessToken||!result.user||!Array.isArray(result.permissions))throw Error('Phản hồi đăng nhập không hợp lệ.');
+ session={...result};
+ try{localStorage.setItem(SESSION_KEY,JSON.stringify(session));}catch{}
+ return session;
+}
+
+function me(){return request('/api/auth/me');}
+function permissions(){return request('/api/auth/me/permissions');}
+function apiEmployees(query=''){return request('/api/employees'+(query?`?${query}`:''));}
+function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
+function apiPositions(query=''){return request('/api/positions'+(query?`?${query}`:''));}
+function apiNotifications(){return request('/api/notifications');}
+
+
 // Source: utils.js
 const escapeHtml=(v='')=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const e=escapeHtml;
@@ -54,9 +99,36 @@ function projects(s,u){return s.projects.filter(p=>['Admin','HR'].includes(u.rol
 function tasks(s,u){const ps=new Set(projects(s,u).map(p=>p.id));const ids=new Set(employees(s,u).map(x=>x.id));return u.role==='HR'?[]:s.tasks.filter(t=>ps.has(t.projectId)&&(u.role==='Admin'||ids.has(t.assigneeId)));}
 function documents(s,u){return s.documents.filter(d=>d.visibility==='company'||d.visibility==='hr'&&['HR','Admin'].includes(u.role)||d.visibility==='project'&&projects(s,u).some(p=>p.id===d.projectId)&&u.role!=='HR');}
 function requests(s,u){const ids=new Set(employees(s,u).map(x=>x.id));return s.requests.filter(r=>['HR','Admin'].includes(u.role)||r.requesterId===u.id||u.role!=='Dev'&&ids.has(r.requesterId));}
-function can(s,u,action,resource){const override=s.rolePermissions?.[u.role]?.[action];if(override===false&&!(u.role==='Admin'&&action==='admin'))return false;
+function can(s,u,action,resource){if(apiSession()){
+ const path=(globalThis.location?.hash?.slice(1).split('?')[0]||'/dashboard');
+ const flag={'project.create':'canNew','task.create':'canNew','task.edit':'canUpdate','approve':'canApprove','hr':'canNew','admin':'canUpdate'}[action];
+ return screenAllowed(path,flag||'canView');
+}const override=s.rolePermissions?.[u.role]?.[action];if(override===false&&!(u.role==='Admin'&&action==='admin'))return false;
  const r=u.role;switch(action){case 'admin':return r==='Admin';case 'hr':return ['Admin','HR'].includes(r);case 'team':return r!=='Dev';case 'project.create':return ['Admin','Manager'].includes(r);case 'task.create':return ['Admin','Manager','Leader'].includes(r);case 'task.edit':return tasks(s,u).some(t=>t.id===resource?.id)&&(r!=='Dev'||resource.assigneeId===u.id);case 'approve':return resource?.requesterId!==u.id&&resource?.status?.startsWith('pending_')&&(resource.currentApproverId===u.id||r==='Admin');default:return false;}}
-function routeAllowed(s,u,path){if(path.startsWith('/admin'))return can(s,u,'admin');if(path.startsWith('/hr'))return u.role!=='Dev'&&(['Admin','HR'].includes(u.role)||path==='/hr/employees'||/^\/hr\/employees\/[^/]+$/.test(path));if(path.startsWith('/team'))return u.role==='HR'?['/team/overview','/team/members'].includes(path):can(s,u,'team');if(u.role==='HR'&&['/projects/tasks','/projects/workload','/projects/reports','/projects/timeline'].includes(path))return false;return true;}
+function routeAllowed(s,u,path){if(apiSession())return screenAllowed(path);if(path.startsWith('/admin'))return can(s,u,'admin');if(path.startsWith('/hr'))return u.role!=='Dev'&&(['Admin','HR'].includes(u.role)||path==='/hr/employees'||/^\/hr\/employees\/[^/]+$/.test(path));if(path.startsWith('/team'))return u.role==='HR'?['/team/overview','/team/members'].includes(path):can(s,u,'team');if(u.role==='HR'&&['/projects/tasks','/projects/workload','/projects/reports','/projects/timeline'].includes(path))return false;return true;}
+
+// Explicit aliases for screen codes supplied by the backend. Unknown codes deny access.
+const screenRoutes={
+ '/dashboard':['WEB_DASHBOARD'],
+ '/workspace/tasks':['WEB_MY_TASKS'], '/workspace/projects':['WEB_MY_PROJECTS'],
+ '/workspace/attendance':['WEB_MY_ATTENDANCE'], '/workspace/leave':['WEB_MY_LEAVE'],
+ '/projects':['WEB_PROJECTS'], '/approvals':['WEB_APPROVALS'], '/reports':['WEB_REPORTS'],
+ '/documents':['WEB_DOCUMENTS'], '/notifications':['WEB_NOTIFICATIONS'],
+ '/hr/employees':['WEB_EMPLOYEES'], '/hr/organization':['WEB_ORGANIZATION','WEB_DEPARTMENTS','WEB_POSITIONS'],
+ '/hr/contracts':['WEB_CONTRACTS'], '/hr/attendance':['WEB_ATTENDANCE'],
+ '/hr/attendance-reports':['WEB_ATTENDANCE_REPORTS'], '/hr/leave':['WEB_LEAVE','WEB_LEAVE_MANAGEMENT'],
+ '/hr/reports':['WEB_HR_REPORTS'], '/admin/users':['WEB_USERS'], '/admin/roles':['WEB_ROLES'],
+ '/admin/permissions':['WEB_PERMISSIONS'], '/admin/audit-logs':['WEB_AUDIT_LOGS'],
+ '/admin/settings':['WEB_SYSTEM_SETTINGS'], '/admin/master-data':['WEB_MASTER_DATA']
+};
+function screenAllowed(path,flag='canView'){
+ const current=apiSession();if(!current)return false;
+ let route=path;
+ if(/^\/hr\/employees\/.+/.test(path))route='/hr/employees';
+ if(/^\/projects\/prj-/.test(path))route='/projects';
+ const codes=screenRoutes[route]||(/^\/(team|projects)\//.test(route)?['WEB_'+route.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]:[]);
+ return current.permissions.some(p=>p.platform==='WEB'&&codes.includes(p.code)&&p.canView==='Y'&&p[flag]==='Y');
+}
 
 
 const scope=Object.freeze({scopedTeams,employees,projects,tasks,documents,requests,can,routeAllowed});
@@ -183,45 +255,6 @@ function groupFor(path){return nav.find(n=>n.route===path||n.children?.some(c=>c
 function isKnown(path){return !!groupFor(path)||/^\/projects\/prj-[\w-]+$/.test(path)||/^\/hr\/employees\/[\w-]+$/.test(path);}
 
 
-// Source: api/client.js
-const SESSION_KEY = 'intelex-erp-api-session:v1';
-const DEFAULT_BASE_URL = typeof location!=='undefined' && /^https?:$/.test(location.protocol) && /^(127\.0\.0\.1|localhost)$/.test(location.hostname) ? '' : 'https://hrm-graduation.up.railway.app';
-
-function readSession(){try{return JSON.parse(localStorage.getItem(SESSION_KEY))||null;}catch{return null;}}
-let session = readSession();
-
-function apiBaseUrl(){return window.INTELEX_API_BASE || DEFAULT_BASE_URL;}
-function apiSession(){return session;}
-function apiLogout(){session=null;try{localStorage.removeItem(SESSION_KEY);}catch{}}
-
-async function request(path,options={}){
- const headers=new Headers(options.headers||{});
- headers.set('Accept','application/json');
- if(options.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');
- if(session?.accessToken)headers.set('Authorization',`Bearer ${session.accessToken}`);
- const transport=globalThis['fetch'];
- if(typeof transport!=='function')throw Error('Trình duyệt hiện tại không hỗ trợ kết nối API.');
- const response=await transport(apiBaseUrl()+path,{...options,headers});
- let body=null;try{body=await response.json();}catch{}
- if(!response.ok){if(response.status===401)apiLogout();throw Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);}
- return body;
-}
-
-async function login(userId,password){
- const result=await request('/api/auth/login',{method:'POST',body:JSON.stringify({userId,password})});
- session={accessToken:result.accessToken,tokenType:result.tokenType,expiresAtUtc:result.expiresAtUtc,user:result.user,roles:result.roles,permissions:result.permissions};
- try{localStorage.setItem(SESSION_KEY,JSON.stringify(session));}catch{}
- return session;
-}
-
-function me(){return request('/api/auth/me');}
-function permissions(){return request('/api/auth/me/permissions');}
-function apiEmployees(query=''){return request('/api/employees'+(query?`?${query}`:''));}
-function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
-function apiPositions(query=''){return request('/api/positions'+(query?`?${query}`:''));}
-function apiNotifications(){return request('/api/notifications');}
-
-
 // Source: actions.js
 const roles=['Admin','Dev','Leader','Manager','HR'];
 function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const f=ctx.filters;
@@ -238,7 +271,7 @@ function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const
  case 'toggle-sidebar':if(innerWidth<768)document.body.classList.toggle('mobile-open');else document.body.classList.toggle('collapsed');return;
  case 'refresh':render(true);toast('Đã cập nhật dữ liệu mới nhất');return;
  case 'list':case 'grid':case 'kanban':ctx.setFilters({view:action,page:1});render();return;
- case 'account':{const api=apiSession();openDialog('Không gian của bạn',`${person(user())}<hr><label>Chọn tài khoản demo<select id="demo-user" class="role-switch">${roles.map(role=>`<optgroup label="${role}">${s.users.filter(u=>u.role===role&&u.status==='active').map(u=>`<option value="${u.id}" ${u.id===user().id?'selected':''}>${e(u.name)} · ${e(s.teams.find(t=>t.id===u.teamId)?.name||role)}</option>`).join('')}</optgroup>`).join('')}</select></label><p class="muted" style="font-size:11px;margin-top:10px">Mỗi tài khoản có menu và phạm vi dữ liệu riêng. Đây là chuyển vai trò mô phỏng, không có đăng nhập thật.</p><hr><p class="muted">Backend API: ${api?`đã đăng nhập · ${e(api.user?.userId||'')}`:'chưa đăng nhập'}</p><div class="form-actions">${button('Hồ sơ của tôi','employee','person','',`data-id="${user().id}"`)}${button('Đăng nhập backend','backend-login','shield','')}${api?button('Đăng xuất backend','backend-logout','logout','danger'):''}${button('Reset dữ liệu','confirm-reset','refresh','danger')}</div>`);return;}
+ case 'account':{const api=apiSession();openDialog('Tài khoản',`<p>${e(api?.user?.userId||'')}</p><p>${e(api?.user?.email||'')}</p><div class="form-actions">${button('Đăng xuất','backend-logout','logout','danger')}</div>`);return;}
  case 'backend-login':openDialog('Đăng nhập backend',`<form data-form="backend-login"><p class="dialog-subtitle">Đăng nhập JWT vào HRM.API đang chạy local.</p><div class="form-grid">${field('User ID','userId','text','admin','required autocomplete="username"')}${field('Mật khẩu','password','password','','required autocomplete="current-password"')}</div>${formFooter()}</form>`);return;
  case 'backend-logout':apiLogout();closeDialog();render(true);toast('Đã đăng xuất backend');return;
  case 'confirm-reset':openDialog('Khôi phục bản demo?',`<p>Toàn bộ thay đổi trên trình duyệt sẽ được xóa và khôi phục dữ liệu mẫu ban đầu.</p><div class="form-actions">${button('Hủy','close')}${button('Khôi phục dữ liệu','reset','refresh','danger')}</div>`);return;
@@ -288,32 +321,37 @@ function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const
  save();if(document.getElementById('modal').open)closeDialog();render(true);toast('Đã lưu thay đổi thành công');}catch(err){const error=formEl.querySelector('.form-error');if(error)error.textContent=err.message;else toast(err.message);}});
  document.getElementById('modal').addEventListener('click',ev=>{if(ev.target===ev.currentTarget){const box=ev.currentTarget.getBoundingClientRect();if(ev.clientX<box.left||ev.clientX>box.right||ev.clientY<box.top||ev.clientY>box.bottom)closeDialog();}});
 }
-document.addEventListener('click',ev=>{
- const account=ev.target.closest('[data-action="account"]');
- if(account){setTimeout(()=>{document.querySelectorAll('[data-action="backend-login"],[data-action="backend-logout"]').forEach(el=>{el.hidden=user().role!=='Admin';});},0);}
- const backendAction=ev.target.closest('[data-action="backend-login"]');
- if(backendAction&&user().role!=='Admin'){ev.preventDefault();ev.stopImmediatePropagation();toast('Chỉ tài khoản Admin mới được đăng nhập backend.');}
-},true);
-
 
 // Source: app.js
 const newFilters=()=>({search:'',status:'',team:'',project:'',date:'2026-10-19',page:1,size:10,view:'',tab:'',sort:''});
 let filters=newFilters(),expanded=new Set(),lastPath='',searchTimer;
 const app=document.getElementById('app');
 function pageTitle(path){const titles={'/dashboard':'Tổng quan quản lý','/workspace/tasks':'Công việc của tôi','/workspace/projects':'Dự án của tôi','/workspace/attendance':'Chấm công cá nhân','/workspace/leave':'Nghỉ phép của tôi','/team/overview':'Đội ngũ của bạn','/team/members':'Thành viên team','/team/tasks':'Công việc của team','/team/attendance':'Chấm công team','/team/leave':'Nghỉ phép team','/team/workload':'Phân bổ công việc','/team/reports':'Báo cáo team','/projects':'Quản lý dự án','/projects/tasks':'Tất cả công việc','/projects/milestones':'Milestones','/projects/members':'Thành viên dự án','/projects/workload':'Workload','/projects/timeline':'Timeline dự án','/projects/reports':'Báo cáo dự án','/hr/employees':'Quản lý nhân sự','/hr/organization':'Cơ cấu tổ chức','/hr/contracts':'Hợp đồng nhân sự','/hr/attendance':'Quản lý chấm công','/hr/attendance-reports':'Báo cáo chấm công','/hr/leave':'Quản lý nghỉ phép','/hr/reports':'Báo cáo nhân sự','/approvals':'Trung tâm phê duyệt','/reports':'Báo cáo & Phân tích','/documents':'Thư viện tài liệu','/notifications':'Thông báo','/admin/users':'Quản lý tài khoản','/admin/roles':'Vai trò hệ thống','/admin/permissions':'Phân quyền','/admin/audit-logs':'Nhật ký hệ thống','/admin/settings':'Cấu hình hệ thống','/admin/master-data':'Dữ liệu danh mục'};return path==='/dashboard'&&user().role!=='Manager'?`Tổng quan ${user().role==='Dev'?'cá nhân':user().role==='HR'?'nhân sự':user().role==='Admin'?'hệ thống':'team'}`:titles[path]||(path.startsWith('/projects/')?'Chi tiết dự án':path.startsWith('/hr/employees/')?'Hồ sơ nhân viên':'Không tìm thấy trang');}
-function shell(){const path=getPath(),u=user();let unread=s.notifications.filter(n=>n.recipientId===u.id&&!n.readAt).length,pending=scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n===groupFor(path),open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count">${unread}</span>`:n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="workspace-note"><strong>Cùng nhau tạo khác biệt.</strong>Mỗi ý tưởng nhỏ đều có thể bắt đầu một điều lớn lao.<a href="#/documents">Khám phá Intelex ${icon('arrow',12)}</a></div><div class="sidebar-user">${avatar(u)}<div><strong>${e(u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search">${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><span class="demo-chip">DEMO</span><button class="icon-button" data-action="notifications" aria-label="Thông báo">${icon('bell',19)}${unread?'<span class="notification-dot"></span>':''}</button><span class="top-divider"></span><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Tài khoản và chọn role demo">${avatar(u)}<div style="text-align:left"><strong>${e(u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role}</small></div>${icon('down',12)}</button></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderContent();}
+function loginScreen(){
+ document.title='Đăng nhập · Intelex';
+ app.innerHTML=`<main class="login-page"><form id="login-form" class="login-card"><img src="assets/images/logo.svg" alt="Intelex" width="48"><h1>Đăng nhập Intelex</h1><p>Đăng nhập bằng tài khoản được cấp để vào không gian làm việc.</p><label>User ID<input name="userId" autocomplete="username" required autofocus></label><label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required></label><p id="login-error" role="alert"></p><button class="btn primary" type="submit">Đăng nhập</button></form></main>`;
+ document.getElementById('login-form').addEventListener('submit',async ev=>{
+ ev.preventDefault();const form=ev.currentTarget,submit=form.querySelector('button');submit.disabled=true;
+ try{await login(form.elements.userId.value.trim(),form.elements.password.value);const destination=nav.flatMap(n=>n.children?n.children.map(c=>c[1]):[n.route]).find(p=>scope.routeAllowed(s,user(),p));location.hash=destination||'/dashboard';navigate();}
+ catch(err){document.getElementById('login-error').textContent=err.message;submit.disabled=false;}
+ });
+}
+function shell(){if(!apiSession()){loginScreen();return;}
+const path=getPath(),u=user();let unread=s.notifications.filter(n=>n.recipientId===u.id&&!n.readAt).length,pending=scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count">${unread}</span>`:n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="workspace-note"><strong>Cùng nhau tạo khác biệt.</strong>Mỗi ý tưởng nhỏ đều có thể bắt đầu một điều lớn lao.<a href="#/documents">Khám phá Intelex ${icon('arrow',12)}</a></div><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search">${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><button class="btn" data-action="logout">Đăng xuất</button><button class="icon-button" data-action="notifications" aria-label="Thông báo">${icon('bell',19)}${unread?'<span class="notification-dot"></span>':''}</button><span class="top-divider"></span><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Tài khoản và chọn role demo">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role}</small></div>${icon('down',12)}</button></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderContent();}
 function header(path){const u=user(),home=path==='/dashboard';const primary=(path.includes('tasks')&&scope.can(s,u,'task.create'))?button('Tạo công việc','new-task','plus','primary'):path==='/projects'&&scope.can(s,u,'project.create')?button('Tạo dự án','new-project','plus','primary'):path==='/hr/employees'&&scope.can(s,u,'hr')?button('Thêm nhân viên','new-employee','plus','primary'):path==='/workspace/leave'?button('Tạo đơn nghỉ','new-request','plus','primary'):'';return `<div class="page-heading"><div><div class="eyebrow">${home?'YOUR WORK, CONNECTED':'INTELEX WORKSPACE'}</div><h1>${pageTitle(path)}${home?'<span style="color:#d7aa64;font-weight:400;margin-left:9px">✦</span>':''}</h1><p>${home?`Chào ${e(u.name.split(' ').pop())}, cùng xem đội ngũ đang làm việc thế nào hôm nay.`:'Một không gian chung để kết nối con người và công việc.'}</p></div><div class="heading-actions">${home?`${teamOptions(filters)}<input type="date" aria-label="Ngày dashboard" data-filter="date" value="${filters.date}" max="2026-10-19">${button('','refresh','refresh','','aria-label="Làm mới dashboard"')}`:primary}</div></div>`;}
 function routeTabs(path){const group=groupFor(path);if(!group?.children||path.startsWith('/projects/prj-')||/^\/hr\/employees\/.+/.test(path))return '';return `<div class="tabs route-tabs">${group.children.filter(([,p])=>scope.routeAllowed(s,user(),p)).map(([name,p])=>`<a class="tab ${p===path?'active':''}" href="#${p}">${name}</a>`).join('')}</div>`;}
 function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn một mục trong menu hoặc chuyển tài khoản demo.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return approvalPage(filters);if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return `${tabs([['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['system','Hệ thống']],filters.tab||'all')}<div class="toolbar">${button('Đánh dấu tất cả đã đọc','read-all','check')}</div>${card('Hộp thư thông báo','Thông tin dành riêng cho bạn',`<div class="card-body">${notifications(99,filters.tab||'all')}</div>`)}`;if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
 function renderContent(){const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt</span><a href="#/documents">People first. Progress together.</a></footer>`;}
-function render(full=false){if(full)shell();else renderContent();}
+function render(full=false){if(!apiSession()){loginScreen();return;}if(full)shell();else renderContent();}
 function navigate(){if(lastPath!==getPath()){filters=newFilters();document.body.classList.remove('mobile-open');lastPath=getPath();const g=groupFor(lastPath);if(g?.children)expanded.add(g.name);if(document.getElementById('modal').open)closeDialog();}shell();window.scrollTo(0,0);}
 window.addEventListener('hashchange',navigate);
-app.addEventListener('click',ev=>{const exp=ev.target.closest('[data-expand]');if(exp){const n=exp.dataset.expand;expanded.has(n)?expanded.delete(n):expanded.add(n);shell();return;}const p=ev.target.closest('[data-page]');if(p){filters.page=Number(p.dataset.page);render();}const tab=ev.target.closest('[data-tab]');if(tab){filters.tab=tab.dataset.tab;filters.page=1;render();}const sort=ev.target.closest('[data-sort]');if(sort){filters.sort=sort.dataset.sort;render();}const nf=ev.target.closest('[data-notification]');if(nf){const n=s.notifications.find(x=>x.id===nf.dataset.notification&&x.recipientId===user().id);if(n){n.readAt='2026-10-19T10:00:00+07:00';save();}}});
+window.addEventListener('auth-change',()=>{closeDialog();navigate();});
+setInterval(()=>{if(!apiSession()&&!document.getElementById('login-form'))loginScreen();},30000);
+app.addEventListener('click',ev=>{if(ev.target.closest('[data-action="logout"]')){apiLogout();return;}const exp=ev.target.closest('[data-expand]');if(exp){const n=exp.dataset.expand;expanded.has(n)?expanded.delete(n):expanded.add(n);shell();return;}const p=ev.target.closest('[data-page]');if(p){filters.page=Number(p.dataset.page);render();}const tab=ev.target.closest('[data-tab]');if(tab){filters.tab=tab.dataset.tab;filters.page=1;render();}const sort=ev.target.closest('[data-sort]');if(sort){filters.sort=sort.dataset.sort;render();}const nf=ev.target.closest('[data-notification]');if(nf){const n=s.notifications.find(x=>x.id===nf.dataset.notification&&x.recipientId===user().id);if(n){n.readAt='2026-10-19T10:00:00+07:00';save();}}});
 document.addEventListener('change',ev=>{const el=ev.target;if(el.matches('[data-filter]')){filters[el.dataset.filter]=el.value;filters.page=1;render();}if(el.id==='demo-user'){switchUser(el.value);filters=newFilters();closeDialog();if(getPath()==='/dashboard')shell();else location.hash='/dashboard';toast('Đã chuyển tài khoản demo');}});
 document.addEventListener('input',ev=>{const el=ev.target;if(el.matches('[data-filter="search"]')){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const cursor=el.selectionStart;filters.search=el.value;filters.page=1;render();const input=document.querySelector('[data-filter="search"]');input?.focus();input?.setSelectionRange(cursor,cursor);},220);}if(el.id==='global-search'){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const q=el.value.trim().toLowerCase();const entries=[...scope.projects(s,user()).map(p=>({name:p.name,type:'Dự án',route:'/projects/'+p.id})),...scope.tasks(s,user()).map(t=>({name:t.code+' · '+t.title,type:'Công việc',route:'/workspace/tasks',open:'task',id:t.id})),...scope.employees(s,user()).map(u=>({name:u.name,type:'Nhân viên',route:'/hr/employees/'+u.id,open:'employee',id:u.id}))].filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);document.getElementById('search-results').innerHTML=q?entries.map(x=>`<a href="#${x.route}" ${x.open?`data-open="${x.open}" data-id="${x.id}"`:''}>${e(x.name)}<small>${x.type}</small></a>`).join('')||'<div class="empty">Không tìm thấy kết quả</div>':'';},250);}});
-document.addEventListener('click',ev=>{if(!ev.target.closest('.global-search'))document.getElementById('search-results').innerHTML='';});
-document.addEventListener('keydown',ev=>{if(ev.key==='Escape')document.getElementById('search-results').innerHTML='';if((ev.ctrlKey||ev.metaKey)&&ev.key==='k'){ev.preventDefault();document.getElementById('global-search')?.focus();}if(ev.key==='Enter'&&ev.target.matches('.kanban-card'))ev.target.click();});
+document.addEventListener('click',ev=>{if(!ev.target.closest('.global-search'))(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape')(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();if((ev.ctrlKey||ev.metaKey)&&ev.key==='k'){ev.preventDefault();document.getElementById('global-search')?.focus();}if(ev.key==='Enter'&&ev.target.matches('.kanban-card'))ev.target.click();});
 app.addEventListener('click',ev=>{const link=ev.target.closest('.workspace-note a');if(link){link.href='https://intelex.asia/';link.target='_blank';link.rel='noopener noreferrer';}});
 setupActions({render,filters:()=>filters,setFilters:patch=>Object.assign(filters,patch),resetFilters:()=>{filters=newFilters();},openDialog,closeDialog,toast});
 if(!location.hash)history.replaceState(null,'','#/dashboard');navigate();
