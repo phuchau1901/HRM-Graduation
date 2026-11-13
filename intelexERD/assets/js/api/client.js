@@ -40,3 +40,18 @@ export function apiEmployees(query=''){return request('/api/employees'+(query?`?
 export function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
 export function apiPositions(query=''){return request('/api/positions'+(query?`?${query}`:''));}
 export function apiNotifications(){return request('/api/notifications');}
+
+export function apiRoles(page=1,search=''){return request('/api/roles?'+new URLSearchParams({page,pageSize:30,search}));}
+export async function apiAllScreens(){
+ const screens=[];let page=1,total;
+ do{const result=await request('/api/screens?'+new URLSearchParams({platform:'WEB',page,pageSize:100}));
+ if(!Array.isArray(result?.data))throw Error('Danh sách màn hình không hợp lệ.');
+ screens.push(...result.data);total=result.total;if(!result.data.length)break;page++;
+ }while(screens.length<total);
+ return screens;
+}
+export function apiRolePermissions(roleId){return request(`/api/roles/${encodeURIComponent(roleId)}/permissions`);}
+export function apiSaveRolePermissions(roleId,version,screens){
+ if(!version)throw Error('Thiếu version của role. Vui lòng tải lại.');
+ return request(`/api/roles/${encodeURIComponent(roleId)}/permissions`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify({screens})});
+}
