@@ -44,7 +44,7 @@ export function apiNotifications(){return request('/api/notifications');}
 export function apiRoles(page=1,search=''){return request('/api/roles?'+new URLSearchParams({page,pageSize:30,search}));}
 export async function apiAllScreens(){
  const screens=[];let page=1,total;
- do{const result=await request('/api/screens?'+new URLSearchParams({platform:'WEB',page,pageSize:100}));
+ do{const result=await request('/api/screens?'+new URLSearchParams({page,pageSize:100}));
  if(!Array.isArray(result?.data))throw Error('Danh sách màn hình không hợp lệ.');
  screens.push(...result.data);total=result.total;if(!result.data.length)break;page++;
  }while(screens.length<total);
@@ -54,4 +54,28 @@ export function apiRolePermissions(roleId){return request(`/api/roles/${encodeUR
 export function apiSaveRolePermissions(roleId,version,screens){
  if(!version)throw Error('Thiếu version của role. Vui lòng tải lại.');
  return request(`/api/roles/${encodeURIComponent(roleId)}/permissions`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify({screens})});
+}
+
+export function apiUsers(page=1,search=''){return request('/api/users?'+new URLSearchParams({page,pageSize:30,search}));}
+export function apiCreateUser(payload){return request('/api/users',{method:'POST',body:JSON.stringify(payload)});}
+export function apiCreateEmployee(payload){return request('/api/employees',{method:'POST',body:JSON.stringify(payload)});}
+export async function apiAllRoles(){
+ const items=[];let page=1;
+ while(true){const result=await apiRoles(page);if(!Array.isArray(result?.data))throw Error('Danh sách role không hợp lệ.');items.push(...result.data);if(!result.data.length||items.length>=result.total)break;page++;}
+ return items;
+}
+export async function apiActiveDepartments(){
+ const items=[];let page=1;
+ while(true){const result=await apiDepartments(new URLSearchParams({page,pageSize:100,isActive:true}).toString());if(!Array.isArray(result?.data))throw Error('Danh sách phòng ban không hợp lệ.');items.push(...result.data);if(!result.data.length||items.length>=result.total)break;page++;}
+ return items.filter(item=>item.isActive);
+}
+
+export function apiUserDetail(userId){return request(`/api/users/${encodeURIComponent(userId)}`);}
+export function apiUpdateUser(userId,version,payload){
+ if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
+ return request(`/api/users/${encodeURIComponent(userId)}`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify(payload)});
+}
+export function apiUpdateUserRoles(userId,version,roleIds){
+ if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
+ return request(`/api/users/${encodeURIComponent(userId)}/roles`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify({roleIds})});
 }

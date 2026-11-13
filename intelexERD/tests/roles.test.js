@@ -36,3 +36,12 @@ test('disabling a screen revokes standard and registered extended grants in one 
  const patch=rolePermissionPatch(new Map([['WEB_TEAM_MEMBERS',flags]]),new Set(['WEB_TEAM_MEMBERS']),new Set(['WEB_TEAM_MEMBERS']));
  assert.deepEqual(patch,[{screenCode:'WEB_TEAM_MEMBERS',standard:flags,extendedActions:[]}]);
 });
+test('WEB and MOBILE menus separate platform catalogs and save changes together',()=>{
+ const screens=[{id:1,code:'WEB_TEAM_MEMBERS',name:'Web members',platform:'WEB'},{id:2,code:'MOBILE_TEAM_MEMBERS',name:'Mobile members',platform:'MOBILE'},{id:3,code:'MOBILE_CUSTOM',name:'Mobile custom',platform:'MOBILE'}];
+ assert.deepEqual(roleMenuGroups(screens,'WEB').flatMap(g=>g.entries.map(x=>x.id)),[1]);
+ const mobile=roleMenuGroups(screens,'MOBILE');assert.equal(mobile[0].name,'Team Management');
+ assert.deepEqual(mobile.flatMap(g=>g.entries.map(x=>x.id)),[2,3]);
+ assert.deepEqual(roleMenuGroups(screens.filter(s=>s.platform==='WEB'),'MOBILE'),[]);
+ const patch=rolePermissionPatch(new Map([['WEB_TEAM_MEMBERS',{VIEW:true}],['MOBILE_TEAM_MEMBERS',{VIEW:false}]]),new Set(['WEB_TEAM_MEMBERS','MOBILE_TEAM_MEMBERS']));
+ assert.equal(patch.length,2);assert.equal(patch[1].standard.VIEW,false);
+});
