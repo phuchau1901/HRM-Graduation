@@ -21,7 +21,7 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     private static ContractDto Dto(Contract c) => new(c.ID, c.EmployeeID, c.ContractNo, c.ContractType, c.StartDate, c.EndDate, c.Status, c.AttachmentURL);
     public async Task<PageResult<EmployeeDto>> ListAsync(string userId, EmployeeQuery q, CancellationToken ct)
     {
-        var access = await scopes.GetAsync(userId, ct);
+        var access = await scopes.GetAsync(userId, "WEB_EMPLOYEES", "VIEW", ct);
         var query = access.Apply(db.Set<Employee>().AsNoTracking());
         if (q.DepartmentId.HasValue) query = query.Where(x => x.DepartmentId == q.DepartmentId);
         if (q.EmploymentStatus is not null) query = query.Where(x => x.EmploymentStatus == q.EmploymentStatus);
@@ -30,9 +30,9 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         var data = await query.OrderBy(x => x.Id).Skip(Paging.Offset(q)).Take(q.PageSize).ToListAsync(ct);
         return new(true, total, q.Page, q.PageSize, data.Select(Dto).ToList());
     }
-    private async Task<Employee> FindAsync(string actor, int id, bool write, CancellationToken ct)
+    private async Task<Employee> FindAsync(string actor, int id, bool write, CancellationToken ct, string screen = "WEB_EMPLOYEES", string action = "VIEW")
     {
-        var access = await scopes.GetAsync(actor, ct); if (write) access.DemandWrite();
+        var access = await scopes.GetAsync(actor, screen, action, ct); if (write) access.DemandWrite();
         return await access.Apply(db.Set<Employee>()).SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw BusinessException.Missing();
     }
     public async Task<EmployeeDto> GetAsync(string actor, int id, CancellationToken ct) => Dto(await FindAsync(actor, id, false, ct));
@@ -52,7 +52,7 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     public async Task<EmployeeDto> CreateAsync(string actor, EmployeeCreateRequest request, string trace, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var access = await scopes.GetAsync(actor, ct); access.DemandDepartment(request.DepartmentId);
+        var access = await scopes.GetAsync(actor, "WEB_EMPLOYEES", "NEW", ct); access.DemandDepartment(request.DepartmentId);
         await ValidateDepartmentAsync(request.DepartmentId, ct);
         if (request.HireDate == default) throw BusinessException.Invalid("HireDate is required.");
         ValidateProfile(request, request.HireDate);
@@ -68,7 +68,7 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     public async Task<EmployeeDto> UpdateAsync(string actor, int id, EmployeeProfileRequest request, string trace, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var entity = await FindAsync(actor, id, true, ct); ValidateProfile(request, entity.HireDate);
+        var entity = await FindAsync(actor, id, true, ct, action: "UPDATE"); ValidateProfile(request, entity.HireDate);
         await CheckEmailAsync(request.Email.Trim(), id, ct);
         if (entity.FullName == request.FullName.Trim() && entity.Email == request.Email.Trim() &&
             entity.PhoneNumber == request.PhoneNumber && entity.DateOfBirth == request.DateOfBirth && entity.EmploymentStatus == request.EmploymentStatus)
@@ -84,7 +84,7 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     public async Task DeactivateAsync(string actor, int id, string trace, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var entity = await FindAsync(actor, id, true, ct);
+        var entity = await FindAsync(actor, id, true, ct, action: "DELETE");
         if (entity.EmploymentStatus == "TERMINATED") throw BusinessException.Conflict("A terminated employee cannot be reactivated by deactivation.");
         if (entity.EmploymentStatus != "INACTIVE")
         {
@@ -96,8 +96,8 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     public async Task<EmployeeDto> TransferAsync(string actor, int id, DepartmentTransferRequest request, string trace, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var access = await scopes.GetAsync(actor, ct); if (access.Scope != "ALL") throw BusinessException.Scope();
-        var entity = await FindAsync(actor, id, true, ct); await ValidateDepartmentAsync(request.DepartmentId, ct);
+        var access = await scopes.GetAsync(actor, "WEB_EMPLOYEES", "UPDATE", ct); if (access.Scope != "ALL") throw BusinessException.Scope();
+        var entity = await FindAsync(actor, id, true, ct, action: "UPDATE"); await ValidateDepartmentAsync(request.DepartmentId, ct);
         if (entity.DepartmentId == request.DepartmentId) throw BusinessException.Invalid("Employee already belongs to this department.");
         var last = await db.Set<EmployeeHistory>().Where(x => x.EmployeeID == id).OrderByDescending(x => x.EffectiveDate)
             .Select(x => (DateOnly?)x.EffectiveDate).FirstOrDefaultAsync(ct);
@@ -120,7 +120,7 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     }
     public async Task<PageResult<ContractDto>> ContractsAsync(string actor, int employeeId, PageQuery q, CancellationToken ct)
     {
-        await FindAsync(actor, employeeId, false, ct);
+        await FindAsync(actor, employeeId, false, ct, "WEB_CONTRACTS", "VIEW");
         var query = db.Set<Contract>().AsNoTracking().Where(x => x.EmployeeID == employeeId);
         if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(x => x.ContractNo.Contains(q.Search));
         return new(true, await query.CountAsync(ct), q.Page, q.PageSize, (await query.OrderByDescending(x => x.ID)
@@ -128,13 +128,13 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     }
     public async Task<ContractDto> ContractAsync(string actor, int employeeId, long id, CancellationToken ct)
     {
-        await FindAsync(actor, employeeId, false, ct);
+        await FindAsync(actor, employeeId, false, ct, "WEB_CONTRACTS", "VIEW");
         return Dto(await db.Set<Contract>().AsNoTracking().SingleOrDefaultAsync(x => x.ID == id && x.EmployeeID == employeeId, ct) ?? throw BusinessException.Missing());
     }
     public async Task<ContractDto> SaveContractAsync(string actor, int employeeId, long? id, ContractRequest request, string trace, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var employee = await FindAsync(actor, employeeId, true, ct);
+        var employee = await FindAsync(actor, employeeId, true, ct, "WEB_CONTRACTS", id.HasValue ? "UPDATE" : "NEW");
         if (request.StartDate == default || request.StartDate < employee.HireDate || request.EndDate < request.StartDate)
             throw BusinessException.Invalid("Contract dates are invalid or precede employee hire date.");
         if (request.Status == "ACTIVE" && (request.StartDate > Today || request.EndDate < Today))

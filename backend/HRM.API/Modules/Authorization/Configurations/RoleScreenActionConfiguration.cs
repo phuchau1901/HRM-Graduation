@@ -11,6 +11,7 @@ public sealed class RoleScreenActionConfiguration : IEntityTypeConfiguration<Rol
         e.Property(x => x.RoleID).HasColumnName("role_id").HasColumnType("bigint");
         e.Property(x => x.ScreenID).HasColumnName("screen_id").HasColumnType("bigint");
         e.Property(x => x.ActionCode).HasColumnName("action_code").HasColumnType("varchar(40)").HasMaxLength(40);
+        e.Property(x => x.DataScope).HasColumnName("data_scope").HasColumnType("varchar(20)").HasMaxLength(20);
         e.HasOne<Role>().WithMany().HasForeignKey(x => x.RoleID).OnDelete(DeleteBehavior.Restrict);
         e.HasOne<Screen>().WithMany().HasForeignKey(x => x.ScreenID).OnDelete(DeleteBehavior.Restrict);
     }

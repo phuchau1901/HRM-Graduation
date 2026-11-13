@@ -476,6 +476,11 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(40)")
                         .HasColumnName("action_code");
 
+                    b.Property<string>("DataScope")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("data_scope");
+
                     b.HasKey("RoleID", "ScreenID", "ActionCode");
 
                     b.HasIndex("ScreenID");

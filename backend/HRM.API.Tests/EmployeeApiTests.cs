@@ -28,6 +28,19 @@ internal sealed class FailNotificationInsertInterceptor(bool enabled) : DbComman
 public sealed class EmployeeApiTests
 {
     [Fact]
+    public async Task MissingScopeDeniesDespiteGrantedActionAndLegacyConfiguration()
+    {
+        await using var h = await Harness.Create("ALL");
+        using (var services = h.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Set<RoleScreenAction>().ExecuteUpdateAsync(x => x.SetProperty(g => g.DataScope, (string?)null));
+        }
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync("/api/employees")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.PutAsJsonAsync($"/api/employees/{h.Self}", Profile())).StatusCode);
+    }
+
+    [Fact]
     public async Task SelfIsReadOnlyAndCannotAccessOtherEmployeesEvenWithSpoofedScope()
     {
         await using var h = await Harness.Create(null);
@@ -168,6 +181,10 @@ public sealed class EmployeeApiTests
                 Email = $"employee-{i}@example.invalid", HireDate = new(2020, 1, 1), DepartmentId = i == 3 ? other.Id : department.Id }).ToArray();
             db.AddRange(people); await db.SaveChangesAsync();
             await db.Set<User>().Where(x => x.UserId == "api-user").ExecuteUpdateAsync(s => s.SetProperty(x => x.EmployeeId, people[0].Id));
+            foreach (var detail in await db.RoleDetails.ToListAsync())
+                foreach (var action in new[] { "VIEW", "NEW", "UPDATE", "DELETE" })
+                    db.Add(new RoleScreenAction { RoleID = detail.RoleID, ScreenID = detail.ScreenID, ActionCode = action, DataScope = scope ?? "SELF" });
+            await db.SaveChangesAsync();
             h.Self = people[0].Id; h.Peer = people[1].Id; h.Other = people[2].Id; h.Department = department.Id; h.OtherDepartment = other.Id;
             await OrganizationApiTests.Login(h.Client, h.App); return h;
         }

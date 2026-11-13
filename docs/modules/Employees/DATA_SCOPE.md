@@ -1,21 +1,27 @@
-# Employees — SELF / DEPARTMENT / ALL
+# Employee data scope
 
-[Module](README.md) · [Profiles API](PROFILES_API.md)
+Scope is resolved from active user + assigned Role + active Screen + Action. The six standard grants remain Y/N in role_details. role_screen_actions.data_scope is metadata for those actions, never a grant. Extended Notification actions retain their existing explicit row grants; NULL scope is permitted when the operation does not use scoped data.
 
-ScreenPermission xác định quyền thực hiện chức năng; EmployeeDataScope xác định các bản ghi được truy cập. Cần đồng thời cả hai. Không suy scope từ ADMIN, HR hoặc Role name; không lấy scope/UserId từ body.
+Only roles granting the same screen/action contribute scope. Effective union is ALL > DEPARTMENT > SELF. Missing/NULL/unknown scope contributes nothing; if no eligible scope remains the service returns 403. No ADMIN bypass or UserId configuration fallback exists.
 
-| Scope | Đọc | Ghi |
-| --- | --- | --- |
-| SELF (mặc định) | Chỉ Employee liên kết User.EmployeeId | Không cho phép |
-| DEPARTMENT | Nhân viên thuộc phòng hiện tại của Employee liên kết | Chỉ trong phòng; không chuyển liên phòng |
-| ALL | Toàn bộ hồ sơ trong query | Còn phải có action và validation nghiệp vụ |
+SELF reads only the linked employee; all writes are forbidden until field-level rules exist. DEPARTMENT reads/writes employees in the actor's current linked department. Missing employee/department fails closed. ALL allows cross-department work; department transfer additionally requires ALL.
 
-User không có EmployeeId ở scope SELF nhận danh sách rỗng. Scope DEPARTMENT cần phòng hợp lệ; phòng được lấy lại từ DB. Chuyển phòng liên phòng cần ALL. Hợp đồng dùng cùng employee row scope, không chỉ kiểm tra contractId.
+Employees list/detail/history use WEB_EMPLOYEES/VIEW. Create uses NEW; profile update and transfer use UPDATE; deactivate uses DELETE. Contract reads use WEB_CONTRACTS/VIEW; create uses NEW and update uses UPDATE, independently of employee-screen permissions.
 
-Cấu hình backend minh họa, chưa ghi vào môi trường:
+## Permission API specification
 
-```json
-{"EmployeeDataScopes":{"Users":{"hr01":"ALL","manager01":"DEPARTMENT","employee01":"SELF"}}}
-```
+GET /api/roles/{id}/permissions returns existing screen properties plus `dataScopes`, a dictionary from action code to SELF, DEPARTMENT, ALL or null. `extendedActions` contains only the five extended codes, never standard scope rows. Version/ETag includes scopes.
 
-Mapping do operator quản lý; giá trị khác SELF/DEPARTMENT/ALL bị từ chối ở startup. Chưa có bảng hoặc API quản trị Data Scope. Không tự thay schema hoặc cấp ALL khi test lỗi403. Quyền xem danh mục Organization hay metadata tài khoản không thay thế quyền đọc Employee/Contract.
+PUT uses existing authentication, UPDATE + APPROVE permissions, If-Match concurrency, audit and anti-self-edit rules. Each screen patch accepts optional `dataScopes`. Omitted dictionary/keys retain old values; explicit null clears the scope. Invalid action/scope is 400. Actor must possess at least the requested scope for the same action; broadening beyond the actor is 403. Extended scope metadata requires an existing or simultaneously granted extended action. Omitted extendedActions preserves Notification grants; supplying it explicitly replaces extended grants only. Scope changes revoke refresh tokens and increment auth_version for all assigned users in the same transaction.
+
+Example: [JSON sample](../../API/role-permissions-data-scope.sample.json).
+
+## Review and conversion
+
+No runtime database or deployed configuration was inspected or changed. Old EmployeeDataScopes.Users is configuration, not a database table; no automatic safe migration can infer per-action role grants from it. The new runtime ignores this mapping.
+
+Before rollout, export the approved legacy mapping, current user-role assignments, employee links/departments and per-screen grants in a controlled environment. Produce proposals per role/screen/action and compare every affected user, including users without an explicit legacy entry (previously SELF). Shared roles may include users with different scopes; assigning the maximum would widen their access. Split roles or obtain explicit approval instead. An ALL legacy user is not approval to give every user in their roles ALL. Missing employee links and department changes also need review. Keep all proposed ALL grants pending explicit approval.
+
+The schema migration adds nullable metadata only and copies no grants. Existing scoped employee endpoints will deny until approved scopes are configured. Plan a coordinated rollout; do not silently default scopes. Re-login is required after permission changes. Direct SQL permission backfills must also revoke refresh tokens and increment auth_version in a reviewed transaction; prefer the permission API.
+
+Review SQL: [schema SQL](../../API/role-action-data-scope.review.sql). No migration has been applied. MySQL DDL may auto-commit; schedule separately from data backfill. Rollback drops metadata and requires coordinated application rollback; it does not restore legacy configuration automatically.

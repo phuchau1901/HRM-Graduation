@@ -57,6 +57,36 @@ public sealed class AdministrationApiTests
         internal async Task<RoleMatrixDto> Matrix() => (await Client.GetFromJsonAsync<RoleMatrixDto>($"/api/roles/{TargetRole}/permissions"))!;
         public void Dispose() { Client.Dispose(); App.Dispose(); }
     }
+    [Fact]
+    public async Task ScopePatchPreservesNotificationsAndInvalidatesOldToken()
+    {
+        using var f = new Fixture(); await f.Start();
+        using (var services = f.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            var root = await db.Set<Role>().SingleAsync(x => x.Code == "HR");
+            db.Add(new RoleScreenAction { RoleID = root.ID, ScreenID = f.Web, ActionCode = "VIEW", DataScope = "ALL" });
+            await db.SaveChangesAsync();
+        }
+        var matrix = await f.Matrix();
+        var result = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] {
+            new { screenCode = "TEST_WEB", standard = new { VIEW = true }, extendedActions = new[] { "SEND_USER", "SEND_GROUP", "SEND_ALL", "SCHEDULE", "CANCEL" }, dataScopes = new { VIEW = "DEPARTMENT" } }
+        } }, matrix.Version);
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+        using var target = f.App.CreateClient(new() { BaseAddress = new("https://localhost") });
+        var login = await target.PostAsJsonAsync("/api/auth/login", new { userId = "target", password = f.App.Password });
+        target.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<HRM.API.Modules.Auth.DTOs.LoginResponse>())!.AccessToken);
+        matrix = await f.Matrix();
+        result = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] {
+            new { screenCode = "TEST_WEB", dataScopes = new Dictionary<string, string?> { ["VIEW"] = null } }
+        } }, matrix.Version);
+        Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+        var row = Assert.Single((await result.Content.ReadFromJsonAsync<RoleMatrixDto>())!.Screens);
+        Assert.Null(row.DataScopes["VIEW"]); Assert.Equal(5, row.ExtendedActions.Length);
+        Assert.DoesNotContain("VIEW", row.ExtendedActions);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await target.GetAsync("/api/auth/me")).StatusCode);
+    }
+
     [Theory]
     [InlineData("/api/screens")] [InlineData("/api/users")] [InlineData("/api/roles")] [InlineData("/api/authorization/actions")]
     public async Task CatalogsRequireJwtAndCurrentGrant(string path)

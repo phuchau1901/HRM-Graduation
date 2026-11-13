@@ -81,3 +81,5 @@ Có **52 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 ## Chưa triển khai
 
 Không có public registration/forgot-password API, refresh-token HTTP endpoint, Data Scope management API, MFA/two-person approval, FCM, Attendance/Leave/Payroll/KPI/Dashboard HTTP workflow trong source hiện tại. Không ghi route dự kiến như route đang tồn tại. Endpoint Login anonymous có chủ đích; các endpoint inbox/profile yêu cầu JWT nhưng không đòi quyền xem một màn hình.
+
+Data Scope API extension: [specification and conversion rules](../modules/Employees/DATA_SCOPE.md), [audit](DATA_SCOPE_AUDIT.md), [review SQL](role-action-data-scope.review.sql), [JSON example](role-permissions-data-scope.sample.json).

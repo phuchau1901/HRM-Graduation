@@ -1379,6 +1379,49 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Role action data scopes",
+      "item": [
+        {
+          "name": "Read role scopes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/roles/{{roleId}}/permissions"
+          }
+        },
+        {
+          "name": "Patch role scopes (approved scope only)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{roleVersion}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/roles/{{roleId}}/permissions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"screens\": [\n    {\n      \"screenCode\": \"WEB_EMPLOYEES\",\n      \"standard\": {\n        \"VIEW\": true,\n        \"UPDATE\": true\n      },\n      \"dataScopes\": {\n        \"VIEW\": \"DEPARTMENT\",\n        \"UPDATE\": \"DEPARTMENT\"\n      }\n    }\n  ]\n}"
+            }
+          }
+        }
+      ]
     }
   ]
 }

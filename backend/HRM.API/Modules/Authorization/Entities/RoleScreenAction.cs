@@ -4,5 +4,6 @@ public class RoleScreenAction
 {
     public long RoleID { get; set; }
     public long ScreenID { get; set; }
+    public string? DataScope { get; set; }
     public string ActionCode { get; set; } = string.Empty;
 }

@@ -76,7 +76,7 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
             .Select(p => x.Code + ":" + p.Key)).ToHashSet(StringComparer.Ordinal);
         var extended = await (from a in db.Set<RoleScreenAction>().AsNoTracking() join s in db.Screens on a.ScreenID equals s.ID
                               where roles.Contains(a.RoleID) select new { s.Code, a.ActionCode }).ToListAsync(ct);
-        result.UnionWith(extended.Select(x => x.Code + ":" + x.ActionCode));
+        result.UnionWith(extended.Where(x => PermissionActions.Extended.Contains(x.ActionCode)).Select(x => x.Code + ":" + x.ActionCode));
         return result;
     }
     private async Task Dominates(string actor, long[] roleIds, CancellationToken ct)
@@ -220,7 +220,8 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
         var screens = await db.Screens.AsNoTracking().Where(x => ids.Contains(x.ID)).OrderBy(x => x.ID).ToListAsync(ct);
         var rows = screens.Select(s => new MatrixScreenDto(s.ID, s.Code, s.Name, s.Platform, s.IsActive,
             PermissionActions.Columns.ToDictionary(p => p.Key, p => details.Any(d => d.ScreenID == s.ID && p.Value(d) == "Y")),
-            extended.Where(x => x.ScreenID == s.ID).Select(x => x.ActionCode).OrderBy(x => x, StringComparer.Ordinal).ToArray())).ToArray();
+            extended.Where(x => x.ScreenID == s.ID && PermissionActions.Extended.Contains(x.ActionCode)).Select(x => x.ActionCode).OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+            extended.Where(x => x.ScreenID == s.ID).OrderBy(x => x.ActionCode).ToDictionary(x => x.ActionCode, x => x.DataScope))).ToArray();
         var users = await db.Set<UserRole>().Where(x => x.RoleID == id).OrderBy(x => x.UserID).Select(x => x.UserID).ToArrayAsync(ct);
         return new(id, rows, Version(new { role.ID, role.Code, role.Name, rows, users }));
     }
@@ -271,6 +272,20 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
                     patch.ExtendedActions?.Distinct().Count() != patch.ExtendedActions?.Length) throw BusinessException.Invalid("Invalid or duplicate action code.");
                 var proposed = (patch.Standard ?? []).Where(x => x.Value).Select(x => x.Key).Concat(patch.ExtendedActions ?? []).ToArray();
                 if (proposed.Length > 0 && (!screen.IsActive || proposed.Any(x => !own.GetValueOrDefault(screen.Code, []).Contains(x)))) throw Denied();
+                if (patch.DataScopes != null)
+                {
+                    foreach (var pair in patch.DataScopes)
+                    {
+                        if (PermissionActions.Normalize(pair.Key) != pair.Key || (pair.Value != null && pair.Value is not ("SELF" or "DEPARTMENT" or "ALL")))
+                            throw BusinessException.Invalid("Invalid action or data scope.");
+                        if (pair.Value != null)
+                        {
+                            var ownScope = await permissions.GetDataScopeAsync(actor, screen.Code, pair.Key, ct);
+                            static int Rank(string? scope) => scope switch { "SELF" => 1, "DEPARTMENT" => 2, "ALL" => 3, _ => 0 };
+                            if (!screen.IsActive || Rank(ownScope) < Rank(pair.Value)) throw Denied();
+                        }
+                    }
+                }
                 if (patch.Standard != null)
                 {
                     var detail = await db.RoleDetails.SingleOrDefaultAsync(x => x.RoleID == id && x.ScreenID == screen.ID, ct);
@@ -283,6 +298,21 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
                     db.Set<RoleScreenAction>().RemoveRange(existing.Where(x => PermissionActions.Extended.Contains(x.ActionCode) && !patch.ExtendedActions.Contains(x.ActionCode)));
                     foreach (var action in patch.ExtendedActions.Where(a => existing.All(x => x.ActionCode != a)))
                         db.Set<RoleScreenAction>().Add(new() { RoleID = id, ScreenID = screen.ID, ActionCode = action });
+                }
+                if (patch.DataScopes != null)
+                {
+                    foreach (var pair in patch.DataScopes)
+                    {
+                        var row = db.Set<RoleScreenAction>().Local.FirstOrDefault(x => x.RoleID == id && x.ScreenID == screen.ID && x.ActionCode == pair.Key)
+                            ?? await db.Set<RoleScreenAction>().SingleOrDefaultAsync(x => x.RoleID == id && x.ScreenID == screen.ID && x.ActionCode == pair.Key, ct);
+                        if (PermissionActions.Extended.Contains(pair.Key) && (row == null || db.Entry(row).State == EntityState.Deleted))
+                        {
+                            if (pair.Value != null) throw BusinessException.Invalid("Scope requires an extended grant.");
+                            continue;
+                        }
+                        if (row == null) { row = new() { RoleID = id, ScreenID = screen.ID, ActionCode = pair.Key }; db.Add(row); }
+                        row.DataScope = pair.Value;
+                    }
                 }
             }
             await db.SaveChangesAsync(ct); await RevokeRoles([id], ct);

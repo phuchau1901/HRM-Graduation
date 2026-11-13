@@ -1,0 +1,15 @@
+{
+  "screens": [
+    {
+      "screenCode": "WEB_EMPLOYEES",
+      "standard": {
+        "VIEW": true,
+        "UPDATE": true
+      },
+      "dataScopes": {
+        "VIEW": "DEPARTMENT",
+        "UPDATE": "DEPARTMENT"
+      }
+    }
+  ]
+}

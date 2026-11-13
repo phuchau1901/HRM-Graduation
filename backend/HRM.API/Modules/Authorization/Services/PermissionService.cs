@@ -33,6 +33,25 @@ public sealed class PermissionService(AppDbContext db) : IPermissionService
         return result;
     }
 
+    public async Task<string?> GetDataScopeAsync(string userId, string screenCode, string action, CancellationToken ct = default)
+    {
+        var operation = PermissionActions.Normalize(action);
+        if (string.IsNullOrWhiteSpace(userId) || userId.Length > 100 || string.IsNullOrWhiteSpace(screenCode) || screenCode.Length > 100 || operation is null) return null;
+        var candidates = await (from user in db.Set<User>().AsNoTracking()
+                                join ur in db.Set<UserRole>() on user.UserId equals ur.UserID
+                                join role in db.Set<Role>() on ur.RoleID equals role.ID
+                                join grant in db.Set<RoleScreenAction>() on role.ID equals grant.RoleID
+                                join screen in db.Set<Screen>() on grant.ScreenID equals screen.ID
+                                where user.UserId == userId && user.Status == "ACTIVE" && screen.IsActive && screen.Code == screenCode && grant.ActionCode == operation
+                                select grant).ToListAsync(ct);
+        var roleIds = candidates.Select(g => g.RoleID).Distinct().ToArray();
+        var details = await db.Set<RoleDetail>().AsNoTracking().Where(x => roleIds.Contains(x.RoleID)).ToListAsync(ct);
+        var scopes = candidates.Where(g => PermissionActions.Extended.Contains(operation) ||
+            details.Any(d => d.RoleID == g.RoleID && d.ScreenID == g.ScreenID && PermissionActions.Columns[operation](d) == "Y"))
+            .Select(g => g.DataScope).ToArray();
+        return new[] { "ALL", "DEPARTMENT", "SELF" }.FirstOrDefault(scopes.Contains);
+    }
+
     public Task<bool> HasPermissionAsync(string userId, string screenCode, string action, CancellationToken ct = default)
     {
         var operation = PermissionActions.Normalize(action);

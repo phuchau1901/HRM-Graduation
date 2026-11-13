@@ -84,6 +84,29 @@ public sealed class PermissionServiceTests : IDisposable
         Assert.Empty(_queries.Sql);
     }
 
+    [Theory]
+    [InlineData("SELF")] [InlineData("DEPARTMENT")] [InlineData("ALL")] [InlineData(null)]
+    public async Task ScopeUsesOnlyRolesGrantingTheSameActionAndRevokesImmediately(string? scope)
+    {
+        var role = new Role { Code = "R", Name = "Role" };
+        var other = new Role { Code = "O", Name = "Other" };
+        var screen = new Screen { Code = "WEB_EMPLOYEES", Name = "Employees", IsActive = true };
+        _db.AddRange(role, other, screen, new User { UserId = "u", Email = "u@example.invalid", Status = "ACTIVE" });
+        await _db.SaveChangesAsync();
+        var detail = new RoleDetail { RoleID = role.ID, ScreenID = screen.ID, CanView = "Y" };
+        _db.AddRange(detail, new UserRole { UserID = "u", RoleID = role.ID }, new UserRole { UserID = "u", RoleID = other.ID },
+            new RoleScreenAction { RoleID = role.ID, ScreenID = screen.ID, ActionCode = "VIEW", DataScope = scope },
+            new RoleScreenAction { RoleID = other.ID, ScreenID = screen.ID, ActionCode = "VIEW", DataScope = "ALL" });
+        await _db.SaveChangesAsync();
+        Assert.Equal(scope, await _service.GetDataScopeAsync("u", screen.Code, "VIEW"));
+        Assert.Null(await _service.GetDataScopeAsync("u", screen.Code, "UPDATE"));
+        var otherDetail = new RoleDetail { RoleID = other.ID, ScreenID = screen.ID, CanView = "Y" };
+        _db.Add(otherDetail); await _db.SaveChangesAsync();
+        Assert.Equal("ALL", await _service.GetDataScopeAsync("u", screen.Code, "VIEW"));
+        otherDetail.CanView = "N"; detail.CanView = "N"; await _db.SaveChangesAsync();
+        Assert.Null(await _service.GetDataScopeAsync("u", screen.Code, "VIEW"));
+    }
+
     internal static void SetFlag(RoleDetail grant, string action, string value)
     {
         switch(action)

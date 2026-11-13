@@ -45,6 +45,7 @@ public sealed class ScreenPermissionPatch
 {
     [Required, MaxLength(100)] public string ScreenCode { get; set; } = "";
     // Omitted flags retain their old values; omitted ExtendedActions retains every extended grant.
+    public Dictionary<string, string?>? DataScopes { get; set; }
     public Dictionary<string, bool>? Standard { get; set; }
     [MaxLength(100)] public string[]? ExtendedActions { get; set; }
 }
@@ -63,5 +64,5 @@ public sealed record AdminRoleView(long Id, string Code, string Name, string Ver
 public sealed record AdminUserDto(string UserId, string Email, int? EmployeeId, string Status, DateTime CreatedAt,
     IReadOnlyList<AdminRoleDto> Roles, string Version);
 public sealed record MatrixScreenDto(long ScreenId, string ScreenCode, string Name, string Platform, bool IsActive,
-    Dictionary<string, bool> Standard, string[] ExtendedActions);
+    Dictionary<string, bool> Standard, string[] ExtendedActions, Dictionary<string, string?> DataScopes);
 public sealed record RoleMatrixDto(long RoleId, IReadOnlyList<MatrixScreenDto> Screens, string Version);

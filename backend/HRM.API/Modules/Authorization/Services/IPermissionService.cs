@@ -3,6 +3,7 @@ namespace HRM.API.Modules.Authorization.Services;
 public interface IPermissionService
 {
     Task<Dictionary<string, string[]>> GetSnapshotAsync(string userId, CancellationToken ct = default);
+    Task<string?> GetDataScopeAsync(string userId, string screenCode, string action, CancellationToken ct = default);
     Task<bool> HasPermissionAsync(string userId, string screenCode, string action, CancellationToken ct = default);
 }
 
