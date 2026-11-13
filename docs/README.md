@@ -53,3 +53,13 @@ Mỗi endpoint được mô tả tại file API của module với Method/URL, p
 Sửa tài liệu module cùng thay đổi source và cập nhật API Inventory khi thêm/bỏ route. Tài liệu dùng giá trị minh họa/placeholder, không chứa credential thật. Schema/grant/migration application state phải xác minh riêng tại môi trường đích. Đợt viết lại này chỉ chỉnh Markdown; Postman, SQL và backup hiện có được giữ nguyên.
 
 File Markdown phẳng cũ đã được thay thế bởi cây thư mục này. Bản sao trước khi viết lại được giữ ngoài repository tại `/private/tmp/hrm-docs-rewrite-20261026-before.tar.gz`; không lưu thêm bản tài liệu lỗi thời trong cây tài liệu mới.
+
+
+
+cd backend/HRM.API
+
+ASPNETCORE_ENVIRONMENT=Development \
+Notifications__WorkerEnabled=true \
+dotnet run --project HRM.API.csproj \
+  --no-launch-profile \
+  --urls http://localhost:5000
