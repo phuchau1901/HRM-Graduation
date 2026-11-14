@@ -18,7 +18,7 @@ public sealed class TeamApiTests
 {
     private static EmployeeProfileRequest Profile(int? teamId) => new() { FullName = "Employee", Email = "employee-update@example.invalid", TeamId = teamId };
     private static EmployeeCreateRequest NewEmployee(int departmentId, int? teamId) => new()
-    { EmployeeCode = "TEAM-NEW", FullName = "New employee", Email = "team-new@example.invalid", HireDate = new(2020, 1, 1), DepartmentId = departmentId, TeamId = teamId };
+    { FullName = "New employee", Email = "team-new@example.invalid", HireDate = new(2020, 1, 1), DepartmentId = departmentId, TeamId = teamId };
     private static async Task<Team> AddTeam(EmployeeApiTests.Harness h, int departmentId, string code = "T1", bool active = true)
     {
         using var services = h.App.Services.CreateScope(); var db = services.ServiceProvider.GetRequiredService<AppDbContext>();

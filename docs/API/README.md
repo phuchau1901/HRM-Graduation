@@ -65,7 +65,7 @@ Có **58 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | PATCH | `/api/screens/{screenId}/status` | [Authorization](../modules/Authorization/SCREENS_API.md) | WEB_PERMISSIONS/UPDATE |
 | GET | `/api/users?page=1&pageSize=30` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/VIEW |
 | GET | `/api/users/{targetUserId}` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/VIEW |
-| POST | `/api/users` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds |
+| POST | `/api/users` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/NEW; createEmployee cần live WEB_EMPLOYEES/NEW + scope; thêm WEB_USERS/APPROVE nếu có RoleIds |
 | PUT | `/api/users/{targetUserId}` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/UPDATE |
 | PATCH | `/api/users/{targetUserId}/status` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/UPDATE |
 | POST | `/api/users/{targetUserId}/reset-password` | [Authorization](../modules/Authorization/USERS_API.md) | SELF_CHANGE: JWT chính chủ; ADMIN_RESET: live WEB_USERS/UPDATE |

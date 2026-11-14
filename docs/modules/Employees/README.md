@@ -32,3 +32,9 @@ Quy ước chung: [HTTP và phân quyền](../../guides/CONVENTIONS.md). Cấu t
 ## Teams
 
 Employee có `TeamId` nullable, composite FK bảo đảm Team thuộc Department của Employee. Các response hồ sơ có `TeamId` và `TeamName`. PUT cũ không gửi teamId giữ nguyên Team; chuyển Department gỡ Team cũ nếu không chỉ định Team mới hợp lệ. Audit `EMPLOYEE_TEAM_CHANGED` lưu before/after và actor trong cùng transaction. Team không thêm data scope mới. Xem [API Teams](../Organization/TEAMS_API.md) và [Profiles API](PROFILES_API.md#team-của-nhân-viên).
+
+## Mã nhân viên và tạo tài khoản
+
+EmployeeCode mới tự sinh `NV` + Id AUTO_INCREMENT, tối thiểu 6 chữ số, không nhận mã từ client và không đổi khi cập nhật. Giữ unique index và mã legacy. [Chi tiết sinh mã](PROFILES_API.md#employeecode-tự-động-chỉ-đọc). Tạo User kèm Employee qua createEmployee của POST /api/users dùng một transaction chung, không tạo Employee riêng rồi mới gọi User.
+
+- [Audit và báo cáo tạo Employee/User atomic](EMPLOYEE_CREATION.md)

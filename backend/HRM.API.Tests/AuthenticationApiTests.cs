@@ -174,6 +174,8 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
     public string? NotificationOrigin { get; init; }
     public string? EmployeeScope { get; init; }
     public bool FailNotificationWrites { get; init; }
+    public string? SqliteDatabasePath { get; init; }
+    public Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor? CreationInterceptor { get; init; }
     public string Password { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
     public string SigningKey { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -191,7 +193,15 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
         {
             services.AddControllers().AddApplicationPart(typeof(PermissionProbeController).Assembly);
             services.RemoveAll<AppDbContext>();
-            services.AddScoped<AppDbContext>(_ => new AuthorizationTestContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(_connection).AddInterceptors(new FailNotificationInsertInterceptor(FailNotificationWrites)).Options));
+            services.AddScoped<AppDbContext>(_ =>
+            {
+                var options = new DbContextOptionsBuilder<AppDbContext>();
+                if (SqliteDatabasePath is null) options.UseSqlite(_connection);
+                else options.UseSqlite(new SqliteConnectionStringBuilder { DataSource = SqliteDatabasePath, DefaultTimeout = 30, ForeignKeys = true }.ToString());
+                options.AddInterceptors(new FailNotificationInsertInterceptor(FailNotificationWrites));
+                if (CreationInterceptor is not null) options.AddInterceptors(CreationInterceptor);
+                return new AuthorizationTestContext(options.Options);
+            });
         });
     }
     public async Task PrepareAsync()

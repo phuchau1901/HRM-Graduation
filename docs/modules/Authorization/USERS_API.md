@@ -41,7 +41,8 @@ Response thành công:
       "status": "ACTIVE",
       "createdAt": "2026-10-26T00:00:00Z",
       "roles": [],
-      "version": "VERSION_64_HEX_FROM_GET"
+      "version": "VERSION_64_HEX_FROM_GET",
+      "employeeCode": null
     }
   ]
 }
@@ -68,13 +69,14 @@ Response thành công:
   "status": "ACTIVE",
   "createdAt": "2026-10-26T00:00:00Z",
   "roles": [],
-  "version": "VERSION_64_HEX_FROM_GET"
+  "version": "VERSION_64_HEX_FROM_GET",
+  "employeeCode": null
 }
 ```
 
 ## POST /api/users
 
-Tạo tài khoản quản trị nội bộ.
+Tạo tài khoản; có thể tạo kèm hồ sơ nhân viên bằng createEmployee.
 
 - ScreenPermission: `WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds`. Role: tài khoản có grant tương ứng; không có bypass theo tên Role.
 - Parameters: Không có.
@@ -102,9 +104,68 @@ Response thành công:
   "status": "ACTIVE",
   "createdAt": "2026-10-26T00:00:00Z",
   "roles": [],
+  "version": "VERSION_64_HEX_FROM_GET",
+  "employeeCode": null
+}
+```
+
+### Tạo User kèm Employee trong một transaction
+
+`POST /api/users` thêm `createEmployee` boolean (mặc định false) và `employee` object tùy chọn. Giữ nguyên route, status 201 và các trường User cũ. Không dùng hai request tạo Employee rồi tạo User.
+
+| Chế độ | Request | Hành vi |
+| --- | --- | --- |
+| Chỉ tạo User | createEmployee=false/bỏ qua; employeeId=null/bỏ qua | Không tạo Employee |
+| Liên kết Employee hiện có | createEmployee=false/bỏ qua; employeeId là ID chưa có tài khoản | Giữ luồng cũ; không cần quyền tạo Employee |
+| Tạo cả hai | createEmployee=true; employee là DTO tạo Employee | Tạo Employee, tự sinh code, gán User.EmployeeId và lưu cùng transaction |
+
+Với createEmployee=true, không được truyền employeeId; employee bắt buộc. Khi createEmployee=false, không được gửi employee. Dữ liệu lồng dùng cùng validation hồ sơ, Department active, Position active khi gán, Team active cùng Department. employeeCode không có trong DTO và không được tin nếu client gửi field thừa.
+
+Quyền: WEB_USERS/NEW như cũ; RoleIds không rỗng cần thêm WEB_USERS/APPROVE và nằm trong authority actor. Nếu tạo kèm Employee, bắt buộc **live WEB_EMPLOYEES/NEW** và data scope NEW có thể ghi: ALL hoặc DEPARTMENT đúng phòng ban; SELF không được ghi. Quyền tạo User không mở rộng phạm vi Employee. Không tự cấp thêm role/grant.
+
+```json
+{
+  "userId": "new.employee",
+  "email": "account@example.invalid",
+  "password": "<new_password_12_128_chars>",
+  "roleIds": [],
+  "createEmployee": true,
+  "employee": {
+    "fullName": "Nguyen Van A",
+    "email": "employee@example.invalid",
+    "hireDate": "2024-01-01",
+    "departmentId": 1,
+    "teamId": null,
+    "positionId": null,
+    "employmentStatus": "ACTIVE"
+  }
+}
+```
+
+Employee.email và User.email là hai trường độc lập, kiểm tra unique trong bảng tương ứng. Không tự ghi đè email của hồ sơ hay tài khoản.
+
+Response 201 mẫu (Id/code phụ thuộc dữ liệu hiện có):
+
+```json
+{
+  "userId": "new.employee",
+  "email": "account@example.invalid",
+  "employeeId": 1,
+  "employeeCode": "NV000001",
+  "status": "ACTIVE",
+  "createdAt": "2026-11-14T09:00:00Z",
+  "roles": [],
   "version": "VERSION_64_HEX_FROM_GET"
 }
 ```
+
+AdminUserDto thêm `employeeCode` nullable để UI nhận mã đã cấp. GET user/list và response mutation dùng DTO này cũng trả mã liên kết, null nếu chưa gắn nhân viên. Chỉ bổ sung định danh, không trả toàn bộ hồ sơ Employee trong API Users.
+
+Transaction dùng cùng AppDbContext và Serializable boundary hiện có của AdministrationService. User, Employee, code chính thức, UserRoles và audit EMPLOYEE_CREATED/USER_CREATE commit cùng nhau. Lỗi tạo user (duplicate, FK/DB, role/policy hoặc recovery guard) rollback cả Employee đã insert; không còn hồ sơ tạo dở. Không gọi CreateAsync có transaction riêng từ API User; dùng core tạo Employee trong transaction chung. Deadlock/lock-timeout MySQL chỉ được retry tối đa 3 lần sau rollback và kiểm tra lại quyền; không retry duplicate key hoặc lỗi commit không rõ kết quả.
+
+Lỗi: 400 cho tổ hợp flags/body sai, dữ liệu Employee/FK nghiệp vụ sai; 403 thiếu quyền/scope hoặc vượt authority; 409 trùng user/email/constraint hoặc recovery guard; 500 lỗi DB ngoài các trường hợp được xử lý. Không đổi error envelope, PasswordService/JWT hay ETag các mutation User hiện có. Không cần If-Match cho POST tạo User.
+
+[JSON đầy đủ tạo User + Employee](../../API/user-create-with-employee.sample.json). Các client cũ bỏ createEmployee vẫn hoạt động; client tạo Employee nên bỏ field employeeCode vì backend tự sinh và trả lại.
 
 ## PUT /api/users/{targetUserId}
 
@@ -133,7 +194,8 @@ Response thành công:
   "status": "ACTIVE",
   "createdAt": "2026-10-26T00:00:00Z",
   "roles": [],
-  "version": "VERSION_64_HEX_FROM_GET"
+  "version": "VERSION_64_HEX_FROM_GET",
+  "employeeCode": null
 }
 ```
 
@@ -163,7 +225,8 @@ Response thành công:
   "status": "LOCKED",
   "createdAt": "2026-10-26T00:00:00Z",
   "roles": [],
-  "version": "VERSION_64_HEX_FROM_GET"
+  "version": "VERSION_64_HEX_FROM_GET",
+  "employeeCode": null
 }
 ```
 
@@ -270,6 +333,7 @@ Response thành công:
       "name": "Reviewed role"
     }
   ],
-  "version": "VERSION_64_HEX_FROM_GET"
+  "version": "VERSION_64_HEX_FROM_GET",
+  "employeeCode": null
 }
 ```

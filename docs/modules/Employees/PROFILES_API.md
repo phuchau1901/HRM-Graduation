@@ -14,6 +14,20 @@ Phạm vi `dataScopes`: xem [giá trị hỗ trợ, bảng scope theo endpoint v
 | DELETE | `/api/employees/{employeeId}` | WEB_EMPLOYEES / DELETE + data scope |
 | PATCH | `/api/employees/{employeeId}/department` | WEB_EMPLOYEES / UPDATE + data scope |
 
+## EmployeeCode tự động, chỉ đọc
+
+`POST /api/employees` không còn nhận/yêu cầu `employeeCode`. Server sinh `NV` + `employees.Id` tối thiểu 6 chữ số: Id 1 → `NV000001`, Id 2 → `NV000002`, Id 1000000 → `NV1000000`. Nếu bảng đã có dữ liệu thì mã đi theo Id mới, không bắt đầu lại từ 1. Không dùng SELECT MAX(EmployeeCode)+1, bộ đếm frontend hoặc bộ đếm trong memory.
+
+- EmployeeCode VARCHAR(20) NOT NULL và unique index hiện có giữ nguyên. Không đổi mã nhân viên cũ; ví dụ GET/PUT có mã DEMO/legacy vẫn hợp lệ.
+- Code được gán hoàn chỉnh trước khi transaction commit và trả 201 EmployeeDto có `employeeCode`. Mã tạm nội bộ chỉ tồn tại trong transaction chưa commit; lỗi insert/gán mã/audit thì rollback toàn bộ, không để lại hồ sơ có mã tạm/rỗng/null.
+- Mã cũ có thể trùng mã theo Id sắp cấp. Khi đó chỉ bỏ row mới tạm thời và tiêu thụ slot Id đó để lấy Id kế tiếp; không sửa/xóa row cũ. Unique index vẫn là ràng buộc cuối cùng, kể cả khi tạo đồng thời.
+- Dùng AUTO_INCREMENT hiện có, không cấp lại Id. DELETE nghiệp vụ là ngừng hoạt động, giữ code đã cấp. Không được reset/reseed/TRUNCATE bảng để cấp lại mã; thao tác DB ngoài API phải duy trì high-water mark của identity. Mã có thể nhảy số vì rollback, lỗi hoặc slot legacy, không đảm bảo liên tục không có khoảng trống.
+- PUT/PATCH không có field thay EmployeeCode; client gửi field thừa này sẽ bị bỏ qua. Chuyển Department/Team/Position không đổi mã.
+- UI tạo không có ô nhập mã, hiển thị “Mã nhân viên sẽ được hệ thống tự động tạo”; thành công hiển thị mã server trả về. UI sửa/chi tiết chỉ đọc.
+- Không thay Employee.Id hoặc FK của Users/Attendance/Contracts/History/Team/Department/Position. Không cần migration cho cơ chế sinh mã.
+
+Để tạo đồng thời tài khoản và hồ sơ, dùng tùy chọn [createEmployee của POST /api/users](../Authorization/USERS_API.md#tạo-user-kèm-employee-trong-một-transaction), không gọi hai request độc lập. [JSON tạo Employee](../../API/employee-create.sample.json).
+
 ## Team của nhân viên
 
 - `teamId` nullable, tham chiếu Team cùng Department. Gán mới/đổi Team yêu cầu Team và Department đang hoạt động; không tồn tại/sai phòng/inactive trả `400`.
@@ -203,9 +217,9 @@ Không JWT401; thiếu action403; SELF chỉ đọc chính mình; DEPARTMENT gi�
 Tạo hồ sơ nhân viên.
 
 - Role/Permission: **WEB_EMPLOYEES / NEW + ALL, hoặc DEPARTMENT đúng phòng ban**.
-- Query/Path/Header: Body departmentId phải là số nguyên.
+- Query/Path/Header: Body departmentId phải là số nguyên; không có employeeCode trong request.
 - HTTP errors: 400, 401, 403, 404, 409, 500.
-- Validation/nghiệp vụ: Mã<=20/email<=255 unique; tên<=150/phone<=20; Department ACTIVE; hireDate bắt buộc; birth<=hireDate và không tương lai; status ACTIVE/INACTIVE/TERMINATED. SELF không được ghi.
+- Validation/nghiệp vụ: EmployeeCode tự sinh, chỉ đọc; email<=255 unique; tên<=150/phone<=20; Department ACTIVE; hireDate bắt buộc; birth<=hireDate và không tương lai; status ACTIVE/INACTIVE/TERMINATED. SELF không được ghi.
 
 JSON Request mẫu:
 
@@ -216,7 +230,6 @@ JSON Request mẫu:
   "dateOfBirth": "1995-01-01",
   "phoneNumber": null,
   "employmentStatus": "ACTIVE",
-  "employeeCode": "DEMO-E01",
   "hireDate": "2024-01-01",
   "departmentId": "{{departmentId}}",
   "positionId": null
@@ -228,7 +241,7 @@ JSON Response thành công — HTTP 201:
 ```json
 {
   "id": 1,
-  "employeeCode": "DEMO-E01",
+  "employeeCode": "NV000001",
   "fullName": "Demo Employee",
   "email": "employee-demo@example.invalid",
   "dateOfBirth": "1995-01-01",

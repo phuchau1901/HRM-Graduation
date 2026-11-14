@@ -21,3 +21,5 @@ Automated tests dùng SQLite/TestServer, không chứng minh trạng thái grant
 Khi test thủ công bằng Postman, chỉ dùng môi trường và tài khoản thử nghiệm đã được duyệt, lấy permission từ backend; không ghi password/token vào báo cáo.
 
 PasswordResetApiTests kiểm tra oldPassword đúng/sai, target người khác, UPDATE/APPROVE-only, type giả mạo, bảo vệ admin cấp cao, tự reset, live revoke grant với JWT cũ, auth_version/refresh revocation, policy biên 11/12/128/129, 401/404/429, audit không chứa credential và rollback khi recovery guard từ chối. ApiInventoryTests xác nhận reset vẫn Authorize và rate limited, conditional permission ở service; các business endpoints khác vẫn có ScreenPermission.
+
+`EmployeeCreationTests` bổ sung tạo User + Employee trong transaction chung, trả EmployeeCode, validation body mới, giữ linking/user-only cũ và chặn mở rộng employee scope. Lỗi DB insert User và recovery guard không để lại Employee/role/audit tạo dở.

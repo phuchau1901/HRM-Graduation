@@ -72,3 +72,15 @@ Migration mới chỉ thêm bảng/cột/index/FK, không ALTER dữ liệu Empl
 Chưa apply migration, chưa deploy Railway. Apply Position migration trước Teams nếu môi trường chưa có. Review [migration Teams](../../backend/HRM.API/Migrations/20261114092818_AddTeamsAndEmployeeTeam.cs) và [SQL sinh để review](../../database/migrations/20261114092818_AddTeamsAndEmployeeTeam.sql), xác minh schema đích và migration history qua quy trình vận hành được phê duyệt trước khi cập nhật DB. Binary mới yêu cầu schema mới.
 
 Test `TeamMigrationTests` generate SQL bằng provider MySQL và so sánh snapshot hoàn toàn offline; integration tests dùng SQLite relational để xác minh composite FK, không chứng minh migration đã chạy trên MySQL live.
+
+## EmployeeCode tự động và tạo User atomic
+
+Audit source: Employee.Id là INT AUTO_INCREMENT/ValueGeneratedOnAdd; EmployeeCode VARCHAR(20) NOT NULL có unique index IX_employees_EmployeeCode. DTO cập nhật thực tế tên EmployeeProfileRequest, không có EmployeeUpdateRequest riêng; DTO này không có field sửa EmployeeCode. POST EmployeeCreateRequest đã bỏ EmployeeCode. Migration snapshot/Initial migration và Fluent Configuration nhất quán cho các cột này. Không kết nối database live để xác nhận schema hoặc AUTO_INCREMENT counter trong lần sửa này.
+
+Dùng `NV` + Id, tối thiểu 6 chữ số, không MAX + 1. EmployeeCodeGenerator yêu cầu transaction tường minh: insert code tạm unique để lấy Id, kiểm tra slot legacy, update code chính thức trước khi commit. Nếu legacy đã chiếm code dự kiến, chỉ delete row provisional vừa tạo để lấy Id kế tiếp; giữ nguyên mọi row/mã cũ. Một code tạm không bao giờ được commit bởi các đường tạo Employee/User trong ứng dụng. Lỗi gán mã/audit/User insert làm rollback toàn bộ. Unique/NOT NULL hiện có giữ nguyên, không đổi schema/seed/backfill hay identity của nhân viên cũ.
+
+AUTO_INCREMENT MySQL 8 hiện có cấp Id giữa các kết nối và duy trì high-water mark; không reset/reseed/TRUNCATE để cấp lại mã. API DELETE Employee là deactivation. Mã có thể nhảy do transaction thất bại hoặc slot mã legacy, không đảm bảo liên tục. Đây là mã theo identity hiện tại, không phải bộ đánh số lại nhân viên cũ. Kiểm tra schema/live counter qua quy trình vận hành riêng trước rollout nếu môi trường có chỉnh DDL thủ công.
+
+POST /api/users với createEmployee=true dùng cùng Serializable transaction/AppDbContext để tạo Employee (gồm code chính thức), User.EmployeeId, UserRoles và audit. Không nested transaction, không hai request độc lập. FK User.EmployeeId vẫn tham chiếu Employee.Id như trước; Attendance, Contracts, EmployeeHistory, Department, Team, Position không đổi. Giữ kiểm tra Team cùng Department và scope hiện tại. Deadlock/lock-timeout MySQL 1213/1205 được retry cả creation transaction tối đa 3 lần, chỉ sau rollback; không retry duplicate/unknown commit error.
+
+Không cần migration mới cho thay đổi này, không apply migration cũ, không sửa dữ liệu legacy và không deploy. Kiểm thử concurrency dùng file SQLite/WAL với nhiều connection; không thay thế kiểm thử trên bản sao MySQL được phê duyệt.

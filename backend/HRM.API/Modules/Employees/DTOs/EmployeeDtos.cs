@@ -25,7 +25,6 @@ public class EmployeeProfileRequest : TeamAssignmentRequest
 }
 public sealed class EmployeeCreateRequest : EmployeeProfileRequest
 {
-    [Required, MaxLength(20)] public string EmployeeCode { get; set; } = "";
     public DateOnly HireDate { get; set; }
     [Range(1, int.MaxValue)] public int DepartmentId { get; set; }
 }

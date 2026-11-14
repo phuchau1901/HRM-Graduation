@@ -1,0 +1,18 @@
+{
+  "userId": "new.employee",
+  "email": "account@example.invalid",
+  "password": "<new_password_12_128_chars>",
+  "roleIds": [],
+  "createEmployee": true,
+  "employee": {
+    "fullName": "Nguyen Van A",
+    "email": "employee@example.invalid",
+    "dateOfBirth": "1995-01-01",
+    "phoneNumber": null,
+    "hireDate": "2024-01-01",
+    "departmentId": 1,
+    "teamId": null,
+    "positionId": null,
+    "employmentStatus": "ACTIVE"
+  }
+}

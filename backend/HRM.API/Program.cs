@@ -133,6 +133,7 @@ builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationSer
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.TeamService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeDataScope>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeService>();
+builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeCodeGenerator>();
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();

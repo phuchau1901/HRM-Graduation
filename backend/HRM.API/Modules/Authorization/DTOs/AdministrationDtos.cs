@@ -15,11 +15,22 @@ public sealed class ScreenRequest
 }
 public sealed class ScreenStatusRequest { [Required] public bool? IsActive { get; set; } }
 public sealed class UserUpdateRequest : UserUpdateRequestBase { }
-public sealed class UserCreateRequest : UserUpdateRequestBase
+public sealed class UserCreateRequest : UserUpdateRequestBase, IValidatableObject
 {
     [Required, MaxLength(100), RegularExpression("^[A-Za-z0-9][A-Za-z0-9_.-]*$")] public string UserId { get; set; } = "";
     [Required, StringLength(128, MinimumLength = 12)] public string Password { get; set; } = "";
     [Required, MaxLength(100)] public long[] RoleIds { get; set; } = [];
+    public bool CreateEmployee { get; set; }
+    public HRM.API.Modules.Employees.DTOs.EmployeeCreateRequest? Employee { get; set; }
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (CreateEmployee && Employee is null)
+            yield return new ValidationResult("Employee data is required when CreateEmployee is true.", [nameof(Employee)]);
+        if (CreateEmployee && EmployeeId.HasValue)
+            yield return new ValidationResult("EmployeeId cannot be combined with CreateEmployee.", [nameof(EmployeeId)]);
+        if (!CreateEmployee && Employee is not null)
+            yield return new ValidationResult("Employee data requires CreateEmployee=true.", [nameof(Employee)]);
+    }
 }
 public class UserUpdateRequestBase
 {
@@ -76,7 +87,7 @@ public sealed record AdminScreenDto(long Id, string Code, string Name, string Pl
 public sealed record AdminRoleDto(long Id, string Code, string Name);
 public sealed record AdminRoleView(long Id, string Code, string Name, string Version);
 public sealed record AdminUserDto(string UserId, string Email, int? EmployeeId, string Status, DateTime CreatedAt,
-    IReadOnlyList<AdminRoleDto> Roles, string Version);
+    IReadOnlyList<AdminRoleDto> Roles, string Version, string? EmployeeCode = null);
 public sealed record MatrixScreenDto(long ScreenId, string ScreenCode, string Name, string Platform, bool IsActive,
     Dictionary<string, bool> Standard, string[] ExtendedActions, Dictionary<string, string?> DataScopes);
 public sealed record RoleMatrixDto(long RoleId, IReadOnlyList<MatrixScreenDto> Screens, string Version);

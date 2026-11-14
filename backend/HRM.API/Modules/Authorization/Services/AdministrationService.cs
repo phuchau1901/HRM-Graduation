@@ -9,6 +9,7 @@ using HRM.API.Modules.Auth.Services;
 using HRM.API.Modules.Authorization.DTOs;
 using HRM.API.Modules.Authorization.Entities;
 using HRM.API.Modules.Employees.Entities;
+using HRM.API.Modules.Employees.Services;
 using HRM.API.Modules.System.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,7 @@ namespace HRM.API.Modules.Authorization.Services;
 
 // All administration writes take the same existing catalog-row lock before reading grants.
 // No role name carries implicit privilege. All grants come from the database.
-public sealed class AdministrationService(AppDbContext db, IPermissionService permissions, PasswordService passwords)
+public sealed class AdministrationService(AppDbContext db, IPermissionService permissions, PasswordService passwords, EmployeeService employees)
 {
     public const string Users = "WEB_USERS", Roles = "WEB_ROLES", Permissions = "WEB_PERMISSIONS";
     public static string Version(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
@@ -101,12 +102,13 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
     public async Task<AdminUserDto> User(string id, CancellationToken ct)
     {
         var u = await db.Set<User>().AsNoTracking().Where(x => x.UserId == id)
-            .Select(x => new { x.UserId, x.Email, x.EmployeeId, x.Status, x.CreatedAt, x.AuthVersion })
+            .Select(x => new { x.UserId, x.Email, x.EmployeeId, x.Status, x.CreatedAt, x.AuthVersion,
+                EmployeeCode = db.Employees.Where(employee => employee.Id == x.EmployeeId).Select(employee => employee.EmployeeCode).FirstOrDefault() })
             .SingleOrDefaultAsync(ct) ?? throw BusinessException.Missing();
         var roles = await (from ur in db.Set<UserRole>() join r in db.Set<Role>() on ur.RoleID equals r.ID
                            where ur.UserID == id orderby r.ID select new AdminRoleDto(r.ID, r.Code, r.Name)).ToListAsync(ct);
         return new(u.UserId, u.Email, u.EmployeeId, u.Status, u.CreatedAt, roles,
-            Version(new { u.UserId, u.Email, u.EmployeeId, u.Status, u.CreatedAt, u.AuthVersion, roles }));
+            Version(new { u.UserId, u.Email, u.EmployeeId, u.Status, u.CreatedAt, u.AuthVersion, roles, u.EmployeeCode }), u.EmployeeCode);
     }
     public async Task<PageResult<AdminUserDto>> UserList(PageQuery q, long? roleId, CancellationToken ct)
     {
@@ -123,18 +125,28 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
         return new(true, total, q.Page, q.PageSize, rows);
     }
     public Task<AdminUserDto> CreateUser(string actor, UserCreateRequest request, string trace, CancellationToken ct)
-        => Write(actor, Users, "NEW", async () =>
+        => CreationTransactionRetry.RunAsync(db, () => Write(actor, Users, "NEW", async () =>
         {
+            var validation = new List<global::System.ComponentModel.DataAnnotations.ValidationResult>();
+            if (!global::System.ComponentModel.DataAnnotations.Validator.TryValidateObject(request,
+                new global::System.ComponentModel.DataAnnotations.ValidationContext(request), validation, true))
+                throw BusinessException.Invalid("Invalid user request.");
             if (await db.Set<User>().AnyAsync(x => x.UserId == request.UserId, ct)) throw BusinessException.Conflict("User ID already exists.");
             await CheckUser(null, request, ct); await ValidateRoles(actor, request.RoleIds, ct);
             if (request.RoleIds.Length > 0) await Demand(actor, Users, "APPROVE", ct);
+            var employeeId = request.EmployeeId;
+            if (request.CreateEmployee)
+            {
+                await Demand(actor, "WEB_EMPLOYEES", "NEW", ct);
+                employeeId = (await employees.CreateInTransactionAsync(actor, request.Employee!, trace, ct)).Id;
+            }
             var credentials = passwords.Hash(request.Password);
-            db.Set<User>().Add(new() { UserId = request.UserId, Email = request.Email, EmployeeId = request.EmployeeId,
+            db.Set<User>().Add(new() { UserId = request.UserId, Email = request.Email, EmployeeId = employeeId,
                 PasswordHash = credentials.PasswordHash, Salt = credentials.Salt, Status = "ACTIVE", CreatedAt = DateTime.UtcNow });
             foreach (var role in request.RoleIds) db.Set<UserRole>().Add(new() { UserID = request.UserId, RoleID = role });
             await db.SaveChangesAsync(ct); var result = await User(request.UserId, ct);
             Audit(actor, "USER_CREATE", "User", request.UserId, null, result, trace); return result;
-        }, ct);
+        }, ct), ct);
     public Task<AdminUserDto> ChangeUser(string actor, string id, object request, string? etag, string trace, CancellationToken ct)
         => Write(actor, Users, request is UserRolesRequest ? "APPROVE" : "UPDATE", async () =>
         {

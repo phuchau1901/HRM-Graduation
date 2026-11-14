@@ -48,9 +48,9 @@ public sealed class EmployeeApiTests
         Assert.Equal(firstId, created.PositionId);
         var url = $"/api/employees/{created.Id}";
         Assert.Equal(firstId, (await h.Client.GetFromJsonAsync<EmployeeDto>(url))!.PositionId);
-        var list = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>("/api/employees?search=NEW01"))!;
+        var list = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>($"/api/employees?search={created.EmployeeCode}"))!;
         Assert.Equal(firstId, Assert.Single(list.Data).PositionId);
-        var unlinked = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>("/api/employees/unlinked?search=NEW01"))!;
+        var unlinked = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>($"/api/employees/unlinked?search={created.EmployeeCode}"))!;
         Assert.Equal(firstId, Assert.Single(unlinked.Data).PositionId);
         var update = Profile(); update.PositionId = secondId;
         var updated = await h.Client.PutAsJsonAsync(url, update);
@@ -60,7 +60,7 @@ public sealed class EmployeeApiTests
         {
             update.PositionId = invalid;
             Assert.Equal(HttpStatusCode.BadRequest, (await h.Client.PutAsJsonAsync(url, update)).StatusCode);
-            create.EmployeeCode = "INVALID"; create.Email = "invalid@example.invalid"; create.PositionId = invalid;
+            create.Email = "invalid@example.invalid"; create.PositionId = invalid;
             Assert.Equal(HttpStatusCode.BadRequest, (await h.Client.PostAsJsonAsync("/api/employees", create)).StatusCode);
         }
         Assert.Equal(secondId, (await h.Client.GetFromJsonAsync<EmployeeDto>(url))!.PositionId);
@@ -248,7 +248,7 @@ public sealed class EmployeeApiTests
     }
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
     private static EmployeeProfileRequest Profile() => new() { FullName = "Updated", Email = "updated@example.invalid", EmploymentStatus = "ACTIVE" };
-    private static EmployeeCreateRequest Create(int department) => new() { EmployeeCode = "NEW01", FullName = "New Employee", Email = "new@example.invalid", HireDate = new(2020, 1, 1), DepartmentId = department };
+    private static EmployeeCreateRequest Create(int department) => new() { FullName = "New Employee", Email = "new@example.invalid", HireDate = new(2020, 1, 1), DepartmentId = department };
     private static ContractRequest Contract(string no) => new() { ContractNo = no, ContractType = "FIXED_TERM", StartDate = Today.AddDays(-1), EndDate = Today.AddDays(30) };
     internal sealed class Harness : IAsyncDisposable
     {

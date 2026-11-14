@@ -19,10 +19,11 @@ public sealed class AdministrationApiTests
 {
     internal sealed class Fixture : IDisposable
     {
-        internal readonly AuthApiFactory App = new();
+        internal readonly AuthApiFactory App;
         internal readonly HttpClient Client;
         internal long TargetRole, Web, Mobile;
-        internal Fixture() => Client = App.CreateClient(new() { BaseAddress = new("https://localhost") });
+        internal Fixture(AuthApiFactory? app = null)
+        { App = app ?? new(); Client = App.CreateClient(new() { BaseAddress = new("https://localhost") }); }
         internal async Task Start(bool login = true)
         {
             await App.PrepareAsync(); using var scope = App.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();

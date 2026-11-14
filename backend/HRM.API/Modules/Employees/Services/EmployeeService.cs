@@ -13,7 +13,7 @@ using HRM.API.Modules.System.Entities;
 using Microsoft.EntityFrameworkCore;
 namespace HRM.API.Modules.Employees.Services;
 
-public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, NotificationService notifications)
+public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, NotificationService notifications, EmployeeCodeGenerator codes)
 {
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
     private static EmployeeDto Dto(Employee e) => new(e.Id, e.EmployeeCode, e.FullName, e.Email, e.DateOfBirth,
@@ -78,23 +78,33 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     {
         if (await db.Set<Employee>().AnyAsync(x => x.Email == email && x.Id != id, ct)) throw BusinessException.Conflict("Employee email already exists.");
     }
-    public async Task<EmployeeDto> CreateAsync(string actor, EmployeeCreateRequest request, string trace, CancellationToken ct)
+    public Task<EmployeeDto> CreateAsync(string actor, EmployeeCreateRequest request, string trace, CancellationToken ct)
+        => CreationTransactionRetry.RunAsync(db, async () =>
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        var result = await CreateInTransactionAsync(actor, request, trace, ct);
+        await tx.CommitAsync(ct); return result;
+    }, ct);
+    internal async Task<EmployeeDto> CreateInTransactionAsync(string actor, EmployeeCreateRequest request, string trace, CancellationToken ct)
+    {
+        if (db.Database.CurrentTransaction is null) throw new InvalidOperationException("Employee creation requires a transaction.");
+        var validation = new List<global::System.ComponentModel.DataAnnotations.ValidationResult>();
+        if (!global::System.ComponentModel.DataAnnotations.Validator.TryValidateObject(request,
+            new global::System.ComponentModel.DataAnnotations.ValidationContext(request), validation, true))
+            throw BusinessException.Invalid("Invalid employee request.");
         var access = await scopes.GetAsync(actor, "WEB_EMPLOYEES", "NEW", ct); access.DemandDepartment(request.DepartmentId);
         await ValidateDepartmentAsync(request.DepartmentId, ct);
         await ValidatePositionAsync(request.PositionId, ct);
         var team = await ValidateTeamAsync(request.TeamId, request.DepartmentId, ct);
         if (request.HireDate == default) throw BusinessException.Invalid("HireDate is required.");
         ValidateProfile(request, request.HireDate);
-        var code = request.EmployeeCode.Trim(); var email = request.Email.Trim();
-        if (await db.Set<Employee>().AnyAsync(x => x.EmployeeCode == code, ct)) throw BusinessException.Conflict("Employee code already exists.");
+        var email = request.Email.Trim();
         await CheckEmailAsync(email, null, ct);
-        var entity = new Employee { EmployeeCode = code, FullName = request.FullName.Trim(), Email = email,
+        var entity = new Employee { FullName = request.FullName.Trim(), Email = email,
             DateOfBirth = request.DateOfBirth, PhoneNumber = request.PhoneNumber, HireDate = request.HireDate,
             DepartmentId = request.DepartmentId, TeamId = request.TeamId, Team = team, PositionId = request.PositionId, EmploymentStatus = request.EmploymentStatus, CreatedAt = DateTime.UtcNow };
-        db.Add(entity); await db.SaveChangesAsync(ct); Audit(actor, entity.Id, "EMPLOYEE_CREATED", trace);
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return Dto(entity);
+        await codes.AddAsync(entity, ct); Audit(actor, entity.Id, "EMPLOYEE_CREATED", trace);
+        await db.SaveChangesAsync(ct); return Dto(entity);
     }
     public async Task<EmployeeDto> UpdateAsync(string actor, int id, EmployeeProfileRequest request, string trace, CancellationToken ct)
     {

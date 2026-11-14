@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "58 source-backed REST endpoints in 61 requests (including role-scope and password-mode examples). Teams requires reviewed WEB_TEAMS grants and AddTeamsAndEmployeeTeam migration. No real secrets. Run mutations manually in approved environments; collection does not apply migrations or grant permissions."
+    "description": "58 source-backed REST endpoints in 62 requests (including role-scope, password-mode and atomic User+Employee examples). Teams requires reviewed WEB_TEAMS grants and AddTeamsAndEmployeeTeam migration. No real secrets. Run mutations manually in approved environments; collection does not apply migrations or grant permissions."
   },
   "auth": {
     "type": "bearer",
@@ -122,6 +122,11 @@
     },
     {
       "key": "oldPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "employeeCode",
       "value": "",
       "type": "string"
     }
@@ -566,10 +571,10 @@
               }
             ],
             "url": "{{baseUrl}}/api/employees",
-            "description": "Tạo hồ sơ nhân viên\nPermission: WEB_EMPLOYEES / NEW + ALL, hoặc DEPARTMENT đúng phòng ban\nBody departmentId phải là số nguyên.\nMã<=20/email<=255 unique; tên<=150/phone<=20; Department ACTIVE; hireDate bắt buộc; birth<=hireDate và không tương lai; status ACTIVE/INACTIVE/TERMINATED. SELF không được ghi.\nExpected 201; errors 400, 401, 403, 404, 409, 500.\nTeamId tùy chọn, phải active và cùng Department. PUT bỏ teamId giữ Team cũ; null gỡ Team. Response có teamId/teamName. positionId=null gỡ vị trí khi PUT; gửi ID hiện tại nếu muốn giữ.",
+            "description": "Tạo Employee bằng WEB_EMPLOYEES/NEW và scope NEW ALL hoặc DEPARTMENT đúng phòng ban. Không gửi employeeCode: backend tự sinh NV + Id (tối thiểu 6 chữ số), giữ unique index. Client gửi field thừa employeeCode bị bỏ qua. Response 201 EmployeeDto trả employeeCode; lỗi rollback không để lại code tạm. Mã cũ không đổi, code không đổi khi cập nhật. Department/Team/Position theo validation hiện có. Muốn tạo cùng User, dùng POST /api/users với createEmployee=true.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\",\n  \"employeeCode\": \"DEMO-E01\",\n  \"hireDate\": \"2024-01-01\",\n  \"departmentId\": {{departmentId}},\n  \"positionId\": null,\n  \"teamId\": {{teamId}}\n}",
+              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\",\n  \"hireDate\": \"2024-01-01\",\n  \"departmentId\": {{departmentId}},\n  \"positionId\": null,\n  \"teamId\": {{teamId}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -584,7 +589,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (pm.response.code === 201) pm.collectionVariables.set('employeeId', String(pm.response.json().id));"
+                  "if (pm.response.code === 201) pm.collectionVariables.set('employeeId', String(pm.response.json().id));",
+                  "if (pm.response.code === 201) pm.collectionVariables.set('employeeCode', pm.response.json().employeeCode);"
                 ]
               }
             }
@@ -1037,10 +1043,10 @@
               }
             ],
             "url": "{{baseUrl}}/api/users",
-            "description": "Tạo tài khoản quản trị nội bộ\nPermission: WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds\nParameters: Không có\nUserId string max100, [A-Za-z0-9][A-Za-z0-9_.-]*; email255 unique; Employee tồn tại, chưa gán account; Role hợp lệ không trùng; password12..128, không blank; dùng PasswordService random salt32 PBKDF2. Role chỉ được gán trong quyền hiện có của actor.\nExpected 201. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 201; ID/email trùng409; employee/Role sai400; vượt quyền403; không password trong response/audit.",
+            "description": "Tạo tài khoản quản trị nội bộ\nPermission: WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds\nParameters: Không có\nUserId string max100, [A-Za-z0-9][A-Za-z0-9_.-]*; email255 unique; Employee tồn tại, chưa gán account; Role hợp lệ không trùng; password12..128, không blank; dùng PasswordService random salt32 PBKDF2. Role chỉ được gán trong quyền hiện có của actor.\nExpected 201. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 201; ID/email trùng409; employee/Role sai400; vượt quyền403; không password trong response/audit.\ncreateEmployee=false (mặc định): giữ luồng cũ, employeeId có thể là nhân viên chưa liên kết. Response thêm employeeCode nullable. Muốn tạo cả Employee dùng ví dụ atomic cùng folder. Không gọi API tạo Employee riêng trước API User.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userId\": \"{{newUserId}}\",\n  \"email\": \"new.account@example.invalid\",\n  \"password\": \"{{newPassword}}\",\n  \"employeeId\": null,\n  \"roleIds\": []\n}",
+              "raw": "{\n  \"userId\": \"{{newUserId}}\",\n  \"email\": \"new.account@example.invalid\",\n  \"password\": \"{{newPassword}}\",\n  \"employeeId\": null,\n  \"roleIds\": [],\n  \"createEmployee\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1059,6 +1065,46 @@
                   "if (pm.response.code < 300) {",
                   "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('userEtag', etag);",
                   "  pm.collectionVariables.set('targetUserId', pm.response.json().userId);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/users — create Employee atomically",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users",
+            "description": "WEB_USERS/NEW + live WEB_EMPLOYEES/NEW + NEW scope ALL/DEPARTMENT đúng phòng ban. RoleIds không rỗng cần WEB_USERS/APPROVE trong authority actor. createEmployee=true cần employee, không truyền employeeId. Employee không có employeeCode trong request: server tự sinh. User/Employee/code/roles/audit commit hoặc rollback cùng nhau; lỗi User không để lại Employee. Response201 trả employeeId và employeeCode. Không có migration mới; không tự sửa dữ liệu cũ.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{newUserId}}\",\n  \"email\": \"new.account@example.invalid\",\n  \"password\": \"{{newPassword}}\",\n  \"roleIds\": [],\n  \"createEmployee\": true,\n  \"employee\": {\n    \"fullName\": \"Demo Employee\",\n    \"email\": \"employee-demo@example.invalid\",\n    \"hireDate\": \"2024-01-01\",\n    \"departmentId\": {{departmentId}},\n    \"teamId\": {{teamId}},\n    \"positionId\": null,\n    \"employmentStatus\": \"ACTIVE\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const user = pm.response.json();",
+                  "  pm.collectionVariables.set('targetUserId', user.userId);",
+                  "  pm.collectionVariables.set('employeeId', String(user.employeeId));",
+                  "  pm.collectionVariables.set('employeeCode', user.employeeCode);",
                   "}"
                 ]
               }
