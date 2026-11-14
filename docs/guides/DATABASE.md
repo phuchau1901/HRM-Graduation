@@ -84,3 +84,7 @@ AUTO_INCREMENT MySQL 8 hiện có cấp Id giữa các kết nối và duy trì 
 POST /api/users với createEmployee=true dùng cùng Serializable transaction/AppDbContext để tạo Employee (gồm code chính thức), User.EmployeeId, UserRoles và audit. Không nested transaction, không hai request độc lập. FK User.EmployeeId vẫn tham chiếu Employee.Id như trước; Attendance, Contracts, EmployeeHistory, Department, Team, Position không đổi. Giữ kiểm tra Team cùng Department và scope hiện tại. Deadlock/lock-timeout MySQL 1213/1205 được retry cả creation transaction tối đa 3 lần, chỉ sau rollback; không retry duplicate/unknown commit error.
 
 Không cần migration mới cho thay đổi này, không apply migration cũ, không sửa dữ liệu legacy và không deploy. Kiểm thử concurrency dùng file SQLite/WAL với nhiều connection; không thay thế kiểm thử trên bản sao MySQL được phê duyệt.
+
+## Audit Employee GET: names và trạng thái migration
+
+Projection đọc tên Department/Team/Position không đổi schema/model, không cần migration mới. [Báo cáo audit](../modules/Employees/EMPLOYEE_READ.md) ghi rõ hai migration PositionId/TeamId có trong source/snapshot nhưng Applied/Pending trên DB đích **chưa xác minh**. Không suy trạng thái DB từ snapshot hoặc báo cáo agent không chạy migration. Có SQL metadata read-only để operator đối chiếu; không tự apply hoặc thêm cột/fallback giả.

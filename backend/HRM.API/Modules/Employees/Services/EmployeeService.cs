@@ -16,8 +16,24 @@ namespace HRM.API.Modules.Employees.Services;
 public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, NotificationService notifications, EmployeeCodeGenerator codes)
 {
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
-    private static EmployeeDto Dto(Employee e) => new(e.Id, e.EmployeeCode, e.FullName, e.Email, e.DateOfBirth,
-        e.PhoneNumber, e.HireDate, e.DepartmentId, e.PositionId, e.EmploymentStatus, DateTime.SpecifyKind(e.CreatedAt, DateTimeKind.Utc), e.TeamId, e.Team?.TeamName);
+    private IQueryable<EmployeeDto> ProjectEmployees(IQueryable<Employee> employees) =>
+        from employee in employees
+        join department in db.Set<Department>().AsNoTracking() on employee.DepartmentId equals department.Id into departments
+        from department in departments.DefaultIfEmpty()
+        join team in db.Set<Team>().AsNoTracking()
+            on new { Id = employee.TeamId, employee.DepartmentId } equals new { Id = (int?)team.Id, team.DepartmentId } into teams
+        from team in teams.DefaultIfEmpty()
+        join position in db.Set<Position>().AsNoTracking() on employee.PositionId equals (long?)position.ID into positions
+        from position in positions.DefaultIfEmpty()
+        select new EmployeeDto(employee.Id, employee.EmployeeCode, employee.FullName, employee.Email, employee.DateOfBirth,
+            employee.PhoneNumber, employee.HireDate, employee.DepartmentId, employee.PositionId, employee.EmploymentStatus,
+            DateTime.SpecifyKind(employee.CreatedAt, DateTimeKind.Utc), employee.TeamId,
+            team == null ? null : team.TeamName, department == null ? null : department.DepartmentName,
+            position == null ? null : position.Name);
+
+    // Used only after a write has already passed its own action/scope checks. No VIEW grant is required to return that write's result.
+    private Task<EmployeeDto> WriteResultAsync(int id, CancellationToken ct) =>
+        ProjectEmployees(db.Employees.AsNoTracking().Where(employee => employee.Id == id)).SingleAsync(ct);
     private static ContractDto Dto(Contract c) => new(c.ID, c.EmployeeID, c.ContractNo, c.ContractType, c.StartDate, c.EndDate, c.Status, c.AttachmentURL);
     public Task<PageResult<EmployeeDto>> ListAsync(string userId, EmployeeQuery q, CancellationToken ct)
         => ListAsync(userId, q, false, ct);
@@ -33,15 +49,20 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         if (q.EmploymentStatus is not null) query = query.Where(x => x.EmploymentStatus == q.EmploymentStatus);
         if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(x => x.EmployeeCode.Contains(q.Search) || x.FullName.Contains(q.Search) || x.Email.Contains(q.Search));
         var total = await query.CountAsync(ct);
-        var data = await query.Include(x => x.Team).OrderBy(x => x.Id).Skip(Paging.Offset(q)).Take(q.PageSize).ToListAsync(ct);
-        return new(true, total, q.Page, q.PageSize, data.Select(Dto).ToList());
+        var data = await ProjectEmployees(query.OrderBy(x => x.Id).Skip(Paging.Offset(q)).Take(q.PageSize)).ToListAsync(ct);
+        return new(true, total, q.Page, q.PageSize, data);
     }
     private async Task<Employee> FindAsync(string actor, int id, bool write, CancellationToken ct, string screen = "WEB_EMPLOYEES", string action = "VIEW")
     {
         var access = await scopes.GetAsync(actor, screen, action, ct); if (write) access.DemandWrite();
         return await access.Apply(db.Set<Employee>()).Include(x => x.Team).SingleOrDefaultAsync(x => x.Id == id, ct) ?? throw BusinessException.Missing();
     }
-    public async Task<EmployeeDto> GetAsync(string actor, int id, CancellationToken ct) => Dto(await FindAsync(actor, id, false, ct));
+    public async Task<EmployeeDto> GetAsync(string actor, int id, CancellationToken ct)
+    {
+        var access = await scopes.GetAsync(actor, "WEB_EMPLOYEES", "VIEW", ct);
+        return await ProjectEmployees(access.Apply(db.Employees.AsNoTracking()).Where(employee => employee.Id == id))
+            .SingleOrDefaultAsync(ct) ?? throw BusinessException.Missing();
+    }
     private async Task ValidateDepartmentAsync(int id, CancellationToken ct)
     {
         if (!await db.Set<Department>().AnyAsync(x => x.Id == id && x.IsActive, ct)) throw BusinessException.Invalid("An active department is required.");
@@ -104,7 +125,7 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
             DateOfBirth = request.DateOfBirth, PhoneNumber = request.PhoneNumber, HireDate = request.HireDate,
             DepartmentId = request.DepartmentId, TeamId = request.TeamId, Team = team, PositionId = request.PositionId, EmploymentStatus = request.EmploymentStatus, CreatedAt = DateTime.UtcNow };
         await codes.AddAsync(entity, ct); Audit(actor, entity.Id, "EMPLOYEE_CREATED", trace);
-        await db.SaveChangesAsync(ct); return Dto(entity);
+        await db.SaveChangesAsync(ct); return await WriteResultAsync(entity.Id, ct);
     }
     public async Task<EmployeeDto> UpdateAsync(string actor, int id, EmployeeProfileRequest request, string trace, CancellationToken ct)
     {
@@ -118,7 +139,8 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         if (entity.FullName == request.FullName.Trim() && entity.Email == request.Email.Trim() &&
             entity.TeamId == targetTeamId && entity.PositionId == request.PositionId && entity.PhoneNumber == request.PhoneNumber && entity.DateOfBirth == request.DateOfBirth && entity.EmploymentStatus == request.EmploymentStatus)
         {
-            await tx.CommitAsync(ct); return Dto(entity);
+            var unchanged = await WriteResultAsync(entity.Id, ct);
+            await tx.CommitAsync(ct); return unchanged;
         }
         entity.TeamId = targetTeamId; entity.Team = targetTeam;
         AuditTeam(actor, entity, oldTeamId, entity.DepartmentId, trace);
@@ -127,7 +149,8 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         entity.DateOfBirth = request.DateOfBirth; entity.EmploymentStatus = request.EmploymentStatus;
         Audit(actor, id, "EMPLOYEE_UPDATED", trace); await db.SaveChangesAsync(ct);
         await NotifyAsync(id, "Employee record updated", "Your employee record has been updated. Open the application for details.", trace, ct);
-        await tx.CommitAsync(ct); return Dto(entity);
+        var result = await WriteResultAsync(entity.Id, ct);
+        await tx.CommitAsync(ct); return result;
     }
     public async Task DeactivateAsync(string actor, int id, string trace, CancellationToken ct)
     {
@@ -161,7 +184,8 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         Audit(actor, id, "EMPLOYEE_DEPARTMENT_CHANGED", trace);
         await db.SaveChangesAsync(ct);
         await NotifyAsync(id, "Employee record updated", "Your organization assignment has changed. Open the application for details.", trace, ct);
-        await tx.CommitAsync(ct); return Dto(entity);
+        var result = await WriteResultAsync(entity.Id, ct);
+        await tx.CommitAsync(ct); return result;
     }
     public async Task<PageResult<EmployeeHistoryDto>> HistoryAsync(string actor, int id, PageQuery q, CancellationToken ct)
     {

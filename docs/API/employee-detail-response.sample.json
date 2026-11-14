@@ -1,0 +1,17 @@
+{
+  "id": 1,
+  "employeeCode": "TX000001",
+  "fullName": "Demo Employee",
+  "email": "employee@example.invalid",
+  "dateOfBirth": null,
+  "phoneNumber": null,
+  "hireDate": "2024-01-01",
+  "departmentId": 1,
+  "departmentName": "Engineering",
+  "teamId": 1,
+  "teamName": "Platform",
+  "positionId": 2,
+  "positionName": "Software Engineer",
+  "employmentStatus": "ACTIVE",
+  "createdAt": "2026-11-14T09:00:00Z"
+}

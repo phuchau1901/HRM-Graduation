@@ -44,7 +44,7 @@ public sealed class ContractRequest
     [MaxLength(500)] public string? AttachmentUrl { get; set; }
 }
 public sealed record EmployeeDto(int Id, string EmployeeCode, string FullName, string Email, DateOnly? DateOfBirth,
-    string? PhoneNumber, DateOnly HireDate, int DepartmentId, long? PositionId, string EmploymentStatus, DateTime CreatedAt, int? TeamId = null, string? TeamName = null);
+    string? PhoneNumber, DateOnly HireDate, int DepartmentId, long? PositionId, string EmploymentStatus, DateTime CreatedAt, int? TeamId = null, string? TeamName = null, string? DepartmentName = null, string? PositionName = null);
 public sealed record ContractDto(long Id, int EmployeeId, string ContractNo, string ContractType,
     DateOnly StartDate, DateOnly? EndDate, string Status, string? AttachmentUrl);
 public sealed record EmployeeHistoryDto(long Id, int EmployeeId, int? OldDepartmentId, int? NewDepartmentId,

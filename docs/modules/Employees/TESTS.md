@@ -20,3 +20,7 @@ Khi test thủ công bằng Postman, chỉ dùng môi trường và tài khoản
 ## EmployeeCode và tạo User atomic
 
 `EmployeeCreationTests` kiểm tra mã đầu tiên, sau dữ liệu cũ, slot code legacy, 10 request nhiều connection, mã chỉ đọc khi sửa/chuyển Department/Team/Position, không tái dùng identity, API không cần/trust employeeCode và lỗi DB/rollback. Tests User kiểm tra createEmployee flag/body, quyền NEW live + scope, liên kết cũ, RoleId/audit và không còn Employee nếu User insert/recovery guard lỗi. Xem [báo cáo kiểm chứng](EMPLOYEE_CREATION.md).
+
+## Projection GET và names
+
+`EmployeeReadApiTests` kiểm tra names/IDs list/detail, null Team/Position, JSON field hiện có, tên catalog inactive, row legacy thiếu Department, scope/filter/Count trước paging và sort ổn định. SQL interceptor xác nhận 1 row-query LEFT JOIN cho trang 1 hoặc 18 nhân viên, số query không tăng theo pageSize; không tracking Employee/Department/Team/Position. Kiểm tra cả JWT/VIEW/scope thiếu trả 401/403, ngoài scope hoặc không tồn tại trả 404. Response write dùng cùng projection, không cần catalog VIEW mới.

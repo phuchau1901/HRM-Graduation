@@ -14,6 +14,40 @@ Phạm vi `dataScopes`: xem [giá trị hỗ trợ, bảng scope theo endpoint v
 | DELETE | `/api/employees/{employeeId}` | WEB_EMPLOYEES / DELETE + data scope |
 | PATCH | `/api/employees/{employeeId}/department` | WEB_EMPLOYEES / UPDATE + data scope |
 
+## Response đọc nhân viên và tên danh mục
+
+`GET /api/employees` và `GET /api/employees/{employeeId}` trả EmployeeDto có đầy đủ định danh và tên tổ chức. `/unlinked` dùng cùng DTO/projection. Các trường hồ sơ cũ giữ nguyên để tương thích.
+
+| Field | Kiểu JSON | Ghi chú |
+| --- | --- | --- |
+| id | integer | Employee.Id |
+| employeeCode | string | Mã nhân viên server cấp hoặc mã legacy |
+| fullName | string | Họ và tên |
+| email | string | Email hồ sơ |
+| departmentId | integer | FK Department; model hiện tại bắt buộc |
+| departmentName | string/null | departments.DepartmentName |
+| teamId | integer/null | Team tùy chọn, cùng Department |
+| teamName | string/null | teams.TeamName, null khi chưa gán/không có bản ghi liên quan |
+| positionId | integer (int64)/null | Position tùy chọn |
+| positionName | string/null | positions.name, null khi chưa gán/không có bản ghi liên quan |
+| employmentStatus | string | ACTIVE/INACTIVE/TERMINATED |
+| dateOfBirth | date/null | Giữ nguyên |
+| phoneNumber | string/null | Giữ nguyên |
+| hireDate | date | Giữ nguyên |
+| createdAt | datetime UTC | Giữ nguyên |
+
+Tên nullable trong response, không đổi DepartmentId thành nullable trong model. Với dữ liệu hợp lệ hiện tại, Department bắt buộc nên departmentName có tên; LEFT JOIN vẫn giữ row và trả null nếu tham chiếu legacy thiếu danh mục. Không dùng chuỗi rỗng hoặc dữ liệu giả để thay tên. Danh mục inactive vẫn trả tên cho liên kết hiện có.
+
+List giữ chính xác envelope `success`, `total`, `page`, `pageSize`, `data`. Chi tiết trả trực tiếp một EmployeeDto, không thêm envelope mới. [JSON list](../../API/employee-list-response.sample.json) · [JSON detail](../../API/employee-detail-response.sample.json).
+
+Backend áp WEB_EMPLOYEES/VIEW và scope SELF/DEPARTMENT/ALL như trước. Scope/filter trên Employee trước Count; order theo Id tăng dần, Skip/Take rồi Select DTO bằng LEFT JOIN Department, Team (cả TeamId + DepartmentId), Position. Phần dữ liệu danh sách chỉ có một Count và một query JOIN cho cả trang; truy vấn auth/scope cố định vẫn giữ. Không query danh mục riêng cho từng nhân viên và không materialize entity để map tên trong memory. AsNoTracking áp dụng cho các nguồn đọc.
+
+UI list/detail dùng trực tiếp departmentName/teamName/positionName từ response; không cần quyền đọc catalog để render tên trong các hồ sơ thuộc scope được phép. `/api/departments`, `/api/teams`, `/api/positions` và quyền của chúng giữ nguyên, dùng riêng cho dropdown tạo/sửa. Tên là field response, không gửi để sửa qua body.
+
+EmployeeDto dùng chung với response tạo/sửa/chuyển phòng: các response này cũng lấy tên bằng projection sau khi ghi và trước commit, sau kiểm tra action/scope tương ứng; không yêu cầu thêm VIEW để trả kết quả của thao tác ghi đã được phép.
+
+Audit schema/migration thực tế và giới hạn xác minh: [báo cáo Employee GET](EMPLOYEE_READ.md). Chỉ xác nhận TeamId/PositionId có trong source/snapshot; không tự coi migration đã apply trên DB đích.
+
 ## EmployeeCode tự động, chỉ đọc
 
 `POST /api/employees` không còn nhận/yêu cầu `employeeCode`. Server sinh `NV` + `employees.Id` tối thiểu 6 chữ số: Id 1 → `NV000001`, Id 2 → `NV000002`, Id 1000000 → `NV1000000`. Nếu bảng đã có dữ liệu thì mã đi theo Id mới, không bắt đầu lại từ 1. Không dùng SELECT MAX(EmployeeCode)+1, bộ đếm frontend hoặc bộ đếm trong memory.
@@ -121,7 +155,9 @@ JSON Response thành công — HTTP 200:
       "employmentStatus": "ACTIVE",
       "createdAt": "2026-10-24T10:00:00Z",
       "teamId": null,
-      "teamName": null
+      "teamName": null,
+      "departmentName": "Demo Department",
+      "positionName": null
     }
   ]
 }
@@ -167,7 +203,9 @@ Authorization: Bearer <access_token>
       "employmentStatus": "ACTIVE",
       "createdAt": "2026-10-24T10:00:00Z",
       "teamId": null,
-      "teamName": null
+      "teamName": null,
+      "departmentName": "Demo Department",
+      "positionName": null
     }
   ]
 }
@@ -204,7 +242,9 @@ JSON Response thành công — HTTP 200:
   "employmentStatus": "ACTIVE",
   "createdAt": "2026-10-24T10:00:00Z",
   "teamId": null,
-  "teamName": null
+  "teamName": null,
+  "departmentName": "Demo Department",
+  "positionName": null
 }
 ```
 
@@ -252,7 +292,9 @@ JSON Response thành công — HTTP 201:
   "employmentStatus": "ACTIVE",
   "createdAt": "2026-10-24T10:00:00Z",
   "teamId": null,
-  "teamName": null
+  "teamName": null,
+  "departmentName": "Demo Department",
+  "positionName": null
 }
 ```
 
@@ -297,7 +339,9 @@ JSON Response thành công — HTTP 200:
   "employmentStatus": "ACTIVE",
   "createdAt": "2026-10-24T10:00:00Z",
   "teamId": null,
-  "teamName": null
+  "teamName": null,
+  "departmentName": "Demo Department",
+  "positionName": null
 }
 ```
 
@@ -361,7 +405,9 @@ JSON Response thành công — HTTP 200:
   "employmentStatus": "ACTIVE",
   "createdAt": "2026-10-24T10:00:00Z",
   "teamId": null,
-  "teamName": null
+  "teamName": null,
+  "departmentName": "Demo Department",
+  "positionName": null
 }
 ```
 

@@ -38,3 +38,7 @@ Employee có `TeamId` nullable, composite FK bảo đảm Team thuộc Departmen
 EmployeeCode mới tự sinh `NV` + Id AUTO_INCREMENT, tối thiểu 6 chữ số, không nhận mã từ client và không đổi khi cập nhật. Giữ unique index và mã legacy. [Chi tiết sinh mã](PROFILES_API.md#employeecode-tự-động-chỉ-đọc). Tạo User kèm Employee qua createEmployee của POST /api/users dùng một transaction chung, không tạo Employee riêng rồi mới gọi User.
 
 - [Audit và báo cáo tạo Employee/User atomic](EMPLOYEE_CREATION.md)
+
+## GET Employee kèm tên tổ chức
+
+List/detail/unlinked trả departmentName, teamName, positionName cùng ID qua projection LEFT JOIN AsNoTracking, giữ pagination và scope. Không N+1 hoặc ghép danh mục tại client; dropdown vẫn dùng API catalog riêng. Xem [audit và kiểm chứng](EMPLOYEE_READ.md).

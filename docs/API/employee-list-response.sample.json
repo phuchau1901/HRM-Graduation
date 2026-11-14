@@ -1,0 +1,42 @@
+{
+  "success": true,
+  "total": 2,
+  "page": 1,
+  "pageSize": 30,
+  "data": [
+    {
+      "id": 1,
+      "employeeCode": "TX000001",
+      "fullName": "Demo Employee",
+      "email": "employee@example.invalid",
+      "dateOfBirth": null,
+      "phoneNumber": null,
+      "hireDate": "2024-01-01",
+      "departmentId": 1,
+      "departmentName": "Engineering",
+      "teamId": 1,
+      "teamName": "Platform",
+      "positionId": 2,
+      "positionName": "Software Engineer",
+      "employmentStatus": "ACTIVE",
+      "createdAt": "2026-11-14T09:00:00Z"
+    },
+    {
+      "id": 2,
+      "employeeCode": "TX000002",
+      "fullName": "Demo Employee 2",
+      "email": "employee-2@example.invalid",
+      "dateOfBirth": null,
+      "phoneNumber": null,
+      "hireDate": "2024-01-01",
+      "departmentId": 1,
+      "departmentName": "Engineering",
+      "teamId": null,
+      "teamName": null,
+      "positionId": null,
+      "positionName": null,
+      "employmentStatus": "ACTIVE",
+      "createdAt": "2026-11-14T09:00:00Z"
+    }
+  ]
+}

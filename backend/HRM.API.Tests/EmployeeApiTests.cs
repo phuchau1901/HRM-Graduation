@@ -255,9 +255,9 @@ public sealed class EmployeeApiTests
         public AuthApiFactory App { get; private set; } = null!;
         public HttpClient Client { get; private set; } = null!;
         public int Self, Peer, Other, Department, OtherDepartment;
-        public static async Task<Harness> Create(string? scope, bool failNotification = false)
+        public static async Task<Harness> Create(string? scope, bool failNotification = false, DbCommandInterceptor? queries = null)
         {
-            var h = new Harness { App = new AuthApiFactory { EmployeeScope = scope, FailNotificationWrites = failNotification } };
+            var h = new Harness { App = new AuthApiFactory { EmployeeScope = scope, FailNotificationWrites = failNotification, CreationInterceptor = queries } };
             h.Client = h.App.CreateClient(new() { BaseAddress = new Uri("https://localhost") }); await h.App.PrepareAsync();
             await OrganizationApiTests.Grant(h.App, "WEB_EMPLOYEES"); await OrganizationApiTests.Grant(h.App, "WEB_CONTRACTS");
             using var services = h.App.Services.CreateScope(); var db = services.ServiceProvider.GetRequiredService<AppDbContext>();

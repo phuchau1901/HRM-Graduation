@@ -602,9 +602,50 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees?page=1&pageSize=30",
-            "description": "Danh sách hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + SELF/DEPARTMENT/ALL\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query departmentId positive nullable; employmentStatus<=20.\nScope áp trước count/paging/search. Department query không mở rộng scope.\nExpected 200; errors 400, 401, 403, 500.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope."
+            "description": "Danh sách hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + SELF/DEPARTMENT/ALL\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query departmentId positive nullable; employmentStatus<=20.\nScope áp trước count/paging/search. Department query không mở rộng scope.\nExpected 200; errors 400, 401, 403, 500.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope.\nResponse EmployeeDto có departmentId/departmentName, teamId/teamName, positionId/positionName; tên nullable, giữ các field hồ sơ cũ. Backend AsNoTracking + LEFT JOIN + Select DTO, không N+1; names đọc trực tiếp từ response, không ghép catalog ở client. Giữ WEB_EMPLOYEES/VIEW và SELF/DEPARTMENT/ALL. Scope/filter và Count trước paging, Id tăng dần. Có migration PositionId/TeamId trong source; Applied/Pending DB đích chưa được xác minh, không tự apply."
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 — Employee with organization names",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/employees?page=1&pageSize=30",
+                "description": "Danh sách hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + SELF/DEPARTMENT/ALL\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query departmentId positive nullable; employmentStatus<=20.\nScope áp trước count/paging/search. Department query không mở rộng scope.\nExpected 200; errors 400, 401, 403, 500.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope.\nResponse EmployeeDto có departmentId/departmentName, teamId/teamName, positionId/positionName; tên nullable, giữ các field hồ sơ cũ. Backend AsNoTracking + LEFT JOIN + Select DTO, không N+1; names đọc trực tiếp từ response, không ghép catalog ở client. Giữ WEB_EMPLOYEES/VIEW và SELF/DEPARTMENT/ALL. Scope/filter và Count trước paging, Id tăng dần. Có migration PositionId/TeamId trong source; Applied/Pending DB đích chưa được xác minh, không tự apply."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"total\": 2,\n  \"page\": 1,\n  \"pageSize\": 30,\n  \"data\": [\n    {\n      \"id\": 1,\n      \"employeeCode\": \"TX000001\",\n      \"fullName\": \"Demo Employee\",\n      \"email\": \"employee@example.invalid\",\n      \"dateOfBirth\": null,\n      \"phoneNumber\": null,\n      \"hireDate\": \"2024-01-01\",\n      \"departmentId\": 1,\n      \"departmentName\": \"Engineering\",\n      \"teamId\": 1,\n      \"teamName\": \"Platform\",\n      \"positionId\": 2,\n      \"positionName\": \"Software Engineer\",\n      \"employmentStatus\": \"ACTIVE\",\n      \"createdAt\": \"2026-11-14T09:00:00Z\"\n    },\n    {\n      \"id\": 2,\n      \"employeeCode\": \"TX000002\",\n      \"fullName\": \"Demo Employee 2\",\n      \"email\": \"employee-2@example.invalid\",\n      \"dateOfBirth\": null,\n      \"phoneNumber\": null,\n      \"hireDate\": \"2024-01-01\",\n      \"departmentId\": 1,\n      \"departmentName\": \"Engineering\",\n      \"teamId\": null,\n      \"teamName\": null,\n      \"positionId\": null,\n      \"positionName\": null,\n      \"employmentStatus\": \"ACTIVE\",\n      \"createdAt\": \"2026-11-14T09:00:00Z\"\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const rows = Array.isArray(body.data) ? body.data : [body];",
+                  "  pm.test(\"Employee organization names and IDs are present\", function () {",
+                  "    rows.forEach(row => {",
+                  "      [\"id\", \"employeeCode\", \"fullName\", \"email\", \"departmentId\", \"departmentName\", \"teamId\", \"teamName\", \"positionId\", \"positionName\", \"employmentStatus\"].forEach(key => pm.expect(row).to.have.property(key));",
+                  "      [\"departmentName\", \"teamName\", \"positionName\"].forEach(key => pm.expect(row[key] === null || typeof row[key] === \"string\").to.eql(true));",
+                  "    });",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "GET /api/employees/unlinked?page=1&pageSize=30",
@@ -612,9 +653,50 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees/unlinked?page=1&pageSize=30",
-            "description": "WEB_EMPLOYEES/VIEW + scope. Chỉ Employee không có bất kỳ User.EmployeeId tham chiếu, kể cả user LOCKED/INACTIVE. Hỗ trợ departmentId/teamId/search/employmentStatus; PageResult<EmployeeDto>.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope."
+            "description": "WEB_EMPLOYEES/VIEW + scope. Chỉ Employee không có bất kỳ User.EmployeeId tham chiếu, kể cả user LOCKED/INACTIVE. Hỗ trợ departmentId/teamId/search/employmentStatus; PageResult<EmployeeDto>.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope.\nResponse EmployeeDto có departmentId/departmentName, teamId/teamName, positionId/positionName; tên nullable, giữ các field hồ sơ cũ. Backend AsNoTracking + LEFT JOIN + Select DTO, không N+1; names đọc trực tiếp từ response, không ghép catalog ở client. Giữ WEB_EMPLOYEES/VIEW và SELF/DEPARTMENT/ALL. Scope/filter và Count trước paging, Id tăng dần. Có migration PositionId/TeamId trong source; Applied/Pending DB đích chưa được xác minh, không tự apply."
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 — Employee with organization names",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/employees/unlinked?page=1&pageSize=30",
+                "description": "WEB_EMPLOYEES/VIEW + scope. Chỉ Employee không có bất kỳ User.EmployeeId tham chiếu, kể cả user LOCKED/INACTIVE. Hỗ trợ departmentId/teamId/search/employmentStatus; PageResult<EmployeeDto>.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope.\nResponse EmployeeDto có departmentId/departmentName, teamId/teamName, positionId/positionName; tên nullable, giữ các field hồ sơ cũ. Backend AsNoTracking + LEFT JOIN + Select DTO, không N+1; names đọc trực tiếp từ response, không ghép catalog ở client. Giữ WEB_EMPLOYEES/VIEW và SELF/DEPARTMENT/ALL. Scope/filter và Count trước paging, Id tăng dần. Có migration PositionId/TeamId trong source; Applied/Pending DB đích chưa được xác minh, không tự apply."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"success\": true,\n  \"total\": 2,\n  \"page\": 1,\n  \"pageSize\": 30,\n  \"data\": [\n    {\n      \"id\": 1,\n      \"employeeCode\": \"TX000001\",\n      \"fullName\": \"Demo Employee\",\n      \"email\": \"employee@example.invalid\",\n      \"dateOfBirth\": null,\n      \"phoneNumber\": null,\n      \"hireDate\": \"2024-01-01\",\n      \"departmentId\": 1,\n      \"departmentName\": \"Engineering\",\n      \"teamId\": 1,\n      \"teamName\": \"Platform\",\n      \"positionId\": 2,\n      \"positionName\": \"Software Engineer\",\n      \"employmentStatus\": \"ACTIVE\",\n      \"createdAt\": \"2026-11-14T09:00:00Z\"\n    },\n    {\n      \"id\": 2,\n      \"employeeCode\": \"TX000002\",\n      \"fullName\": \"Demo Employee 2\",\n      \"email\": \"employee-2@example.invalid\",\n      \"dateOfBirth\": null,\n      \"phoneNumber\": null,\n      \"hireDate\": \"2024-01-01\",\n      \"departmentId\": 1,\n      \"departmentName\": \"Engineering\",\n      \"teamId\": null,\n      \"teamName\": null,\n      \"positionId\": null,\n      \"positionName\": null,\n      \"employmentStatus\": \"ACTIVE\",\n      \"createdAt\": \"2026-11-14T09:00:00Z\"\n    }\n  ]\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const rows = Array.isArray(body.data) ? body.data : [body];",
+                  "  pm.test(\"Employee organization names and IDs are present\", function () {",
+                  "    rows.forEach(row => {",
+                  "      [\"id\", \"employeeCode\", \"fullName\", \"email\", \"departmentId\", \"departmentName\", \"teamId\", \"teamName\", \"positionId\", \"positionName\", \"employmentStatus\"].forEach(key => pm.expect(row).to.have.property(key));",
+                  "      [\"departmentName\", \"teamName\", \"positionName\"].forEach(key => pm.expect(row[key] === null || typeof row[key] === \"string\").to.eql(true));",
+                  "    });",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "GET /api/employees/{employeeId}",
@@ -622,9 +704,50 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}",
-            "description": "Chi tiết hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId INT.\nNgoài scope hoặc không tồn tại: 404; không làm lộ danh sách user/auth.\nExpected 200; errors 401, 403, 404, 500.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope."
+            "description": "Chi tiết hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId INT.\nNgoài scope hoặc không tồn tại: 404; không làm lộ danh sách user/auth.\nExpected 200; errors 401, 403, 404, 500.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope.\nResponse EmployeeDto có departmentId/departmentName, teamId/teamName, positionId/positionName; tên nullable, giữ các field hồ sơ cũ. Backend AsNoTracking + LEFT JOIN + Select DTO, không N+1; names đọc trực tiếp từ response, không ghép catalog ở client. Giữ WEB_EMPLOYEES/VIEW và SELF/DEPARTMENT/ALL. Scope/filter và Count trước paging, Id tăng dần. Có migration PositionId/TeamId trong source; Applied/Pending DB đích chưa được xác minh, không tự apply."
           },
-          "response": []
+          "response": [
+            {
+              "name": "200 — Employee with organization names",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+                "description": "Chi tiết hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId INT.\nNgoài scope hoặc không tồn tại: 404; không làm lộ danh sách user/auth.\nExpected 200; errors 401, 403, 404, 500.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope.\nResponse EmployeeDto có departmentId/departmentName, teamId/teamName, positionId/positionName; tên nullable, giữ các field hồ sơ cũ. Backend AsNoTracking + LEFT JOIN + Select DTO, không N+1; names đọc trực tiếp từ response, không ghép catalog ở client. Giữ WEB_EMPLOYEES/VIEW và SELF/DEPARTMENT/ALL. Scope/filter và Count trước paging, Id tăng dần. Có migration PositionId/TeamId trong source; Applied/Pending DB đích chưa được xác minh, không tự apply."
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "cookie": [],
+              "body": "{\n  \"id\": 1,\n  \"employeeCode\": \"TX000001\",\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee@example.invalid\",\n  \"dateOfBirth\": null,\n  \"phoneNumber\": null,\n  \"hireDate\": \"2024-01-01\",\n  \"departmentId\": 1,\n  \"departmentName\": \"Engineering\",\n  \"teamId\": 1,\n  \"teamName\": \"Platform\",\n  \"positionId\": 2,\n  \"positionName\": \"Software Engineer\",\n  \"employmentStatus\": \"ACTIVE\",\n  \"createdAt\": \"2026-11-14T09:00:00Z\"\n}"
+            }
+          ],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  const rows = Array.isArray(body.data) ? body.data : [body];",
+                  "  pm.test(\"Employee organization names and IDs are present\", function () {",
+                  "    rows.forEach(row => {",
+                  "      [\"id\", \"employeeCode\", \"fullName\", \"email\", \"departmentId\", \"departmentName\", \"teamId\", \"teamName\", \"positionId\", \"positionName\", \"employmentStatus\"].forEach(key => pm.expect(row).to.have.property(key));",
+                  "      [\"departmentName\", \"teamName\", \"positionName\"].forEach(key => pm.expect(row[key] === null || typeof row[key] === \"string\").to.eql(true));",
+                  "    });",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "GET /api/employees/{employeeId}/history",
