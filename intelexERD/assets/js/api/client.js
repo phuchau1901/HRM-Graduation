@@ -22,7 +22,7 @@ async function request(path,options={}){
  if(typeof transport!=='function')throw Error('Trình duyệt hiện tại không hỗ trợ kết nối API.');
  const response=await transport(apiBaseUrl()+path,{...options,headers});
  let body=null;try{body=await response.json();}catch{}
- if(!response.ok){if(response.status===401)apiLogout();throw Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);}
+ if(!response.ok){if(response.status===401)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;throw error;}
  return body;
 }
 
@@ -134,3 +134,6 @@ export function apiSaveShift(id,payload,version=null){
  }
  return request('/api/shifts'+(id===null?'':`/${encodeURIComponent(id)}`),{method:id===null?'POST':'PUT',headers,body:JSON.stringify(payload)});
 }
+
+export function apiAuditLogs(query=''){return request('/api/audit-logs'+(query?`?${query}`:''),{cache:'no-store'});}
+export function apiAuditLogDetail(id){return request(`/api/audit-logs/${encodeURIComponent(id)}`,{cache:'no-store'});}
