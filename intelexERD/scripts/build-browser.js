@@ -9,7 +9,7 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const modules=[
  'api/client.js','utils.js','data/seed.js','data/document-content.js','permissions.js',
  'store.js','components/ui.js','components/dialog.js','pages/dashboard.js',
- 'pages/attendance-report.js','pages/employees.js','pages/roles.js','pages/users.js','pages/work.js','pages/operations.js','router.js',
+ 'pages/attendance-report.js','pages/master-data.js','pages/employees.js','pages/roles.js','pages/users.js','pages/work.js','pages/operations.js','router.js',
  'actions.js','app.js'
 ];
 const handbook=await readFile(path.join(root,'assets/documents/intelex-handbook.md'),'utf8');

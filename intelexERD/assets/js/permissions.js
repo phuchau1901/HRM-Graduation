@@ -37,7 +37,7 @@ export const screenRoutes={
  '/admin/permissions':['WEB_PERMISSIONS'], 
  '/admin/audit-logs':['WEB_AUDIT_LOGS'],
  '/admin/settings':['WEB_SYSTEM_SETTINGS'], 
- '/admin/master-data':['WEB_MASTER_DATA']
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS']
 };
 export function screenAllowed(path,flag='canView'){
  const current=apiSession();if(!current)return false;

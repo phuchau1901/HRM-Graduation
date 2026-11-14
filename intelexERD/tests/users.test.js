@@ -19,7 +19,7 @@ test('registration creates user and employee in one request without client emplo
  const employee={employeeCode:'CLIENT-CODE',fullName:'New employee',email:'staff@example.com',departmentId:5};
  const result=await registerSystemUser({account,employee});
  assert.equal(calls.length,1);assert.equal(calls[0].url.endsWith('/api/users'),true);
- assert.deepEqual(calls[0].body,{userId:'new.user',email:'account@example.com',password:'example-password',roleIds:[1,2],createEmployee:true,employee:{fullName:'New employee',email:'staff@example.com',departmentId:5}});
+ assert.deepEqual(calls[0].body,{userId:'new.user',email:'account@example.com',password:'example-password',roleIds:[1,2],createEmployee:true,employee:{fullName:'New employee',email:'account@example.com',departmentId:5}});
  assert.equal(result.employeeCode,'NV000042');assert.equal(employee.employeeCode,'CLIENT-CODE');
 });
 test('atomic registration failure retries the complete user request without separate employee creation',async()=>{
@@ -119,4 +119,14 @@ test('registration sends selected position in the nested employee DTO',async()=>
  let body;globalThis.fetch=async(url,options)=>{body=JSON.parse(options.body);return ok({employeeId:1});};
  await registerSystemUser({account:{userId:'staff'},employee:{departmentId:5,teamId:12,positionId:7}});
  assert.equal(body.employee.positionId,7);assert.equal(body.employee.teamId,12);assert.equal(body.createEmployee,true);
+});
+
+test('registration dates accept manual day/month/year and reject impossible dates',async()=>{
+ const {registrationDateValue}=await import('../assets/js/pages/users.js');
+ assert.equal(registrationDateValue('14/11/2026'),'2026-11-14');
+ assert.equal(registrationDateValue('29/02/2024'),'2024-02-29');
+ assert.equal(registrationDateValue('29/02/2025'),null);
+ assert.equal(registrationDateValue('31/04/2026'),null);
+ assert.equal(registrationDateValue('01/13/2026'),null);
+ assert.equal(registrationDateValue(''), '');
 });

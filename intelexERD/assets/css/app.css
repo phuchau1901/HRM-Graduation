@@ -22,3 +22,7 @@
 .user-password-field{display:grid;gap:8px}.user-password-control{display:flex;align-items:center;gap:8px}.user-password-control input{flex:1;min-width:0}.user-password-control button{flex-shrink:0}.user-password-field small{font-size:12px;line-height:1.5}
 
 .account-menu-wrap{position:relative}.account-dropdown{position:absolute;right:0;top:calc(100% + 12px);min-width:180px;background:white;border:1px solid var(--border);border-radius:10px;padding:6px;box-shadow:var(--shadow)}.account-dropdown[hidden]{display:none}.account-dropdown .btn{display:flex;width:100%;justify-content:flex-start;border:0}
+
+.registration-date-field{display:grid;gap:7px}.registration-date-control{display:flex;gap:8px;align-items:center}.registration-date-control input[type=text]{flex:1;min-width:0}.registration-date-control input[type=date]{width:44px;flex:0 0 44px;padding:9px 7px;color:transparent}.registration-date-control input[type=date]::-webkit-datetime-edit{display:none}.registration-date-control input[type=date]::-webkit-calendar-picker-indicator{margin:0;cursor:pointer}
+
+.organization-description{white-space:normal;min-width:180px;max-width:360px;overflow-wrap:anywhere}

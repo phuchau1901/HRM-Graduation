@@ -111,3 +111,9 @@ export function apiResetUserPassword(userId,version,payload){
  const body={type:payload.type,newPassword:payload.newPassword,...(payload.type==='SELF_CHANGE'?{currentPassword:payload.currentPassword}:{})};
  return request(`/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'POST',headers:{'If-Match':`"${version}"`},body:JSON.stringify(body)});
 }
+
+export function apiOrganization(kind,id=null,payload=null,query=''){
+ if(!['departments','positions','teams'].includes(kind))throw Error('Danh mục không hợp lệ.');
+ const path=`/api/${kind}`+(id===null?'':`/${encodeURIComponent(id)}`)+(query?`?${query}`:'');
+ return request(path,payload===null?{}:{method:id===null?'POST':'PUT',body:JSON.stringify(payload)});
+}
