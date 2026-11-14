@@ -41,11 +41,18 @@ async function login(userId,password){
 function me(){return request('/api/auth/me');}
 function permissions(){return request('/api/auth/me/permissions');}
 function apiEmployees(query=''){return request('/api/employees'+(query?`?${query}`:''));}
+function apiEmployeeDetail(employeeId){return request(`/api/employees/${encodeURIComponent(employeeId)}`);}
+function apiUnlinkedEmployees(query=''){return request('/api/employees/unlinked'+(query?`?${query}`:''));}
 function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
 function apiPositions(query=''){return request('/api/positions'+(query?`?${query}`:''));}
 function apiNotifications(){return request('/api/notifications');}
 
 function apiRoles(page=1,search=''){return request('/api/roles?'+new URLSearchParams({page,pageSize:30,search}));}
+function apiRoleDetail(roleId){return request(`/api/roles/${encodeURIComponent(roleId)}`);}
+function apiUpdateRole(roleId,version,payload){
+ if(!version)throw Error('Thiếu version của role. Vui lòng tải lại.');
+ return request(`/api/roles/${encodeURIComponent(roleId)}`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify(payload)});
+}
 async function apiAllScreens(){
  const screens=[];let page=1,total;
  do{const result=await request('/api/screens?'+new URLSearchParams({page,pageSize:100}));
@@ -74,6 +81,24 @@ async function apiActiveDepartments(){
  return items.filter(item=>item.isActive);
 }
 
+async function apiActivePositions(){
+ const items=[];let page=1;
+ while(true){const result=await apiPositions(new URLSearchParams({page,pageSize:100,isActive:true}).toString());
+ if(!Array.isArray(result?.data))throw Error('Danh sách chức danh không hợp lệ.');
+ items.push(...result.data);if(!result.data.length||items.length>=result.total)break;page++;
+ }
+ return items.filter(position=>position.isActive);
+}
+
+async function apiActiveTeams(departmentId){
+ const items=[];let page=1;
+ while(true){const result=await request('/api/teams?'+new URLSearchParams({page,pageSize:100,departmentId,isActive:true}));
+ if(!Array.isArray(result?.data))throw Error('Danh sách team không hợp lệ.');
+ items.push(...result.data);if(!result.data.length||items.length>=result.total)break;page++;
+ }
+ return items.filter(team=>team.isActive&&Number(team.departmentId)===Number(departmentId));
+}
+
 function apiUserDetail(userId){return request(`/api/users/${encodeURIComponent(userId)}`);}
 function apiUpdateUser(userId,version,payload){
  if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
@@ -82,6 +107,13 @@ function apiUpdateUser(userId,version,payload){
 function apiUpdateUserRoles(userId,version,roleIds){
  if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
  return request(`/api/users/${encodeURIComponent(userId)}/roles`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify({roleIds})});
+}
+
+function apiResetUserPassword(userId,version,payload){
+ if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
+ if(!['SELF_CHANGE','ADMIN_RESET'].includes(payload?.type))throw Error('Loại thay đổi mật khẩu không hợp lệ.');
+ const body={type:payload.type,newPassword:payload.newPassword,...(payload.type==='SELF_CHANGE'?{currentPassword:payload.currentPassword}:{})};
+ return request(`/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'POST',headers:{'If-Match':`"${version}"`},body:JSON.stringify(body)});
 }
 
 
@@ -259,6 +291,36 @@ function exportReport(f){csvDownload('intelex-bao-cao-cham-cong',['Mã NV','Nhâ
 function attendanceReport(f){const rows=reportRows(f);return `<div class="toolbar"><select data-filter="period" aria-label="Kỳ báo cáo"><option value="day" ${f.period!=='month'&&f.period!=='range'?'selected':''}>Theo ngày</option><option value="month" ${f.period==='month'?'selected':''}>Theo tháng</option><option value="range" ${f.period==='range'?'selected':''}>Khoảng ngày</option></select>${f.period==='month'?`<input type="month" aria-label="Tháng báo cáo" data-filter="month" value="${f.month||'2026-10'}" max="2026-10">`:f.period==='range'?`<input type="date" aria-label="Từ ngày" data-filter="from" value="${f.from||f.date}" max="2026-10-19"><input type="date" aria-label="Đến ngày" data-filter="to" value="${f.to||f.date}" max="2026-10-19">`:`<input type="date" aria-label="Ngày báo cáo" data-filter="date" value="${f.date}" max="2026-10-19">`}${teamOptions(f)}<select data-filter="department" aria-label="Phòng ban"><option value="">Tất cả phòng ban</option>${s.departments.map(d=>`<option value="${d.id}" ${f.department===d.id?'selected':''}>${e(d.name)}</option>`).join('')}</select><select data-filter="employee" aria-label="Nhân viên"><option value="">Tất cả nhân viên</option>${scope.employees(s,user()).filter(u=>!f.team||u.teamId===f.team).map(u=>`<option value="${u.id}" ${f.employee===u.id?'selected':''}>${e(u.name)}</option>`).join('')}</select>${button('Xuất CSV','export-report','download')}${button('In / PDF','print','print')}</div><div class="kpis">${kpi('Nhân sự',rows.length,'người','Theo phạm vi & bộ lọc','users','blue')}${kpi('Tổng giờ công',rows.reduce((n,r)=>n+Number(r.worked),0).toLocaleString('vi-VN'),'giờ','Chỉ tính các ca đã check-out','clock','teal')}${kpi('Lượt đi trễ',rows.reduce((n,r)=>n+r.late,0),'lượt','Theo giờ bắt đầu ca','calendar','orange')}${kpi('Ngày phép',rows.reduce((n,r)=>n+r.leave,0),'ngày','Theo lịch nghỉ đã duyệt','sun','purple')}</div>${card('Báo cáo chấm công chi tiết','Công thực tế = giờ công hợp lệ / 8 · Ngày chưa kết thúc chỉ ghi nhận giờ vào',table(['Nhân viên','Công chuẩn','Công thực tế','Đi trễ','Về sớm','Tăng ca (giờ)','Nghỉ phép','Giờ công'],rows.map(r=>[person(r.u),r.standard,r.actual,r.late,r.early,r.overtime,r.leave,r.worked]),{page:f.page,size:Number(f.size)||10}),`<select aria-label="Số dòng mỗi trang" data-filter="size">${[10,20,50].map(n=>`<option value="${n}" ${Number(f.size)===n?'selected':''}>${n} dòng</option>`).join('')}</select>`)}<p class="muted" style="font-size:11px;margin-top:14px">Số liệu đến ngày demo 19/10/2026. Ca mẫu 8 giờ/ngày, không tính ngày lễ. Ngày chưa có dữ liệu không được tính là vắng không phép.</p>`;}
 
 
+// Source: pages/employees.js
+
+const employeeStatuses={ACTIVE:'Đang làm việc',INACTIVE:'Ngừng hoạt động',TERMINATED:'Đã nghỉ việc'};
+const employeeValue=value=>e(value||'—');
+function employeeListRows(items){
+ return items.map(employee=>`<tr><td><strong>${e(employee.fullName)}</strong><div class="person-sub">${e(employee.employeeCode)}</div></td><td>${employeeValue(employee.positionName)}</td><td>${employeeValue(employee.departmentName)}</td><td>${employeeValue(employee.teamName)}</td><td><span class="badge ${employee.employmentStatus==='ACTIVE'?'active':''}">${e(employeeStatuses[employee.employmentStatus]||employee.employmentStatus)}</span></td><td><a class="btn small" href="#/hr/employees/${encodeURIComponent(employee.id)}">Hồ sơ</a></td></tr>`).join('');
+}
+async function mountEmployees(root,filters={},employeeId=null){
+ if(!root)return;
+ let page=Number(filters.page)||1,search=filters.search||'',status='',generation=0;
+ async function load(){
+ const current=++generation;root.innerHTML='<p role="status">Đang tải nhân viên…</p>';
+ try{
+ if(employeeId!==null){
+ const employee=await apiEmployeeDetail(employeeId);if(!root.isConnected||current!==generation)return;
+ root.innerHTML=`<a class="btn" href="#/hr/employees">← Danh sách nhân viên</a><h2 class="role-editor-title">${e(employee.fullName)}</h2>${details([['Mã nhân viên',employeeValue(employee.employeeCode)],['Chức danh',employeeValue(employee.positionName)],['Phòng ban',employeeValue(employee.departmentName)],['Team',employeeValue(employee.teamName)],['Trạng thái',employeeValue(employeeStatuses[employee.employmentStatus]||employee.employmentStatus)],['Email',employeeValue(employee.email)],['Số điện thoại',employeeValue(employee.phoneNumber)],['Ngày sinh',employee.dateOfBirth?dateLabel(employee.dateOfBirth):'—'],['Ngày vào làm',employee.hireDate?dateLabel(employee.hireDate):'—']])}`;
+ return;
+ }
+ const query=new URLSearchParams({page,pageSize:30,search});if(status)query.set('employmentStatus',status);
+ const result=await apiEmployees(query.toString());if(!root.isConnected||current!==generation)return;
+ if(!Array.isArray(result?.data))throw Error('Danh sách nhân viên không hợp lệ.');
+ root.innerHTML=`<form id="employee-api-search" class="toolbar"><input name="search" maxlength="150" value="${e(search)}" placeholder="Tìm mã, tên hoặc email nhân viên" aria-label="Tìm nhân viên"><select name="status" aria-label="Trạng thái nhân viên"><option value="">Tất cả trạng thái</option>${Object.entries(employeeStatuses).map(([value,label])=>`<option value="${value}" ${value===status?'selected':''}>${label}</option>`).join('')}</select><button class="btn">Tìm kiếm</button></form><div class="table-wrap"><table><thead><tr><th>Nhân viên</th><th>Chức danh</th><th>Phòng ban</th><th>Team</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${employeeListRows(result.data)}</tbody></table></div>${result.data.length?'':'<p>Không có nhân viên phù hợp.</p>'}<div class="toolbar user-pagination"><button class="btn" id="employee-api-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} nhân viên</span><button class="btn" id="employee-api-next" ${page*30>=result.total?'disabled':''}>Trang sau</button></div>`;
+ root.querySelector('#employee-api-search').onsubmit=ev=>{ev.preventDefault();ev.stopPropagation();search=ev.currentTarget.elements.search.value.trim();status=ev.currentTarget.elements.status.value;page=1;load();};
+ root.querySelector('#employee-api-prev').onclick=()=>{page--;load();};root.querySelector('#employee-api-next').onclick=()=>{page++;load();};
+ }catch(err){if(!root.isConnected||current!==generation)return;root.innerHTML=`<p role="alert">${e(err.message)}</p><button class="btn" id="employee-api-retry">Thử lại</button>`;root.querySelector('#employee-api-retry').onclick=load;}
+ }
+ await load();
+}
+
+
 // Source: pages/roles.js
 
 const roleFlags=[['NEW','Thêm mới','can_new'],['VIEW','Xem','can_view'],['UPDATE','Chỉnh sửa','can_update'],['DELETE','Xóa','can_delete'],['APPROVE','Phê duyệt','can_approve'],['EXPORT','Xuất dữ liệu','can_export']];
@@ -274,8 +336,8 @@ function roleMenuGroups(catalog,platform='WEB'){
  if(remaining.length)groups.push({name:'Màn hình khác',icon:'grid',nested:true,entries:remaining.map(screen=>({...screen,label:screen.name}))});
  return groups;
 }
-function rolePermissionPatch(draft,changed,disabled=new Set()){
- return [...changed].map(code=>({screenCode:code,standard:{...draft.get(code)},...(disabled.has(code)?{extendedActions:[]}: {})}));
+function rolePermissionPatch(draft,changed,disabled=new Set(),scopes=new Map()){
+ return [...changed].map(code=>({screenCode:code,standard:{...draft.get(code)},...(scopes.has(code)?{dataScopes:{...scopes.get(code)}}:{}),...(disabled.has(code)?{extendedActions:[]}: {})}));
 }
 function roleGrant(code,flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p.canView==='Y'&&p[flag]==='Y');}
 async function mountRoles(root,filters){
@@ -286,7 +348,7 @@ async function mountRoles(root,filters){
  root.innerHTML='<p role="status">Đang tải danh sách role…</p>';
  try{const result=await apiRoles(rolePage,roleSearch);if(!root.isConnected)return;
  if(!Array.isArray(result?.data))throw Error('Danh sách role không hợp lệ.');
- root.innerHTML=`<form id="role-search" class="toolbar"><input name="search" value="${e(roleSearch)}" placeholder="Tìm mã hoặc tên role" aria-label="Tìm role"><button class="btn">Tìm kiếm</button></form><div class="table-wrap"><table><thead><tr><th>Mã role</th><th>Tên role</th><th>Hành động</th></tr></thead><tbody>${result.data.map(role=>`<tr><td>${e(role.code)}</td><td>${e(role.name)}</td><td><button class="btn" data-edit-role="${e(role.id)}" ${roleGrant('WEB_PERMISSIONS','canView')?'':'disabled'}>Chỉnh sửa quyền</button></td></tr>`).join('')}</tbody></table></div>${!result.data.length?'<p>Không có role phù hợp.</p>':''}<div class="toolbar"><button class="btn" id="role-prev" ${rolePage<=1?'disabled':''}>Trang trước</button><span>Trang ${rolePage} · ${e(result.total)} role</span><button class="btn" id="role-next" ${rolePage*30>=result.total?'disabled':''}>Trang sau</button></div><p class="muted">Chỉnh sửa quyền cần quyền xem WEB_PERMISSIONS. Lưu cần quyền cập nhật và phê duyệt.</p>`;
+ root.innerHTML=`<form id="role-search" class="toolbar"><input name="search" value="${e(roleSearch)}" placeholder="Tìm mã hoặc tên role" aria-label="Tìm role"><button class="btn">Tìm kiếm</button></form><div class="table-wrap"><table><thead><tr><th>Mã role</th><th>Tên role</th><th>Hành động</th></tr></thead><tbody>${result.data.map(role=>`<tr><td>${e(role.code)}</td><td>${e(role.name)}</td><td><button class="btn" data-edit-role="${e(role.id)}" ${roleGrant('WEB_PERMISSIONS','canView')?'':'disabled'}>Chỉnh sửa</button></td></tr>`).join('')}</tbody></table></div>${!result.data.length?'<p>Không có role phù hợp.</p>':''}<div class="toolbar"><button class="btn" id="role-prev" ${rolePage<=1?'disabled':''}>Trang trước</button><span>Trang ${rolePage} · ${e(result.total)} role</span><button class="btn" id="role-next" ${rolePage*30>=result.total?'disabled':''}>Trang sau</button></div><p class="muted">Chỉnh sửa quyền cần quyền xem WEB_PERMISSIONS. Lưu cần quyền cập nhật và phê duyệt.</p>`;
  root.querySelector('#role-search').onsubmit=ev=>{ev.preventDefault();ev.stopPropagation();roleSearch=ev.currentTarget.elements.search.value.trim();rolePage=1;list();};
  root.querySelector('#role-prev').onclick=()=>{rolePage--;list();};root.querySelector('#role-next').onclick=()=>{rolePage++;list();};
  root.querySelectorAll('[data-edit-role]').forEach(el=>el.onclick=()=>edit(result.data.find(r=>String(r.id)===el.dataset.editRole)));
@@ -299,38 +361,58 @@ async function mountRoles(root,filters){
  // Keep inactive grants visible and read-only; extended actions are omitted from patches to preserve them.
  const screens=[...catalog];for(const item of matrix.screens)if(!screens.some(x=>x.id===item.screenId))screens.push({id:item.screenId,code:item.screenCode,name:item.name,platform:item.platform,isActive:false});
  const draft=new Map(screens.map(screen=>{const original=matrix.screens.find(x=>x.screenCode===screen.code);return [screen.code,Object.fromEntries(roleFlags.map(([flag])=>[flag,original?.standard?.[flag]===true]))];}));
+ const scopes=new Map(matrix.screens.filter(item=>item.screenCode==='WEB_EMPLOYEES').map(item=>[item.screenCode,{...item.dataScopes}]));
  const enabledScreens=new Set(matrix.screens.filter(item=>Object.values(item.standard||{}).some(value=>value===true)||item.extendedActions?.length).map(item=>item.screenCode));
  const disabledScreens=new Set();
  const changed=new Set();let activePlatform='WEB';
  const selectedByPlatform={WEB:screens.find(screen=>screen.platform==='WEB'),MOBILE:screens.find(screen=>screen.platform==='MOBILE')};
- let selected=selectedByPlatform.WEB;let saving=false;
+ let selected=selectedByPlatform.WEB;let saving=false;let nameDraft=role.name;
  const openByPlatform={WEB:new Set(),MOBILE:new Set()};
  for(const platform of ['WEB','MOBILE'])roleMenuGroups(screens,platform).filter(group=>group.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id)).forEach(group=>openByPlatform[platform].add(group.name));
  const canSave=roleGrant('WEB_PERMISSIONS','canUpdate')&&roleGrant('WEB_PERMISSIONS','canApprove');
  function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
  function draw(){
  const menuGroups=roleMenuGroups(screens,activePlatform),openGroups=openByPlatform[activePlatform];
- root.innerHTML=`<button class="btn" id="role-back">← Danh sách role</button><h2 class="role-editor-title">${e(role.name)}</h2><p class="muted">Chọn màn hình trong menu, sau đó bật các chức năng được phép.</p><div class="tabs role-platform-tabs" role="tablist" aria-label="Nền tảng phân quyền">${['WEB','MOBILE'].map(platform=>`<button type="button" role="tab" id="role-platform-${platform}" class="tab ${activePlatform===platform?'active':''}" aria-selected="${activePlatform===platform}" aria-controls="role-platform-panel" data-role-platform="${platform}">${icon(platform==='WEB'?'grid':'person',16)} ${platform}</button>`).join('')}</div><div class="role-editor" id="role-platform-panel" role="tabpanel" aria-labelledby="role-platform-${activePlatform}"><nav class="role-menu" aria-label="Màn hình phân quyền">${menuGroups.map(group=>{
+ root.innerHTML=`<button class="btn" id="role-back">← Danh sách role</button><h2 class="role-editor-title">Chỉnh sửa role</h2><form id="role-rename" class="role-name-editor"><label for="role-name">Tên role</label><input id="role-name" name="name" required maxlength="100" value="${e(nameDraft)}" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}><button class="btn" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}>Lưu tên role</button><span class="muted">${e(role.code)}</span></form><p class="muted">Chọn màn hình trong menu, sau đó bật các chức năng được phép.</p><div class="tabs role-platform-tabs" role="tablist" aria-label="Nền tảng phân quyền">${['WEB','MOBILE'].map(platform=>`<button type="button" role="tab" id="role-platform-${platform}" class="tab ${activePlatform===platform?'active':''}" aria-selected="${activePlatform===platform}" aria-controls="role-platform-panel" data-role-platform="${platform}">${icon(platform==='WEB'?'grid':'person',16)} ${platform}</button>`).join('')}</div><div class="role-editor" id="role-platform-panel" role="tabpanel" aria-labelledby="role-platform-${activePlatform}"><nav class="role-menu" aria-label="Màn hình phân quyền">${menuGroups.map(group=>{
  const active=group.entries.some(screen=>screen.id===selected?.id),open=openGroups.has(group.name);
  const screenButton=screen=>`<div class="role-screen-row"><button type="button" class="role-screen ${selected?.id===screen.id?'selected':''}" data-screen-id="${e(screen.id)}" ${selected?.id===screen.id?'aria-current="true"':''}><span>${e(screen.label)}</span>${changed.has(screen.code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(screen)}</div>`;
  return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="nav-label">${e(group.name)}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${group.entries.map(screenButton).join('')}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
- }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>`).join('')}</div>`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
+ }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${selected.code==='WEB_EMPLOYEES'?`<div class="role-scope"><select data-role-scope="${flag}" aria-label="Phạm vi ${label}" ${!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||saving?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([value,text])=>`<option value="${value}" ${(scopes.get(selected.code)?.[flag]||'SELF')===value?'selected':''}>${text}</option>`).join('')}</select></div>`:''}</div>`).join('')}</div>${selected.code==='WEB_EMPLOYEES'?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
+ root.querySelector('#role-name').oninput=ev=>{nameDraft=ev.target.value;};
+ root.querySelector('#role-rename').onsubmit=async ev=>{
+ ev.preventDefault();ev.stopPropagation();if(saving||!roleGrant('WEB_ROLES','canUpdate'))return;
+ const name=nameDraft.trim();if(!name){root.querySelector('#role-feedback').textContent='Vui lòng nhập tên role.';return;}
+ saving=true;draw();
+ try{const saved=await apiUpdateRole(role.id,matrix.version,{code:role.code,name});if(!root.isConnected)return;
+ if(!saved?.version)throw Error('Chưa nhận version mới. Hãy tải lại role để xác nhận.');
+ matrix.version=saved.version;role.name=saved.name??name;nameDraft=role.name;saving=false;draw();root.querySelector('#role-feedback').textContent='Đã cập nhật tên role.';
+ }catch(err){saving=false;if(root.isConnected){draw();root.querySelector('#role-feedback').textContent=err.message;}}
+ };
  root.querySelectorAll('[data-role-platform]').forEach(el=>el.onclick=()=>{selectedByPlatform[activePlatform]=selected;activePlatform=el.dataset.rolePlatform;selected=selectedByPlatform[activePlatform];draw();root.querySelector(`[data-role-platform="${activePlatform}"]`)?.focus();});
  root.querySelectorAll('[data-role-group]').forEach(el=>el.onclick=()=>{const name=el.dataset.roleGroup;openGroups.has(name)?openGroups.delete(name):openGroups.add(name);draw();root.querySelectorAll('[data-role-group]').forEach(button=>{if(button.dataset.roleGroup===name)button.focus();});});
- root.querySelector('#role-back').onclick=()=>{if(!changed.size||confirm('Bỏ các thay đổi chưa lưu?'))list();};
+ root.querySelector('#role-back').onclick=()=>{if(saving)return;if((!changed.size&&nameDraft===role.name)||confirm('Bỏ các thay đổi chưa lưu?'))list();};
  root.querySelectorAll('[data-screen-id]').forEach(el=>el.onclick=()=>{selected=screens.find(x=>String(x.id)===el.dataset.screenId);draw();});
  root.querySelectorAll('[data-screen-enabled]').forEach(el=>el.onchange=()=>{
  const screen=screens.find(item=>String(item.id)===el.dataset.screenEnabled);
  if(!screen||!canSave||screen.isActive===false||saving)return;
  selected=screen;
- if(el.checked){enabledScreens.add(screen.code);draft.get(screen.code).VIEW=true;}
+ if(el.checked){enabledScreens.add(screen.code);draft.get(screen.code).VIEW=true;if(screen.code==='WEB_EMPLOYEES'){if(!scopes.has(screen.code))scopes.set(screen.code,{});scopes.get(screen.code).VIEW??='SELF';}}
  else{enabledScreens.delete(screen.code);disabledScreens.add(screen.code);roleFlags.forEach(([flag])=>{draft.get(screen.code)[flag]=false;});}
  changed.add(screen.code);draw();root.querySelector(`[data-screen-enabled="${screen.id}"]`)?.focus();
  });
- root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
+ root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(selected.code==='WEB_EMPLOYEES'&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
+ root.querySelectorAll('[data-role-scope]').forEach(el=>el.onchange=()=>{
+ if(!canSave||saving||selected.isActive===false)return;
+ const flag=el.dataset.roleScope;
+ if(!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag])return;
+ if(!scopes.has(selected.code))scopes.set(selected.code,{});
+ scopes.get(selected.code)[flag]=el.value;
+ changed.add(selected.code);draw();
+ root.querySelector(`[data-role-scope="${flag}"]`)?.focus();
+ });
  root.querySelector('#role-save').onclick=async()=>{
  if(saving||!canSave||!changed.size)return;saving=true;draw();
- try{const saved=await apiSaveRolePermissions(role.id,matrix.version,rolePermissionPatch(draft,changed,disabledScreens));if(!root.isConnected)return;
+ try{const saved=await apiSaveRolePermissions(role.id,matrix.version,rolePermissionPatch(draft,changed,disabledScreens,scopes));if(!root.isConnected)return;
  if(!saved?.version)throw Error('Đã gửi lưu nhưng chưa nhận version mới. Hãy quay lại và tải lại role để xác nhận.');
  matrix.version=saved.version;changed.clear();disabledScreens.clear();saving=false;draw();root.querySelector('#role-feedback').textContent='Đã lưu quyền thành công.';
  }catch(err){saving=false;if(!root.isConnected)return;draw();root.querySelector('#role-feedback').textContent=err.message+' Nếu dữ liệu đã thay đổi, quay lại danh sách và mở role để tải phiên bản mới.';}
@@ -346,13 +428,13 @@ async function mountRoles(root,filters){
 // Source: pages/users.js
 
 function userApiGrant(code,flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p[flag]==='Y');}
-async function registerSystemUser(input,progress){
- if(input.employee&&!progress.employeeId){
- const employee=await apiCreateEmployee(input.employee);
- if(!Number.isInteger(employee?.id)||employee.id<=0)throw Error('Không nhận được mã hồ sơ nhân viên. Hãy kiểm tra danh sách nhân viên trước khi thử lại.');
- progress.employeeId=employee.id;
+async function registerSystemUser(input){
+ const {employeeId,...account}=input.account;
+ if(input.employee){
+ const {employeeCode,...employee}=input.employee;
+ return apiCreateUser({...account,createEmployee:true,employee});
  }
- return apiCreateUser({...input.account,employeeId:progress.employeeId||null});
+ return apiCreateUser({...account,createEmployee:false,employeeId:employeeId??null});
 }
 async function mountUsers(root,filters,register=false){
  if(!root)return;
@@ -373,28 +455,57 @@ async function mountUsers(root,filters,register=false){
 async function userRegistration(root){
  if(!userApiGrant('WEB_USERS','canNew')){root.innerHTML='<p>Bạn không có quyền tạo tài khoản.</p>';return;}
  const canAssign=userApiGrant('WEB_USERS','canApprove'),canEmployee=userApiGrant('WEB_EMPLOYEES','canNew');
- let departments=null,departmentsLoading=false,busy=false;const progress={employeeId:null};
- root.innerHTML=`<a class="btn" href="#/admin/users">← Danh sách tài khoản</a><form id="system-user-register" class="user-registration"><section class="user-form-section"><h2>Thông tin tài khoản</h2><div class="form-grid">${field('Tên đăng nhập','userId','text','','required maxlength="100" pattern="[A-Za-z0-9][A-Za-z0-9_.-]*" autocomplete="off"')}${field('Email','email','email','','required maxlength="255" autocomplete="off"')}${field('Mật khẩu','password','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}${field('Nhập lại mật khẩu','confirmPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}</div></section><section class="user-form-section"><h2>Vai trò</h2><p class="muted">Có thể chọn nhiều vai trò cho tài khoản.</p><div id="system-role-options" class="user-role-picker">${canAssign?'Đang tải vai trò…':'Bạn chưa có quyền gán vai trò. Tài khoản sẽ được tạo chưa có vai trò.'}</div></section><section class="user-form-section"><label class="role-toggle-row"><span><strong>Cán bộ nhân viên</strong><small class="user-field-note">Tạo hồ sơ nhân viên và liên kết với tài khoản này</small></span><span class="role-switch"><input type="checkbox" role="switch" name="createEmployee" ${canEmployee?'':'disabled'}><span class="role-switch-track" aria-hidden="true"></span></span></label>${!canEmployee?'<p class="muted">Bạn chưa có quyền tạo hồ sơ nhân viên.</p>':''}<fieldset id="system-employee-fields" hidden disabled><div class="form-grid">${field('Mã nhân viên','employeeCode','text','','required maxlength="20"')}${field('Họ và tên','fullName','text','','required maxlength="150"')}${field('Ngày sinh','dateOfBirth','date','','')}${field('Số điện thoại','phoneNumber','tel','','maxlength="20"')}${field('Ngày vào làm','hireDate','date','','required')}<label>Phòng ban<select name="departmentId" required><option value="">Chọn phòng ban</option></select></label></div><p id="system-department-error" role="alert"></p><button type="button" class="btn" id="system-department-retry" hidden>Tải lại phòng ban</button></fieldset></section><p id="system-register-feedback" class="form-error" role="alert"></p><div class="form-actions"><a class="btn" href="#/admin/users">Hủy</a><button type="submit" class="btn primary" id="system-register-submit">Đăng ký tài khoản</button></div></form>`;
+ let departments=null,departmentsLoading=false,busy=false,teams=[],teamsLoading=false,teamGeneration=0,positions=null,positionsLoading=false;
+ const canTeams=userApiGrant('WEB_TEAMS','canView'),canPositions=userApiGrant('WEB_POSITIONS','canView');
+ root.innerHTML=`<a class="btn" href="#/admin/users">← Danh sách tài khoản</a><form id="system-user-register" class="user-registration"><section class="user-form-section"><h2>Thông tin tài khoản</h2><div class="form-grid">${field('Tên đăng nhập','userId','text','','required maxlength="100" pattern="[A-Za-z0-9][A-Za-z0-9_.-]*" autocomplete="off"')}${field('Email','email','email','','required maxlength="255" autocomplete="off"')}${field('Mật khẩu','password','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}${field('Nhập lại mật khẩu','confirmPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}</div></section><section class="user-form-section"><h2>Vai trò</h2><p class="muted">Có thể chọn nhiều vai trò cho tài khoản.</p><div id="system-role-options" class="user-role-picker">${canAssign?'Đang tải vai trò…':'Bạn chưa có quyền gán vai trò. Tài khoản sẽ được tạo chưa có vai trò.'}</div></section><section class="user-form-section"><label class="role-toggle-row"><span><strong>Tạo kèm hồ sơ nhân viên</strong><small class="user-field-note">Tạo và liên kết cùng lúc; mã nhân viên được hệ thống tự cấp</small></span><span class="role-switch"><input type="checkbox" role="switch" name="createEmployee" ${canEmployee?'':'disabled'}><span class="role-switch-track" aria-hidden="true"></span></span></label>${!canEmployee?'<p class="muted">Bạn chưa có quyền tạo hồ sơ nhân viên.</p>':''}<fieldset id="system-employee-fields" hidden disabled><div class="form-grid">${field('Email nhân viên','employeeEmail','email','','required maxlength="255" autocomplete="off"')}${field('Họ và tên','fullName','text','','required maxlength="150"')}${field('Ngày sinh','dateOfBirth','date','','')}${field('Số điện thoại','phoneNumber','tel','','maxlength="20"')}${field('Ngày vào làm','hireDate','date','','required')}<label>Phòng ban<select name="departmentId" required><option value="">Chọn phòng ban</option></select></label><label>Chức danh (tùy chọn)<select name="positionId" disabled><option value="">Chưa chọn chức danh</option></select></label><label>Team (tùy chọn)<select name="teamId" disabled><option value="">Chọn phòng ban trước</option></select></label></div><p id="system-position-feedback" role="status"></p><p id="system-team-feedback" role="status"></p><p id="system-department-error" role="alert"></p></fieldset></section><p id="system-register-feedback" class="form-error" role="alert"></p><div class="form-actions"><a class="btn" href="#/admin/users">Hủy</a><button type="submit" class="btn primary" id="system-register-submit">Đăng ký tài khoản</button></div></form>`;
  const form=root.querySelector('#system-user-register'),feedback=root.querySelector('#system-register-feedback'),employeeFields=root.querySelector('#system-employee-fields');
- async function loadDepartments(){if(departmentsLoading)return;departmentsLoading=true;const error=root.querySelector('#system-department-error'),retry=root.querySelector('#system-department-retry');error.textContent='Đang tải phòng ban…';retry.hidden=true;
+ async function loadDepartments(){if(departmentsLoading)return;departmentsLoading=true;const error=root.querySelector('#system-department-error');error.textContent='Đang tải phòng ban…';
  try{departments=await apiActiveDepartments();if(!root.isConnected)return;form.elements.departmentId.innerHTML='<option value="">Chọn phòng ban</option>'+departments.map(dep=>`<option value="${e(dep.id)}">${e(dep.departmentName)}</option>`).join('');error.textContent=departments.length?'':'Chưa có phòng ban đang hoạt động.';}
- catch(err){if(!root.isConnected)return;error.textContent=err.message;retry.hidden=false;}finally{departmentsLoading=false;}}
- root.querySelector('#system-department-retry').onclick=loadDepartments;
- form.elements.createEmployee.onchange=()=>{employeeFields.hidden=!form.elements.createEmployee.checked;employeeFields.disabled=!form.elements.createEmployee.checked;if(form.elements.createEmployee.checked&&!departments)loadDepartments();};
+ catch(err){if(!root.isConnected)return;error.textContent=err.message;}finally{departmentsLoading=false;}}
+ async function loadPositions(){
+ if(positionsLoading||positions!==null)return;
+ const select=form.elements.positionId,note=root.querySelector('#system-position-feedback');
+ if(!canPositions){note.textContent='Cần quyền WEB_POSITIONS/VIEW để chọn chức danh. Có thể tạo nhân viên chưa gán chức danh.';return;}
+ positionsLoading=true;select.disabled=true;note.textContent='Đang tải chức danh…';
+ try{const result=await apiActivePositions();if(!form.isConnected)return;
+ positions=result;select.innerHTML='<option value="">Chưa chọn chức danh</option>'+positions.map(position=>`<option value="${e(position.id)}">${e(position.name)} (${e(position.code)})</option>`).join('');select.disabled=false;
+ note.textContent=positions.length?'':'Chưa có chức danh đang hoạt động.';
+ }catch(err){if(form.isConnected)note.textContent=err.message;}
+ finally{positionsLoading=false;}
+ }
+ async function loadTeams(){
+ const generation=++teamGeneration,departmentId=form.elements.departmentId.value,select=form.elements.teamId,note=root.querySelector('#system-team-feedback');
+ teams=[];teamsLoading=false;select.disabled=true;select.innerHTML='<option value="">Không gán team</option>';note.textContent='';
+ if(!departmentId){select.innerHTML='<option value="">Chọn phòng ban trước</option>';return;}
+ if(!canTeams){note.textContent='Cần quyền WEB_TEAMS/VIEW để chọn team. Có thể tạo nhân viên chưa gán team.';return;}
+ teamsLoading=true;note.textContent='Đang tải team…';
+ try{const result=await apiActiveTeams(departmentId);if(!form.isConnected||generation!==teamGeneration)return;
+ teams=result;select.innerHTML='<option value="">Không gán team</option>'+teams.map(team=>`<option value="${e(team.id)}">${e(team.teamName)} (${e(team.teamCode)})</option>`).join('');
+ select.disabled=false;note.textContent=teams.length?'':'Phòng ban chưa có team đang hoạt động.';
+ }catch(err){if(form.isConnected&&generation===teamGeneration){note.textContent=err.message;}}
+ finally{if(generation===teamGeneration)teamsLoading=false;}
+ }
+ form.elements.departmentId.onchange=loadTeams;
+ form.elements.createEmployee.onchange=()=>{employeeFields.hidden=!form.elements.createEmployee.checked;employeeFields.disabled=!form.elements.createEmployee.checked;if(form.elements.createEmployee.checked){if(!departments)loadDepartments();loadPositions();}};
  let rolesReady=!canAssign;
  if(canAssign){apiAllRoles().then(roles=>{if(!root.isConnected)return;rolesReady=true;mountUserRolePicker(root.querySelector('#system-role-options'),roles);}).catch(err=>{if(!root.isConnected)return;root.querySelector('#system-role-options').textContent=err.message+' Quay lại trang đăng ký để tải lại vai trò.';});}
  form.onsubmit=async ev=>{ev.preventDefault();ev.stopPropagation();if(busy)return;feedback.textContent='';
  if(!rolesReady){feedback.textContent='Chưa tải được danh sách vai trò. Vui lòng thử lại.';return;}
  const data=new FormData(form),staff=form.elements.createEmployee.checked;
  if(data.get('password')!==data.get('confirmPassword')){feedback.textContent='Mật khẩu nhập lại không khớp.';return;}
- if(staff&&!progress.employeeId&&(!departments||departmentsLoading||!departments.some(dep=>String(dep.id)===data.get('departmentId')))){feedback.textContent='Vui lòng chọn phòng ban hợp lệ.';return;}
- if(staff&&!progress.employeeId&&data.get('dateOfBirth')&&data.get('dateOfBirth')>data.get('hireDate')){feedback.textContent='Ngày sinh phải trước hoặc bằng ngày vào làm.';return;}
+ if(staff&&(!departments||departmentsLoading||!departments.some(dep=>String(dep.id)===data.get('departmentId')))){feedback.textContent='Vui lòng chọn phòng ban hợp lệ.';return;}
+ if(staff&&data.get('dateOfBirth')&&data.get('dateOfBirth')>data.get('hireDate')){feedback.textContent='Ngày sinh phải trước hoặc bằng ngày vào làm.';return;}
+ const selectedPosition=data.get('positionId');
+ if(staff&&selectedPosition&&(positionsLoading||!positions?.some(position=>String(position.id)===selectedPosition))){feedback.textContent='Vui lòng chọn chức danh hợp lệ đang hoạt động.';return;}
+ const selectedTeam=data.get('teamId');
+ if(staff&&selectedTeam&&(teamsLoading||!teams.some(team=>String(team.id)===selectedTeam&&Number(team.departmentId)===Number(data.get('departmentId'))))){feedback.textContent='Vui lòng chọn team hợp lệ thuộc phòng ban đã chọn.';return;}
  const account={userId:data.get('userId').trim(),email:data.get('email').trim(),password:data.get('password'),roleIds:data.getAll('roleIds').map(Number)};
- const employee=staff&&!progress.employeeId?{employeeCode:data.get('employeeCode').trim(),fullName:data.get('fullName').trim(),email:account.email,dateOfBirth:data.get('dateOfBirth')||null,phoneNumber:data.get('phoneNumber').trim()||null,hireDate:data.get('hireDate'),departmentId:Number(data.get('departmentId')),employmentStatus:'ACTIVE'}:null;
+ const employee=staff?{fullName:data.get('fullName').trim(),email:data.get('employeeEmail').trim(),teamId:selectedTeam?Number(selectedTeam):null,positionId:selectedPosition?Number(selectedPosition):null,dateOfBirth:data.get('dateOfBirth')||null,phoneNumber:data.get('phoneNumber').trim()||null,hireDate:data.get('hireDate'),departmentId:Number(data.get('departmentId')),employmentStatus:'ACTIVE'}:null;
  busy=true;const submit=root.querySelector('#system-register-submit');submit.disabled=true;submit.textContent='Đang đăng ký…';form.elements.createEmployee.disabled=true;
- try{await registerSystemUser({account,employee},progress);if(!root.isConnected)return;form.reset();root.innerHTML='<div class="empty"><h2>Đăng ký tài khoản thành công</h2><p>Tài khoản và các vai trò đã được lưu vào hệ thống.</p><a class="btn primary" href="#/admin/users">Về danh sách tài khoản</a></div>';}
- catch(err){if(!root.isConnected)return;feedback.textContent=(progress.employeeId?'Hồ sơ nhân viên đã tạo. Nhấn đăng ký lại để tiếp tục tạo tài khoản, không tạo lại hồ sơ. ':'')+err.message;if(progress.employeeId){employeeFields.disabled=true;form.elements.createEmployee.disabled=true;}}
- finally{busy=false;if(root.isConnected&&submit.isConnected){submit.disabled=false;submit.textContent='Đăng ký tài khoản';if(!progress.employeeId)form.elements.createEmployee.disabled=!canEmployee;}}
+ try{const created=await registerSystemUser({account,employee});if(!root.isConnected)return;form.reset();root.innerHTML=`<div class="empty"><h2>Đăng ký tài khoản thành công</h2><p>Tài khoản và các vai trò đã được lưu vào hệ thống.</p>${created?.employeeCode?`<p>Mã nhân viên: <strong>${e(created.employeeCode)}</strong></p>`:''}<a class="btn primary" href="#/admin/users">Về danh sách tài khoản</a></div>`;}
+ catch(err){if(!root.isConnected)return;feedback.textContent=err.message;}
+ finally{busy=false;if(root.isConnected&&submit.isConnected){submit.disabled=false;submit.textContent='Đăng ký tài khoản';form.elements.createEmployee.disabled=!canEmployee;}}
+
  };
 }
 
@@ -418,6 +529,12 @@ async function saveSystemUserChanges(current,changes){
  const latest=await apiUserDetail(current.userId);Object.assign(current,latest);
  saved=await apiUpdateUserRoles(current.userId,current.version,changes.roleIds);Object.assign(current,saved);
  }
+ if(changes.newPassword){
+ const latest=await apiUserDetail(current.userId);Object.assign(current,latest);
+ saved=await apiResetUserPassword(current.userId,current.version,{type:'ADMIN_RESET',newPassword:changes.newPassword});
+ if(!saved?.version)throw Error('Chưa nhận phiên bản sau đổi mật khẩu. Hãy mở lại tài khoản để xác nhận.');
+ Object.assign(current,saved);
+ }
  return saved;
 }
 async function editSystemUser(root,userId,back){
@@ -425,8 +542,14 @@ async function editSystemUser(root,userId,back){
  try{const current=await apiUserDetail(userId);if(!root.isConnected)return;
  const canUpdate=userApiGrant('WEB_USERS','canUpdate'),canRoles=userApiGrant('WEB_USERS','canApprove')&&apiSession()?.user?.userId!==userId;
  let busy=false,employeeId=current.employeeId??null,employeePage=1,employeeSearch='',searchGeneration=0;
- root.innerHTML=`<button type="button" class="btn" id="system-edit-back">← Danh sách tài khoản</button><form id="system-edit-form" class="user-registration"><fieldset class="user-edit-fieldset"><section class="user-form-section"><h2>Chỉnh sửa tài khoản</h2><div class="form-grid">${field('Tên đăng nhập','userId','text',current.userId,'readonly')}${field('Email','email','email',current.email,`required maxlength="255" ${canUpdate?'':'readonly'}`)}</div></section><section class="user-form-section"><h2>Vai trò</h2><div id="system-edit-role-picker" class="user-role-picker">Đang tải vai trò…</div></section><section class="user-form-section"><h2>Liên kết nhân viên</h2><div id="system-linked-employee"></div>${canUpdate&&userApiGrant('WEB_EMPLOYEES','canView')?'<div class="toolbar user-employee-search"><input id="system-employee-search" placeholder="Tìm mã hoặc tên nhân viên" maxlength="150" aria-label="Tìm nhân viên"><button type="button" class="btn" id="system-employee-find">Tìm kiếm</button></div><div id="system-employee-results"></div>':'<p class="muted">Cần quyền xem nhân viên để tìm hồ sơ liên kết.</p>'}</section></fieldset><p id="system-edit-feedback" class="form-error" role="alert"></p><div class="form-actions"><button type="button" class="btn" id="system-edit-cancel">Hủy</button><button type="submit" class="btn primary">Lưu lại</button></div></form>`;
+ root.innerHTML=`<button type="button" class="btn" id="system-edit-back">← Danh sách tài khoản</button><form id="system-edit-form" class="user-registration"><fieldset class="user-edit-fieldset"><section class="user-form-section"><h2>Chỉnh sửa tài khoản</h2><div class="form-grid">${field('Tên đăng nhập','userId','text',current.userId,'readonly')}${field('Email','email','email',current.email,`required maxlength="255" ${canUpdate?'':'readonly'}`)}<div class="user-password-field"><label for="system-new-password">Mật khẩu</label><div class="user-password-control"><input id="system-new-password" name="newPassword" type="password" placeholder="********" minlength="12" maxlength="128" autocomplete="new-password" ${canRoles?'':'disabled'}><button type="button" class="btn" id="system-password-eye" aria-label="Xem mật khẩu mới" aria-pressed="false" ${canRoles?'':'disabled'}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small class="muted">Để trống để giữ nguyên mật khẩu. Nút mắt chỉ hiển thị mật khẩu mới bạn nhập.</small></div></div></section><section class="user-form-section"><h2>Vai trò</h2><div id="system-edit-role-picker" class="user-role-picker">Đang tải vai trò…</div></section><section class="user-form-section"><h2>Liên kết nhân viên</h2><div id="system-linked-employee"></div>${canUpdate&&userApiGrant('WEB_EMPLOYEES','canView')?'<div class="toolbar user-employee-search"><input id="system-employee-search" placeholder="Tìm mã hoặc tên nhân viên" maxlength="150" aria-label="Tìm nhân viên"><button type="button" class="btn" id="system-employee-find">Tìm kiếm</button></div><div id="system-employee-results"></div>':'<p class="muted">Cần quyền xem nhân viên để tìm hồ sơ liên kết.</p>'}</section></fieldset><p id="system-edit-feedback" class="form-error" role="alert"></p><div class="form-actions"><button type="button" class="btn" id="system-edit-cancel">Hủy</button><button type="submit" class="btn primary">Lưu lại</button></div></form>`;
  const form=root.querySelector('#system-edit-form'),feedback=root.querySelector('#system-edit-feedback');
+ const passwordInput=form.elements.newPassword;
+ root.querySelector('#system-password-eye')?.addEventListener('click',ev=>{
+ const visible=passwordInput.type==='password';passwordInput.type=visible?'text':'password';
+ ev.currentTarget.setAttribute('aria-pressed',String(visible));ev.currentTarget.setAttribute('aria-label',visible?'Ẩn mật khẩu mới':'Xem mật khẩu mới');
+ });
+
  const leave=()=>{if(!busy)back();};root.querySelector('#system-edit-back').onclick=leave;root.querySelector('#system-edit-cancel').onclick=leave;
  let getRoles=()=>null,rolesReady=!canRoles;
  if(canRoles){try{const roles=await apiAllRoles();if(!root.isConnected)return;getRoles=mountUserRolePicker(root.querySelector('#system-edit-role-picker'),roles,current.roles||[]);rolesReady=true;}
@@ -436,21 +559,22 @@ async function editSystemUser(root,userId,back){
  area.querySelector('#system-unlink-employee')?.addEventListener('click',()=>{employeeId=null;linked();});}
  linked();
  async function findEmployees(){const results=root.querySelector('#system-employee-results');if(!results)return;const generation=++searchGeneration;results.innerHTML='<p>Đang tìm nhân viên…</p>';
- try{const result=await apiEmployees(new URLSearchParams({page:employeePage,pageSize:10,search:employeeSearch}).toString());if(!root.isConnected||generation!==searchGeneration)return;
+ try{const result=await apiUnlinkedEmployees(new URLSearchParams({page:employeePage,pageSize:10,search:employeeSearch}).toString());if(!root.isConnected||generation!==searchGeneration)return;
  if(!Array.isArray(result?.data))throw Error('Danh sách nhân viên không hợp lệ.');
- results.innerHTML=result.data.map(employee=>`<div class="user-employee-result"><div><strong>${e(employee.fullName)}</strong><small>${e(employee.employeeCode)} · ${e(employee.email)}</small></div><button type="button" class="btn" data-link-employee="${e(employee.id)}">Liên kết</button></div>`).join('')||'<p>Không có nhân viên phù hợp.</p>';
- results.innerHTML+=`<div class="toolbar user-pagination"><button type="button" class="btn" id="system-employee-prev" ${employeePage<=1?'disabled':''}>Trước</button><span>Trang ${employeePage}</span><button type="button" class="btn" id="system-employee-next" ${employeePage*10>=result.total?'disabled':''}>Sau</button></div><p class="muted">Hồ sơ đã gắn tài khoản khác sẽ bị hệ thống từ chối khi lưu.</p>`;
+ results.innerHTML=result.data.map(employee=>`<div class="user-employee-result"><div><strong>${e(employee.fullName)}</strong><small>${e(employee.employeeCode)} · ${e(employee.email)}</small></div><button type="button" class="btn" data-link-employee="${e(employee.id)}">Liên kết</button></div>`).join('')||'<p>Không có nhân viên chưa liên kết phù hợp.</p>';
+ results.innerHTML+=`<div class="toolbar user-pagination"><button type="button" class="btn" id="system-employee-prev" ${employeePage<=1?'disabled':''}>Trước</button><span>Trang ${employeePage}</span><button type="button" class="btn" id="system-employee-next" ${employeePage*10>=result.total?'disabled':''}>Sau</button></div><p class="muted">Danh sách chỉ gồm nhân viên chưa liên kết tài khoản trong phạm vi bạn được xem.</p>`;
  results.querySelectorAll('[data-link-employee]').forEach(button=>button.onclick=()=>{const employee=result.data.find(item=>String(item.id)===button.dataset.linkEmployee);employeeId=employee.id;linked(employee.fullName+' · '+employee.employeeCode);});
  results.querySelector('#system-employee-prev').onclick=()=>{employeePage--;findEmployees();};results.querySelector('#system-employee-next').onclick=()=>{employeePage++;findEmployees();};
  }catch(err){if(root.isConnected&&generation===searchGeneration)results.textContent=err.message;}}
+ if(canUpdate&&userApiGrant('WEB_EMPLOYEES','canView'))findEmployees();
  root.querySelector('#system-employee-find')?.addEventListener('click',()=>{employeeSearch=root.querySelector('#system-employee-search').value.trim();employeePage=1;findEmployees();});
  root.querySelector('#system-employee-search')?.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();root.querySelector('#system-employee-find').click();}});
  form.onsubmit=async ev=>{ev.preventDefault();ev.stopPropagation();if(busy)return;
  if(!rolesReady){feedback.textContent='Chưa tải được vai trò. Vui lòng mở lại tài khoản.';return;}
  busy=true;form.querySelector('fieldset').disabled=true;const submit=form.querySelector('[type="submit"]');submit.disabled=true;submit.textContent='Đang lưu…';feedback.textContent='';
  const previousVersion=current.version;
- try{await saveSystemUserChanges(current,{profile:canUpdate?{email:form.elements.email.value.trim(),employeeId}:null,roleIds:canRoles?getRoles():null});if(!root.isConnected)return;feedback.textContent='Đã lưu tài khoản thành công.';}
- catch(err){if(!root.isConnected)return;feedback.textContent=(current.version!==previousVersion?'Thông tin tài khoản đã được lưu; phần vai trò chưa lưu thành công. ':'')+err.message+' Nếu có xung đột phiên bản, mở lại tài khoản để tải dữ liệu mới.';}
+ try{await saveSystemUserChanges(current,{profile:canUpdate?{email:form.elements.email.value.trim(),employeeId}:null,roleIds:canRoles?getRoles():null,newPassword:canRoles?passwordInput.value:undefined});if(!root.isConnected)return;passwordInput.value='';passwordInput.type='password';root.querySelector('#system-password-eye')?.setAttribute('aria-pressed','false');feedback.textContent='Đã lưu tài khoản thành công.';findEmployees();}
+ catch(err){if(!root.isConnected)return;feedback.textContent=(current.version!==previousVersion?'Một phần thay đổi đã được lưu; các thay đổi còn lại chưa hoàn tất. ':'')+err.message+' Nếu có xung đột phiên bản, mở lại tài khoản để tải dữ liệu mới.';}
  finally{busy=false;if(root.isConnected){form.querySelector('fieldset').disabled=false;submit.disabled=false;submit.textContent='Lưu lại';}}
  };
  }catch(err){if(!root.isConnected)return;root.innerHTML=`<p role="alert">${e(err.message)}</p><button class="btn" id="system-edit-error-back">Về danh sách</button>`;root.querySelector('#system-edit-error-back').onclick=back;}
@@ -472,7 +596,7 @@ function reportsPage(f){if(f.tab==='attendance')return tabs(user().role==='HR'?[
 
 
 // Source: pages/operations.js
-function hrPage(f,path){if(path==='/hr/employees')return peoplePage(f);if(path.startsWith('/hr/employees/')){const u=scope.employees(s,user()).find(u=>u.id===path.split('/').pop());if(!u)return empty('Không tìm thấy nhân viên','Hồ sơ nằm ngoài phạm vi của bạn.');return card('Hồ sơ nhân viên','Thông tin công việc tại Intelex',`<div class="card-body">${person(u)}${details([['Chức danh',e(u.position)],['Email',e(u.email)],['Team',e(s.teams.find(t=>t.id===u.teamId)?.name||'Office')],['Ngày gia nhập',dateLabel(u.joinedAt)]])}${scope.can(s,user(),'hr')?button('Sửa hồ sơ','edit-employee','edit','primary',`data-id="${u.id}"`):''}</div>`);}if(path==='/hr/attendance')return `${tabs([['company','Toàn công ty'],['adjustment','Điều chỉnh'],['shifts','Ca làm việc'],['late','Đi trễ / Về sớm'],['overtime','Tăng ca']],f.tab||'company')}${f.tab==='shifts'?card('Ca làm việc','Ca chuẩn toàn công ty',`<div class="card-body">${details([['Tên ca','Hành chính'],['Giờ làm',`${e(s.settings.shiftStart)}–${e(s.settings.shiftEnd)}`],['Nghỉ trưa','12:00–13:00'],['Ngày làm','Thứ Hai–Thứ Sáu']])}<a class="btn" href="#/admin/settings">Cấu hình ca (Admin)</a></div>`):['adjustment','overtime'].includes(f.tab)?approvalPage(f):attendancePage(f.tab==='late'?{...f,status:'late'}:f)}`;
+function hrPage(f,path){if(apiSession()&&(path==='/hr/employees'||path.startsWith('/hr/employees/')))return '<section class="card user-admin" id="employees-api-root"></section>';if(path==='/hr/employees')return peoplePage(f);if(path.startsWith('/hr/employees/')){const u=scope.employees(s,user()).find(u=>u.id===path.split('/').pop());if(!u)return empty('Không tìm thấy nhân viên','Hồ sơ nằm ngoài phạm vi của bạn.');return card('Hồ sơ nhân viên','Thông tin công việc tại Intelex',`<div class="card-body">${person(u)}${details([['Chức danh',e(u.position)],['Email',e(u.email)],['Team',e(s.teams.find(t=>t.id===u.teamId)?.name||'Office')],['Ngày gia nhập',dateLabel(u.joinedAt)]])}${scope.can(s,user(),'hr')?button('Sửa hồ sơ','edit-employee','edit','primary',`data-id="${u.id}"`):''}</div>`);}if(path==='/hr/attendance')return `${tabs([['company','Toàn công ty'],['adjustment','Điều chỉnh'],['shifts','Ca làm việc'],['late','Đi trễ / Về sớm'],['overtime','Tăng ca']],f.tab||'company')}${f.tab==='shifts'?card('Ca làm việc','Ca chuẩn toàn công ty',`<div class="card-body">${details([['Tên ca','Hành chính'],['Giờ làm',`${e(s.settings.shiftStart)}–${e(s.settings.shiftEnd)}`],['Nghỉ trưa','12:00–13:00'],['Ngày làm','Thứ Hai–Thứ Sáu']])}<a class="btn" href="#/admin/settings">Cấu hình ca (Admin)</a></div>`):['adjustment','overtime'].includes(f.tab)?approvalPage(f):attendancePage(f.tab==='late'?{...f,status:'late'}:f)}`;
  if(path.includes('attendance-reports')||path==='/hr/reports')return reportsPage({...f,tab:f.tab||'attendance'});if(path==='/hr/leave')return `${tabs([['requests','Đơn nghỉ phép'],['types','Loại nghỉ'],['balances','Số dư phép']],f.tab||'requests')}${f.tab==='types'?card('Danh mục loại phép','Quy định mô phỏng',`<div class="card-body">${s.leaveTypes.map(t=>`<p style="padding:12px;border-bottom:1px solid var(--border)">${e(t)}</p>`).join('')}</div>`):f.tab==='balances'?`<div class="card">${table(['Nhân viên','Định mức','Đã dùng','Còn lại'],s.leaveBalances.map(b=>[person(s.users.find(u=>u.id===b.userId)),b.allowanceDays+' ngày',b.usedDays+' ngày',(b.allowanceDays-b.usedDays)+' ngày']),{page:f.page})}</div>`:approvalPage({...f,tab:'leave'})}`;
  if(path==='/hr/contracts')return `<div class="toolbar">${button('Thêm hợp đồng','new-contract','plus','primary')}</div><div class="card">${table(['Nhân viên','Loại hợp đồng','Bắt đầu','Kết thúc','Trạng thái',''],s.contracts.map(c=>[person(s.users.find(u=>u.id===c.employeeId)),e(c.type),dateLabel(c.startDate),dateLabel(c.endDate),badge(c.endDate<'2026-11-19'?'high':'active',c.endDate<'2026-11-19'?'Sắp hết hạn':'Còn hiệu lực'),button('Sửa','edit-contract','edit','small',`data-id="${c.id}"`)]),{page:f.page})}</div>`;
  const tab=f.tab||'departments';return `${tabs([['departments','Phòng ban'],['teams','Teams'],['positions','Chức vụ']],tab)}<div class="project-grid">${(tab==='departments'?s.departments:tab==='teams'?s.teams:s.positions.map(name=>({name}))).map(x=>`<article class="card project-card"><div class="icon-tile blue">${icon('briefcase',22)}</div><h2>${e(x.name)}</h2><p>${tab==='departments'?s.users.filter(u=>u.departmentId===x.id).length+' nhân sự':tab==='teams'?s.users.filter(u=>u.teamId===x.id).length+' thành viên':'Chức danh tại Intelex'}</p></article>`).join('')}</div>`;
@@ -520,7 +644,26 @@ function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const
  case 'toggle-sidebar':if(innerWidth<768)document.body.classList.toggle('mobile-open');else document.body.classList.toggle('collapsed');return;
  case 'refresh':render(true);toast('Đã cập nhật dữ liệu mới nhất');return;
  case 'list':case 'grid':case 'kanban':ctx.setFilters({view:action,page:1});render();return;
- case 'account':{const api=apiSession();openDialog('Tài khoản',`<p>${e(api?.user?.userId||'')}</p><p>${e(api?.user?.email||'')}</p><div class="form-actions">${button('Đăng xuất','backend-logout','logout','danger')}</div>`);return;}
+ case 'account':{const api=apiSession();openDialog('Tài khoản',`<p>${e(api?.user?.userId||'')}</p><p>${e(api?.user?.email||'')}</p><div class="form-actions">${button('Đổi mật khẩu','self-password','shield')}${button('Đăng xuất','backend-logout','logout','danger')}</div>`);return;}
+ case 'self-password':{
+ const account=apiSession()?.user;if(!account)return;
+ openDialog('Đổi mật khẩu',`<form id="self-password-form"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Mật khẩu hiện tại','currentPassword','password','','required autocomplete="current-password"')}${field('Mật khẩu mới','newPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}${field('Nhập lại mật khẩu mới','confirmPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}</div><label><input type="checkbox" id="self-password-visible"> Hiện mật khẩu</label><div class="form-actions"><button type="submit" class="btn primary">Đổi mật khẩu</button></div></fieldset><p role="alert" id="self-password-feedback"></p></form>`);
+ const form=document.getElementById('self-password-form'),feedback=document.getElementById('self-password-feedback');
+ form.querySelector('#self-password-visible').onchange=ev=>{form.querySelectorAll('input[name]').forEach(input=>input.type=ev.target.checked?'text':'password');};
+ let saving=false;
+ form.onsubmit=async ev=>{
+ ev.preventDefault();ev.stopPropagation();if(saving)return;
+ const newPassword=form.elements.newPassword.value;
+ if(newPassword!==form.elements.confirmPassword.value){feedback.textContent='Mật khẩu nhập lại không khớp.';return;}
+ if(!newPassword.trim()){feedback.textContent='Mật khẩu không được chỉ chứa khoảng trắng.';return;}
+ saving=true;form.querySelector('fieldset').disabled=true;feedback.textContent='Đang đổi mật khẩu…';
+ try{const own=await me();const version=own?.version||own?.user?.version||(await apiUserDetail(account.userId)).version;
+ await apiResetUserPassword(account.userId,version,{type:'SELF_CHANGE',currentPassword:form.elements.currentPassword.value,newPassword});
+ form.reset();closeDialog();apiLogout();toast('Đã đổi mật khẩu. Vui lòng đăng nhập lại.');
+ }catch(err){if(form.isConnected)feedback.textContent=err.message;}
+ finally{saving=false;if(form.isConnected)form.querySelector('fieldset').disabled=false;}
+ };return;
+ }
  case 'backend-login':openDialog('Đăng nhập backend',`<form data-form="backend-login"><p class="dialog-subtitle">Đăng nhập JWT vào HRM.API đang chạy local.</p><div class="form-grid">${field('User ID','userId','text','admin','required autocomplete="username"')}${field('Mật khẩu','password','password','','required autocomplete="current-password"')}</div>${formFooter()}</form>`);return;
  case 'backend-logout':apiLogout();closeDialog();render(true);toast('Đã đăng xuất backend');return;
  case 'confirm-reset':openDialog('Khôi phục bản demo?',`<p>Toàn bộ thay đổi trên trình duyệt sẽ được xóa và khôi phục dữ liệu mẫu ban đầu.</p><div class="form-actions">${button('Hủy','close')}${button('Khôi phục dữ liệu','reset','refresh','danger')}</div>`);return;
@@ -586,11 +729,11 @@ function loginScreen(){
  });
 }
 function shell(){if(!apiSession()){loginScreen();return;}
-const path=getPath(),u=user();let unread=s.notifications.filter(n=>n.recipientId===u.id&&!n.readAt).length,pending=scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count">${unread}</span>`:n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search">${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><button class="btn" data-action="logout">Đăng xuất</button><button class="icon-button" data-action="notifications" aria-label="Thông báo">${icon('bell',19)}${unread?'<span class="notification-dot"></span>':''}</button><span class="top-divider"></span><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Tài khoản và chọn role demo">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role}</small></div>${icon('down',12)}</button></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderContent();}
+const path=getPath(),u=user();let unread=s.notifications.filter(n=>n.recipientId===u.id&&!n.readAt).length,pending=scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count">${unread}</span>`:n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search">${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><button class="icon-button" data-action="notifications" aria-label="Thông báo">${icon('bell',19)}${unread?'<span class="notification-dot"></span>':''}</button><span class="top-divider"></span><div class="account-menu-wrap"><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Menu tài khoản" aria-expanded="false" aria-controls="top-account-menu">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role}</small></div>${icon('down',12)}</button><div class="account-dropdown" id="top-account-menu" hidden><button type="button" class="btn" data-action="self-password">Đổi mật khẩu</button><button type="button" class="btn" data-action="logout">Đăng xuất</button></div></div></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderContent();}
 function header(path){const u=user(),home=path==='/dashboard';const primary=(path.includes('tasks')&&scope.can(s,u,'task.create'))?button('Tạo công việc','new-task','plus','primary'):path==='/projects'&&scope.can(s,u,'project.create')?button('Tạo dự án','new-project','plus','primary'):path==='/hr/employees'&&scope.can(s,u,'hr')?button('Thêm nhân viên','new-employee','plus','primary'):path==='/workspace/leave'?button('Tạo đơn nghỉ','new-request','plus','primary'):'';return `<div class="page-heading"><div><div class="eyebrow">${home?'YOUR WORK, CONNECTED':'INTELEX WORKSPACE'}</div><h1>${pageTitle(path)}${home?'<span style="color:#d7aa64;font-weight:400;margin-left:9px">✦</span>':''}</h1><p>${home?`Chào ${e(u.name.split(' ').pop())}, cùng xem đội ngũ đang làm việc thế nào hôm nay.`:'Một không gian chung để kết nối con người và công việc.'}</p></div><div class="heading-actions">${home?`${teamOptions(filters)}<input type="date" aria-label="Ngày dashboard" data-filter="date" value="${filters.date}" max="2026-10-19">${button('','refresh','refresh','','aria-label="Làm mới dashboard"')}`:primary}</div></div>`;}
 function routeTabs(path){const group=groupFor(path);if(!group?.children||path.startsWith('/projects/prj-')||/^\/hr\/employees\/.+/.test(path))return '';return `<div class="tabs route-tabs">${group.children.filter(([,p])=>scope.routeAllowed(s,user(),p)).map(([name,p])=>`<a class="tab ${p===path?'active':''}" href="#${p}">${name}</a>`).join('')}</div>`;}
 function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn một mục trong menu hoặc chuyển tài khoản demo.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return approvalPage(filters);if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return `${tabs([['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['system','Hệ thống']],filters.tab||'all')}<div class="toolbar">${button('Đánh dấu tất cả đã đọc','read-all','check')}</div>${card('Hộp thư thông báo','Thông tin dành riêng cho bạn',`<div class="card-body">${notifications(99,filters.tab||'all')}</div>`)}`;if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
-function renderContent(){const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/admin/roles'&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);}
+function renderContent(){const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/admin/roles'&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
 function render(full=false){if(!apiSession()){loginScreen();return;}if(full)shell();else renderContent();}
 function navigate(){if(lastPath!==getPath()){filters=newFilters();document.body.classList.remove('mobile-open');lastPath=getPath();const g=groupFor(lastPath);if(g?.children)expanded.add(g.name);if(document.getElementById('modal').open)closeDialog();}shell();window.scrollTo(0,0);}
 window.addEventListener('hashchange',navigate);
@@ -601,6 +744,12 @@ document.addEventListener('change',ev=>{const el=ev.target;if(el.matches('[data-
 document.addEventListener('input',ev=>{const el=ev.target;if(el.matches('[data-filter="search"]')){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const cursor=el.selectionStart;filters.search=el.value;filters.page=1;render();const input=document.querySelector('[data-filter="search"]');input?.focus();input?.setSelectionRange(cursor,cursor);},220);}if(el.id==='global-search'){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const q=el.value.trim().toLowerCase();const entries=[...scope.projects(s,user()).map(p=>({name:p.name,type:'Dự án',route:'/projects/'+p.id})),...scope.tasks(s,user()).map(t=>({name:t.code+' · '+t.title,type:'Công việc',route:'/workspace/tasks',open:'task',id:t.id})),...scope.employees(s,user()).map(u=>({name:u.name,type:'Nhân viên',route:'/hr/employees/'+u.id,open:'employee',id:u.id}))].filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);document.getElementById('search-results').innerHTML=q?entries.map(x=>`<a href="#${x.route}" ${x.open?`data-open="${x.open}" data-id="${x.id}"`:''}>${e(x.name)}<small>${x.type}</small></a>`).join('')||'<div class="empty">Không tìm thấy kết quả</div>':'';},250);}});
 document.addEventListener('click',ev=>{if(!ev.target.closest('.global-search'))(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();});
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape')(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();if((ev.ctrlKey||ev.metaKey)&&ev.key==='k'){ev.preventDefault();document.getElementById('global-search')?.focus();}if(ev.key==='Enter'&&ev.target.matches('.kanban-card'))ev.target.click();});
+document.addEventListener('click',ev=>{
+ const trigger=ev.target.closest('.top-user[data-action="account"]'),menu=document.getElementById('top-account-menu');
+ if(trigger&&menu){ev.preventDefault();ev.stopImmediatePropagation();menu.hidden=!menu.hidden;trigger.setAttribute('aria-expanded',String(!menu.hidden));}
+ else if(menu&&!ev.target.closest('.account-menu-wrap')){menu.hidden=true;document.querySelector('.top-user')?.setAttribute('aria-expanded','false');}
+},true);
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){const menu=document.getElementById('top-account-menu');if(menu&&!menu.hidden){menu.hidden=true;const trigger=document.querySelector('.top-user');trigger?.setAttribute('aria-expanded','false');trigger?.focus();}}});
 setupActions({render,filters:()=>filters,setFilters:patch=>Object.assign(filters,patch),resetFilters:()=>{filters=newFilters();},openDialog,closeDialog,toast});
 if(!location.hash)history.replaceState(null,'','#/dashboard');navigate();
 

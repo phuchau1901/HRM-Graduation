@@ -45,3 +45,27 @@ test('WEB and MOBILE menus separate platform catalogs and save changes together'
  const patch=rolePermissionPatch(new Map([['WEB_TEAM_MEMBERS',{VIEW:true}],['MOBILE_TEAM_MEMBERS',{VIEW:false}]]),new Set(['WEB_TEAM_MEMBERS','MOBILE_TEAM_MEMBERS']));
  assert.equal(patch.length,2);assert.equal(patch[1].standard.VIEW,false);
 });
+test('employee scope patch preserves each action scope and explicit SELF fallback',()=>{
+ const draft=new Map([['WEB_EMPLOYEES',{VIEW:true,UPDATE:true}],['WEB_ROLES',{VIEW:true}]]);
+ const scopes=new Map([['WEB_EMPLOYEES',{VIEW:'ALL',UPDATE:'DEPARTMENT',EXPORT:'SELF'}]]);
+ const patch=rolePermissionPatch(draft,new Set(draft.keys()),new Set(),scopes);
+ assert.deepEqual(patch[0].dataScopes,{VIEW:'ALL',UPDATE:'DEPARTMENT',EXPORT:'SELF'});
+ assert.equal('dataScopes' in patch[1],false);
+ assert.equal('extendedActions' in patch[0],false);
+ scopes.get('WEB_EMPLOYEES').UPDATE='SELF';
+ assert.equal(rolePermissionPatch(draft,new Set(['WEB_EMPLOYEES']),new Set(),scopes)[0].dataScopes.UPDATE,'SELF');
+});
+test('rename role uses fresh detail version and sends only code and name',async()=>{
+ const {apiRoleDetail,apiUpdateRole}=await import('../assets/js/api/client.js');
+ const originalFetch=globalThis.fetch,calls=[];
+ try{
+ globalThis.fetch=async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({id:5,code:'STAFF',name:'New name',version:'b'.repeat(64)})};};
+ const detail=await apiRoleDetail(5);
+ await apiUpdateRole(5,detail.version,{code:detail.code,name:'New name'});
+ assert.match(calls[0].url,/\/api\/roles\/5$/);
+ assert.equal(calls[1].options.method,'PUT');
+ assert.equal(calls[1].options.headers.get('If-Match'),'"'+'b'.repeat(64)+'"');
+ assert.deepEqual(JSON.parse(calls[1].options.body),{code:'STAFF',name:'New name'});
+ assert.throws(()=>apiUpdateRole(5,'',{}),/version/);
+ }finally{globalThis.fetch=originalFetch;}
+});

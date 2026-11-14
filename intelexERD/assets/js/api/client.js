@@ -37,11 +37,18 @@ export async function login(userId,password){
 export function me(){return request('/api/auth/me');}
 export function permissions(){return request('/api/auth/me/permissions');}
 export function apiEmployees(query=''){return request('/api/employees'+(query?`?${query}`:''));}
+export function apiEmployeeDetail(employeeId){return request(`/api/employees/${encodeURIComponent(employeeId)}`);}
+export function apiUnlinkedEmployees(query=''){return request('/api/employees/unlinked'+(query?`?${query}`:''));}
 export function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
 export function apiPositions(query=''){return request('/api/positions'+(query?`?${query}`:''));}
 export function apiNotifications(){return request('/api/notifications');}
 
 export function apiRoles(page=1,search=''){return request('/api/roles?'+new URLSearchParams({page,pageSize:30,search}));}
+export function apiRoleDetail(roleId){return request(`/api/roles/${encodeURIComponent(roleId)}`);}
+export function apiUpdateRole(roleId,version,payload){
+ if(!version)throw Error('Thiếu version của role. Vui lòng tải lại.');
+ return request(`/api/roles/${encodeURIComponent(roleId)}`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify(payload)});
+}
 export async function apiAllScreens(){
  const screens=[];let page=1,total;
  do{const result=await request('/api/screens?'+new URLSearchParams({page,pageSize:100}));
@@ -70,6 +77,24 @@ export async function apiActiveDepartments(){
  return items.filter(item=>item.isActive);
 }
 
+export async function apiActivePositions(){
+ const items=[];let page=1;
+ while(true){const result=await apiPositions(new URLSearchParams({page,pageSize:100,isActive:true}).toString());
+ if(!Array.isArray(result?.data))throw Error('Danh sách chức danh không hợp lệ.');
+ items.push(...result.data);if(!result.data.length||items.length>=result.total)break;page++;
+ }
+ return items.filter(position=>position.isActive);
+}
+
+export async function apiActiveTeams(departmentId){
+ const items=[];let page=1;
+ while(true){const result=await request('/api/teams?'+new URLSearchParams({page,pageSize:100,departmentId,isActive:true}));
+ if(!Array.isArray(result?.data))throw Error('Danh sách team không hợp lệ.');
+ items.push(...result.data);if(!result.data.length||items.length>=result.total)break;page++;
+ }
+ return items.filter(team=>team.isActive&&Number(team.departmentId)===Number(departmentId));
+}
+
 export function apiUserDetail(userId){return request(`/api/users/${encodeURIComponent(userId)}`);}
 export function apiUpdateUser(userId,version,payload){
  if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
@@ -78,4 +103,11 @@ export function apiUpdateUser(userId,version,payload){
 export function apiUpdateUserRoles(userId,version,roleIds){
  if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
  return request(`/api/users/${encodeURIComponent(userId)}/roles`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify({roleIds})});
+}
+
+export function apiResetUserPassword(userId,version,payload){
+ if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
+ if(!['SELF_CHANGE','ADMIN_RESET'].includes(payload?.type))throw Error('Loại thay đổi mật khẩu không hợp lệ.');
+ const body={type:payload.type,newPassword:payload.newPassword,...(payload.type==='SELF_CHANGE'?{currentPassword:payload.currentPassword}:{})};
+ return request(`/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'POST',headers:{'If-Match':`"${version}"`},body:JSON.stringify(body)});
 }

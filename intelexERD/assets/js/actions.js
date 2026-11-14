@@ -7,7 +7,7 @@ import {e,id,labels,dateLabel,timeLabel,csvDownload,hours} from './utils.js';
 import {icon,avatar,person,badge,button,field,selectField,notesField,formFooter,details,downloadLink} from './components/ui.js';
 import {attendanceRows,notifications} from './pages/dashboard.js';
 import {getPath} from './router.js';
-import {apiSession,apiLogout,login} from './api/client.js';
+import {apiSession,apiLogout,login,apiUserDetail,apiResetUserPassword,me} from './api/client.js';
 const roles=['Admin','Dev','Leader','Manager','HR'];
 export function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const f=ctx.filters;
  function form(title,name,body,dataId=''){openDialog(title,`<form data-form="${name}" data-id="${e(dataId)}"><div class="form-grid">${body}</div>${formFooter()}</form>`);}
@@ -23,7 +23,26 @@ export function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ct
  case 'toggle-sidebar':if(innerWidth<768)document.body.classList.toggle('mobile-open');else document.body.classList.toggle('collapsed');return;
  case 'refresh':render(true);toast('Đã cập nhật dữ liệu mới nhất');return;
  case 'list':case 'grid':case 'kanban':ctx.setFilters({view:action,page:1});render();return;
- case 'account':{const api=apiSession();openDialog('Tài khoản',`<p>${e(api?.user?.userId||'')}</p><p>${e(api?.user?.email||'')}</p><div class="form-actions">${button('Đăng xuất','backend-logout','logout','danger')}</div>`);return;}
+ case 'account':{const api=apiSession();openDialog('Tài khoản',`<p>${e(api?.user?.userId||'')}</p><p>${e(api?.user?.email||'')}</p><div class="form-actions">${button('Đổi mật khẩu','self-password','shield')}${button('Đăng xuất','backend-logout','logout','danger')}</div>`);return;}
+ case 'self-password':{
+ const account=apiSession()?.user;if(!account)return;
+ openDialog('Đổi mật khẩu',`<form id="self-password-form"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Mật khẩu hiện tại','currentPassword','password','','required autocomplete="current-password"')}${field('Mật khẩu mới','newPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}${field('Nhập lại mật khẩu mới','confirmPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}</div><label><input type="checkbox" id="self-password-visible"> Hiện mật khẩu</label><div class="form-actions"><button type="submit" class="btn primary">Đổi mật khẩu</button></div></fieldset><p role="alert" id="self-password-feedback"></p></form>`);
+ const form=document.getElementById('self-password-form'),feedback=document.getElementById('self-password-feedback');
+ form.querySelector('#self-password-visible').onchange=ev=>{form.querySelectorAll('input[name]').forEach(input=>input.type=ev.target.checked?'text':'password');};
+ let saving=false;
+ form.onsubmit=async ev=>{
+ ev.preventDefault();ev.stopPropagation();if(saving)return;
+ const newPassword=form.elements.newPassword.value;
+ if(newPassword!==form.elements.confirmPassword.value){feedback.textContent='Mật khẩu nhập lại không khớp.';return;}
+ if(!newPassword.trim()){feedback.textContent='Mật khẩu không được chỉ chứa khoảng trắng.';return;}
+ saving=true;form.querySelector('fieldset').disabled=true;feedback.textContent='Đang đổi mật khẩu…';
+ try{const own=await me();const version=own?.version||own?.user?.version||(await apiUserDetail(account.userId)).version;
+ await apiResetUserPassword(account.userId,version,{type:'SELF_CHANGE',currentPassword:form.elements.currentPassword.value,newPassword});
+ form.reset();closeDialog();apiLogout();toast('Đã đổi mật khẩu. Vui lòng đăng nhập lại.');
+ }catch(err){if(form.isConnected)feedback.textContent=err.message;}
+ finally{saving=false;if(form.isConnected)form.querySelector('fieldset').disabled=false;}
+ };return;
+ }
  case 'backend-login':openDialog('Đăng nhập backend',`<form data-form="backend-login"><p class="dialog-subtitle">Đăng nhập JWT vào HRM.API đang chạy local.</p><div class="form-grid">${field('User ID','userId','text','admin','required autocomplete="username"')}${field('Mật khẩu','password','password','','required autocomplete="current-password"')}</div>${formFooter()}</form>`);return;
  case 'backend-logout':apiLogout();closeDialog();render(true);toast('Đã đăng xuất backend');return;
  case 'confirm-reset':openDialog('Khôi phục bản demo?',`<p>Toàn bộ thay đổi trên trình duyệt sẽ được xóa và khôi phục dữ liệu mẫu ban đầu.</p><div class="form-actions">${button('Hủy','close')}${button('Khôi phục dữ liệu','reset','refresh','danger')}</div>`);return;
