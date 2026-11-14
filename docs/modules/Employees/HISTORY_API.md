@@ -2,6 +2,8 @@
 
 [Module](README.md) · [Quy ước chung](../../guides/CONVENTIONS.md) · [Postman](../../HRM-API.postman_collection.json)
 
+Phạm vi `dataScopes`: xem [giá trị hỗ trợ, bảng scope theo endpoint và cách cấu hình qua API role](DATA_SCOPE.md#cấu-hình-datascopes-cho-api-nhân-viên). Scope được cấu hình qua API permissions của role, không truyền trong body API nghiệp vụ.
+
 | Method | URL | Quyền |
 | --- | --- | --- |
 | GET | `/api/employees/{employeeId}/history` | WEB_EMPLOYEES / VIEW + data scope |

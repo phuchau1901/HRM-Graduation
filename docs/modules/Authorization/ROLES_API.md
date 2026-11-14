@@ -2,7 +2,7 @@
 
 [Module](README.md) · [Quy ước chung](../../guides/CONVENTIONS.md) · [Postman](../../HRM-API.postman_collection.json)
 
-Mọi mutation dùng transaction, live-grant check và If-Match theo [chính sách quản trị](SECURITY.md).
+Mutation dùng transaction và live-grant check theo [chính sách quản trị](SECURITY.md). Tạo role không cần `If-Match`; cập nhật/xóa role và cập nhật permissions cần `If-Match`.
 
 | Method | URL | Quyền |
 | --- | --- | --- |
@@ -12,6 +12,41 @@ Mọi mutation dùng transaction, live-grant check và If-Match theo [chính sá
 | PUT | `/api/roles/{roleId}` | WEB_ROLES/UPDATE |
 | DELETE | `/api/roles/{roleId}` | WEB_ROLES/DELETE |
 | GET | `/api/roles/{roleId}/users?page=1&pageSize=30` | WEB_ROLES/VIEW AND WEB_USERS/VIEW |
+
+## Thêm/sửa role và cấu hình `dataScopes`
+
+`POST /api/roles` và `PUT /api/roles/{roleId}` chỉ xử lý `code`, `name`; không xử lý `screens`, `standard`, `extendedActions` hoặc `dataScopes`. Role mới chưa có quyền. Cấu hình quyền và phạm vi dữ liệu qua API permissions riêng:
+
+| Mục đích | API | Quyền quản trị |
+| --- | --- | --- |
+| Đọc quyền và `dataScopes` của role | `GET /api/roles/{roleId}/permissions` | `WEB_PERMISSIONS / VIEW` |
+| Cập nhật quyền và `dataScopes` | `PUT /api/roles/{roleId}/permissions` | `WEB_PERMISSIONS / UPDATE` và `APPROVE` |
+
+Không có endpoint CRUD riêng `/api/role-screen-actions`. API permissions xử lý `role_screen_actions` theo role/screen/action. Grant chuẩn nằm trong `role_details`; `role_screen_actions.data_scope` bổ sung phạm vi, không tự cấp grant chuẩn.
+
+Luồng cho form thêm/sửa role có chọn quyền:
+
+1. Tạo role bằng `POST /api/roles`, lấy `id`; hoặc đọc `GET /api/roles/{roleId}` lấy `ETag` rồi gọi `PUT /api/roles/{roleId}` để sửa tên/mã với header `If-Match`.
+2. Đọc `GET /api/roles/{roleId}/permissions` lấy ma trận và `ETag` mới nhất.
+3. Gọi `PUT /api/roles/{roleId}/permissions` với `If-Match` từ bước 2 và body ví dụ dưới đây.
+
+```json
+{
+  "screens": [
+    {
+      "screenCode": "WEB_EMPLOYEES",
+      "standard": { "VIEW": true, "UPDATE": true },
+      "dataScopes": { "VIEW": "ALL", "UPDATE": "DEPARTMENT" }
+    }
+  ]
+}
+```
+
+Ví dụ cho xem tất cả nhân viên, sửa hồ sơ trong cùng phòng ban; không cho chuyển phòng ban vì thao tác này cần `UPDATE` với scope `ALL`. Các giá trị scope là `SELF`, `DEPARTMENT`, `ALL` hoặc `null` để xóa scope. `SELF` chỉ dùng để đọc trong bộ Nhân viên.
+
+Hai bước lưu thông tin role và lưu permissions là hai request riêng, không có transaction chung. Sau mỗi mutation, lấy `ETag` mới trước lần cập nhật tiếp theo; dùng version cũ có thể trả `412`. Cập nhật permissions không cho sửa role đang gán cho chính actor hoặc cấp quyền/phạm vi vượt actor.
+
+Xem [chi tiết body, quy tắc patch và lỗi API permissions](PERMISSIONS_API.md#datascopes-và-role_screen_actions) và [scope theo từng API nhân viên/hợp đồng](../Employees/DATA_SCOPE.md#cấu-hình-datascopes-cho-api-nhân-viên).
 
 ## GET /api/roles?page=1&pageSize=30
 
