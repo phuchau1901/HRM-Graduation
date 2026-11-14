@@ -9,5 +9,6 @@ public class Department
     public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public ICollection<HRM.API.Modules.Organization.Entities.Team> Teams { get; set; } = new List<HRM.API.Modules.Organization.Entities.Team>();
     public ICollection<Employee> Employees { get; set; } = new List<Employee>();
 }

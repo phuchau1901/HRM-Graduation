@@ -19,6 +19,9 @@ Screen hiện chỉ ID/Code/Name/Platform/Icon/IsActive; không giả định pa
 | 20261019074710_InitialHRMDatabase | Schema ban đầu hiện tại, UserId chuỗi và các quan hệ |
 | 20261019145341_AddNotificationCenter | Chuẩn hóa nội dung notification; targets/recipients/outbox và quyền mở rộng theo Up thực tế |
 | 20261026065757_AddUserAuthVersion | Thêm duy nhất users.auth_version BIGINT NOT NULL DEFAULT0; Down chỉ bỏ cột này |
+| 20261113000000_AddRoleScreenActionDataScope | Metadata data_scope nullable theo role/screen/action, không tự cấp grant |
+| 20261114091114_AddEmployeePosition | employees.PositionId BIGINT NULL, FK Restrict tới positions.id |
+| 20261114092818_AddTeamsAndEmployeeTeam | teams, employees.TeamId INT NULL, composite FK bảo đảm cùng Department; không backfill/grant |
 
 AppDbContextModelSnapshot phản ánh model của migration cuối. Việc file có trong source không chứng minh đã Applied trên Railway. Đợt viết lại tài liệu không kết nối DB hoặc kiểm tra lịch sử live. Các tên migration cũ InitialHRMDatabase/AddHRMProposedSchema/AddUserSalt trong báo cáo trước không phải chỉ dẫn áp dụng cho schema hiện tại.
 
@@ -43,3 +46,29 @@ Báo cáo CSV cũ ghi nhận220 dòng,34 bảng gồm33 bảng nghiệp vụ và
 Các giả định cũ như salt longtext NOT NULL hoặc username riêng đã hết hiệu lực. Không áp lại migration cũ để khớp báo cáo lịch sử. SQL/tar backup trong docs/backups được giữ nguyên để tra cứu, không phải bộ script được phép chạy tự động.
 
 Không có database update, reset/drop, seed hoặc DDL Railway nào được thực hiện trong lần tổ chức tài liệu này. Mọi thao tác ghi môi trường thật cần xác nhận riêng.
+
+## Teams và Employee.DepartmentId
+
+Audit source/configuration/snapshot: [báo cáo Teams](../modules/Organization/TEAMS.md#audit-model-trước-triển-khai). Chưa kiểm tra schema/live migration history.
+
+`teams` dùng tên cột PascalCase nhất quán với departments/employees:
+
+| Cột | MySQL | Quy tắc |
+| --- | --- | --- |
+| Id | INT NOT NULL AUTO_INCREMENT | PK |
+| TeamCode | VARCHAR(30) NOT NULL | Unique toàn hệ thống, API normalize uppercase |
+| TeamName | VARCHAR(150) NOT NULL | Tên bắt buộc |
+| DepartmentId | INT NOT NULL | FK Restrict tới departments.Id |
+| Description | VARCHAR(500) NULL | Mô tả |
+| IsActive | TINYINT(1) NOT NULL | API/entity mặc định true |
+| CreatedAt | DATETIME(6) NOT NULL | API/entity gán UTC |
+
+Alternate key `AK_teams_Id_DepartmentId` unique `(Id, DepartmentId)`. Index `IX_teams_DepartmentId_IsActive` hỗ trợ lọc và FK Department. Index `IX_teams_TeamCode` unique. Employee thêm `TeamId INT NULL` và index `(TeamId, DepartmentId)`; composite FK tham chiếu `(teams.Id, teams.DepartmentId)`, ON DELETE RESTRICT. DepartmentId hiện tại của Employee vẫn NOT NULL với FK riêng. TeamId null hợp lệ theo composite FK MySQL; không gán Team tự động cho dữ liệu cũ.
+
+Department của Team là một phần alternate key nên API không cho đổi. Xóa Department còn Team hoặc Team còn Employee bị chặn. Team/Department inactive vẫn tồn tại; trạng thái active được kiểm tra ở service khi gán mới, không thể biểu diễn bằng FK thuần.
+
+Migration mới chỉ thêm bảng/cột/index/FK, không ALTER dữ liệu Employee cũ, không seed/grant, không chạy SQL backfill. Up không có thao tác xóa. Down bỏ quan hệ/cột/bảng Teams và sẽ mất metadata Team mới nếu operator chủ động rollback, nên cần backup và review riêng; không chạy rollback tự động. MySQL DDL có thể auto-commit.
+
+Chưa apply migration, chưa deploy Railway. Apply Position migration trước Teams nếu môi trường chưa có. Review [migration Teams](../../backend/HRM.API/Migrations/20261114092818_AddTeamsAndEmployeeTeam.cs) và [SQL sinh để review](../../database/migrations/20261114092818_AddTeamsAndEmployeeTeam.sql), xác minh schema đích và migration history qua quy trình vận hành được phê duyệt trước khi cập nhật DB. Binary mới yêu cầu schema mới.
+
+Test `TeamMigrationTests` generate SQL bằng provider MySQL và so sánh snapshot hoàn toàn offline; integration tests dùng SQLite relational để xác minh composite FK, không chứng minh migration đã chạy trên MySQL live.

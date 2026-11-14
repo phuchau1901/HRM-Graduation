@@ -29,3 +29,5 @@ Mã quản trị dùng trong source: WEB_USERS, WEB_ROLES, WEB_PERMISSIONS. Scre
 - [Kiểm thử phân quyền](TESTS.md)
 
 Quy ước chung: [HTTP và phân quyền](../../guides/CONVENTIONS.md). Cấu trúc dữ liệu: [database và migrations](../../guides/DATABASE.md).
+
+- [Báo cáo thay đổi reset password và gộp Teams](PASSWORD_RESET_CHANGELOG.md)

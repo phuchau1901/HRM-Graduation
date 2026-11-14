@@ -4,7 +4,7 @@
 
 ## Source kiểm thử
 
-Trong `backend/HRM.API.Tests/`: PermissionServiceTests, PermissionApiTests, AuthorizationV2Tests, AdministrationApiTests, AdministrationRealtimeTests, AdministrationMigrationTests, ApiInventoryTests.
+Trong `backend/HRM.API.Tests/`: PermissionServiceTests, PermissionApiTests, AuthorizationV2Tests, AdministrationApiTests, AdministrationRealtimeTests, AdministrationMigrationTests, PasswordResetApiTests, ApiInventoryTests.
 
 ## Các tình huống cần giữ
 
@@ -13,9 +13,11 @@ Trong `backend/HRM.API.Tests/`: PermissionServiceTests, PermissionApiTests, Auth
 - Screens ACTIVE/platform/pagination; code unique; không rename code/platform referenced; chặn dormant grants escalation.
 - Chống tự gán Role, sửa Role đang gán cho mình, takeover target vượt authority; bảo vệ account quản trị cuối cùng.
 - If-Match thiếu428/cũ412; matrix batch lỗi rollback, giữ extended khi chỉ sửa standard; audit trước/sau không chứa secret.
-- Reset reauth/rate limit; revoke access/refresh, old JWT401; SignalR chỉ gửi group version mới và bỏ qua account khóa.
+- Reset SELF_CHANGE/ADMIN_RESET: chính chủ + verify oldPassword hoặc live UPDATE + Dominates; quota rate limit chung; revoke access/refresh, old JWT401; SignalR chỉ gửi group version mới và bỏ qua account khóa.
 - Migration chỉ thêm/bỏ auth_version; production route unique và JWT/ScreenPermission đúng quy ước.
 
 Automated tests dùng SQLite/TestServer, không chứng minh trạng thái grant/DDL của Railway. Các tình huống mới chưa có assertion tương ứng phải bổ sung test trước khi thay nghiệp vụ; đối chiếu tên method test trong source, không xem checklist này là kết quả chạy thực tế.
 
 Khi test thủ công bằng Postman, chỉ dùng môi trường và tài khoản thử nghiệm đã được duyệt, lấy permission từ backend; không ghi password/token vào báo cáo.
+
+PasswordResetApiTests kiểm tra oldPassword đúng/sai, target người khác, UPDATE/APPROVE-only, type giả mạo, bảo vệ admin cấp cao, tự reset, live revoke grant với JWT cũ, auth_version/refresh revocation, policy biên 11/12/128/129, 401/404/429, audit không chứa credential và rollback khi recovery guard từ chối. ApiInventoryTests xác nhận reset vẫn Authorize và rate limited, conditional permission ở service; các business endpoints khác vẫn có ScreenPermission.

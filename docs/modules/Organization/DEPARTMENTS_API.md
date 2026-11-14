@@ -168,3 +168,7 @@ Không có body.
 ### Kiểm thử endpoint
 
 Không JWT401; thiếu action403; dữ liệu hợp lệ thành công; mã trùng409 khi ghi; FK không hợp lệ bị chặn; xóa danh mục đang tham chiếu409; phân trang và validation400.
+
+## Quan hệ Teams
+
+Department có nhiều [Teams](TEAMS_API.md). `DELETE /api/departments/{departmentId}` trả `409` nếu còn Team (kể cả inactive), ngoài các kiểm tra Employee/History hiện có. Ngừng hoạt động Department không tự xóa/gỡ Team hoặc Employee; không cho gán mới nhân viên vào Team của Department inactive.

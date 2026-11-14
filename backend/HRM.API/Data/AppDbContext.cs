@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<RoleDetail> RoleDetails => Set<RoleDetail>();
 
     public DbSet<Department> Departments => Set<Department>();
+    public DbSet<HRM.API.Modules.Organization.Entities.Team> Teams => Set<HRM.API.Modules.Organization.Entities.Team>();
     public DbSet<Employee> Employees => Set<Employee>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

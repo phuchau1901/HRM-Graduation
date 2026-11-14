@@ -4,9 +4,17 @@ namespace HRM.API.Modules.Employees.DTOs;
 public sealed class EmployeeQuery : PageQuery
 {
     [Range(1, int.MaxValue)] public int? DepartmentId { get; set; }
+    [Range(1, int.MaxValue)] public int? TeamId { get; set; }
     [MaxLength(20)] public string? EmploymentStatus { get; set; }
 }
-public class EmployeeProfileRequest
+public class TeamAssignmentRequest
+{
+    private int? teamId;
+    [Range(1, int.MaxValue)]
+    public int? TeamId { get => teamId; set { teamId = value; TeamIdSpecified = true; } }
+    [global::System.Text.Json.Serialization.JsonIgnore] public bool TeamIdSpecified { get; private set; }
+}
+public class EmployeeProfileRequest : TeamAssignmentRequest
 {
     [Range(1, long.MaxValue)] public long? PositionId { get; set; }
     [Required, MaxLength(150)] public string FullName { get; set; } = "";
@@ -21,7 +29,7 @@ public sealed class EmployeeCreateRequest : EmployeeProfileRequest
     public DateOnly HireDate { get; set; }
     [Range(1, int.MaxValue)] public int DepartmentId { get; set; }
 }
-public sealed class DepartmentTransferRequest
+public sealed class DepartmentTransferRequest : TeamAssignmentRequest
 {
     [Range(1, int.MaxValue)] public int DepartmentId { get; set; }
     public DateOnly EffectiveDate { get; set; }
@@ -37,7 +45,7 @@ public sealed class ContractRequest
     [MaxLength(500)] public string? AttachmentUrl { get; set; }
 }
 public sealed record EmployeeDto(int Id, string EmployeeCode, string FullName, string Email, DateOnly? DateOfBirth,
-    string? PhoneNumber, DateOnly HireDate, int DepartmentId, long? PositionId, string EmploymentStatus, DateTime CreatedAt);
+    string? PhoneNumber, DateOnly HireDate, int DepartmentId, long? PositionId, string EmploymentStatus, DateTime CreatedAt, int? TeamId = null, string? TeamName = null);
 public sealed record ContractDto(long Id, int EmployeeId, string ContractNo, string ContractType,
     DateOnly StartDate, DateOnly? EndDate, string Status, string? AttachmentUrl);
 public sealed record EmployeeHistoryDto(long Id, int EmployeeId, int? OldDepartmentId, int? NewDepartmentId,

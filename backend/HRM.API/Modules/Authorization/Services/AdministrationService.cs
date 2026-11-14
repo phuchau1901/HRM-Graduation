@@ -136,7 +136,7 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
             Audit(actor, "USER_CREATE", "User", request.UserId, null, result, trace); return result;
         }, ct);
     public Task<AdminUserDto> ChangeUser(string actor, string id, object request, string? etag, string trace, CancellationToken ct)
-        => Write(actor, Users, request is ResetPasswordRequest or UserRolesRequest ? "APPROVE" : "UPDATE", async () =>
+        => Write(actor, Users, request is UserRolesRequest ? "APPROVE" : "UPDATE", async () =>
         {
             var before = await User(id, ct); Match(etag, before.Version);
             await Dominates(actor, before.Roles.Select(x => x.Id).ToArray(), ct);
@@ -154,18 +154,58 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
                     await db.SaveChangesAsync(ct);
                     foreach (var role in roles.RoleIds) db.Set<UserRole>().Add(new() { UserID = id, RoleID = role });
                     operation = "USER_ROLES"; break;
-                case ResetPasswordRequest reset:
-                    if (actor == before.UserId) throw Denied();
-                    var acting = await db.Set<User>().AsNoTracking().SingleAsync(x => x.UserId == actor, ct);
-                    if (passwords.VerifyForLogin(reset.CurrentPassword, acting.PasswordHash, acting.Salt) == PasswordCheck.Failed) throw Denied();
-                    var credentials = passwords.Hash(reset.NewPassword);
-                    user.PasswordHash = credentials.PasswordHash; user.Salt = credentials.Salt; operation = "PASSWORD_RESET"; break;
                 default: throw BusinessException.Invalid("Unsupported operation.");
             }
             await db.SaveChangesAsync(ct);
             await Revoke(db.Set<User>().Where(x => x.UserId == id), ct);
             var after = await User(id, ct); Audit(actor, operation, "User", id, before, after, trace); return after;
         }, ct);
+    public async Task ResetPassword(string actor, string id, ResetPasswordRequest request, string trace, CancellationToken ct)
+    {
+        // Also validate at the service boundary; no request type confers authority by itself.
+        var validation = new List<global::System.ComponentModel.DataAnnotations.ValidationResult>();
+        if (!global::System.ComponentModel.DataAnnotations.Validator.TryValidateObject(request,
+            new global::System.ComponentModel.DataAnnotations.ValidationContext(request), validation, true))
+            throw BusinessException.Invalid("Invalid password reset request.");
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+        if (request.Type == PasswordResetTypes.SelfChange)
+        {
+            if (!string.Equals(actor, id, StringComparison.Ordinal)) throw Denied();
+        }
+        else
+        {
+            if (string.Equals(actor, id, StringComparison.Ordinal)) throw Denied();
+            // Same catalog lock as all administrative writes, before checking current DB grants.
+            await db.Screens.Where(x => x.Code == Permissions).ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, x => x.IsActive), ct);
+            await Demand(actor, Users, "UPDATE", ct);
+            if (!await db.Screens.AnyAsync(x => x.Code == Permissions && x.IsActive, ct))
+                throw Denied();
+        }
+        // Serialize credential reads/writes, including concurrent SELF_CHANGE and ADMIN_RESET.
+        await db.Set<User>().Where(x => x.UserId == id).ExecuteUpdateAsync(s => s.SetProperty(x => x.AuthVersion, x => x.AuthVersion), ct);
+        var user = await db.Set<User>().SingleOrDefaultAsync(x => x.UserId == id, ct);
+        if (request.Type == PasswordResetTypes.SelfChange)
+        {
+            if (user is null || user.Status != "ACTIVE" || passwords.VerifyForLogin(request.OldPassword, user.PasswordHash, user.Salt) == PasswordCheck.Failed)
+                throw new BusinessException(401, "HRM_AUTH_001", "Invalid credentials.");
+        }
+        else
+        {
+            if (user is null) throw BusinessException.Missing();
+            // Compare the database identity too: MySQL may resolve a differently cased route ID to the actor.
+            if (string.Equals(actor, user.UserId, StringComparison.Ordinal)) throw Denied();
+            var roleIds = await db.Set<UserRole>().Where(x => x.UserID == id).Select(x => x.RoleID).ToArrayAsync(ct);
+            await Dominates(actor, roleIds, ct);
+        }
+        var credentials = passwords.Hash(request.NewPassword);
+        user!.PasswordHash = credentials.PasswordHash; user.Salt = credentials.Salt;
+        await db.SaveChangesAsync(ct);
+        await Revoke(db.Set<User>().Where(x => x.UserId == id), ct);
+        db.Add(PasswordResetAudit.Create(actor, user.UserId, request.Type, "SUCCESS", trace));
+        await db.SaveChangesAsync(ct);
+        if (request.Type == PasswordResetTypes.AdminReset) await EnsureRecovery(ct);
+        await tx.CommitAsync(ct);
+    }
     public async Task<AdminScreenDto> Screen(long id, CancellationToken ct)
     {
         var s = await db.Screens.AsNoTracking().SingleOrDefaultAsync(x => x.ID == id, ct) ?? throw BusinessException.Missing();

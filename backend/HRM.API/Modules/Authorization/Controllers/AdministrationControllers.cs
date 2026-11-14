@@ -53,9 +53,13 @@ public sealed class UsersController(AdministrationService service) : Administrat
     [HttpPatch("{userId}/status"), ScreenPermission(AdministrationService.Users, "UPDATE")]
     public async Task<IActionResult> Status(string userId, UserStatusRequest r, CancellationToken ct)
     { var result = await Service.ChangeUser(Actor, userId, r, Match, Trace, ct); return Resource(result, result.Version); }
-    [HttpPost("{userId}/reset-password"), ScreenPermission(AdministrationService.Users, "APPROVE"), EnableRateLimiting("AdministrationReset")]
+    [HttpPost("{userId}/reset-password"), EnableRateLimiting("AdministrationReset"), ServiceFilter(typeof(PasswordResetAuditFilter), Order = int.MinValue)]
     public async Task<IActionResult> Reset(string userId, ResetPasswordRequest r, CancellationToken ct)
-    { var result = await Service.ChangeUser(Actor, userId, r, Match, Trace, ct); return Resource(result, result.Version); }
+    {
+        try { await Service.ResetPassword(Actor, userId, r, Trace, ct); return NoContent(); }
+        catch (BusinessException error) when (error.Status == 401)
+        { return Unauthorized(HRM.API.Security.ApiErrors.Create(HttpContext, error.Code, "INVALID_CREDENTIALS", "Invalid credentials.")); }
+    }
     [HttpPut("{userId}/roles"), ScreenPermission(AdministrationService.Users, "APPROVE")]
     public async Task<IActionResult> Roles(string userId, UserRolesRequest r, CancellationToken ct)
     { var result = await Service.ChangeUser(Actor, userId, r, Match, Trace, ct); return Resource(result, result.Version); }

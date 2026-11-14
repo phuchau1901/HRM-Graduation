@@ -11,6 +11,8 @@ public class Employee
     public string? PhoneNumber { get; set; }
     public DateOnly HireDate { get; set; }
     public int DepartmentId { get; set; }
+    public int? TeamId { get; set; }
+    public HRM.API.Modules.Organization.Entities.Team? Team { get; set; }
     public long? PositionId { get; set; }
     public Position? Position { get; set; }
     public Department Department { get; set; } = null!;

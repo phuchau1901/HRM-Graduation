@@ -130,6 +130,7 @@ builder.Services.AddHostedService<NotificationWorker>();
 
 builder.Services.AddScoped<HRM.API.Common.BusinessExceptionFilter>();
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationService>();
+builder.Services.AddScoped<HRM.API.Modules.Organization.Services.TeamService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeDataScope>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeService>();
 builder.Services.AddControllers();
@@ -164,13 +165,17 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<AdministrationService>();
+builder.Services.AddScoped<PasswordResetAuditFilter>();
 builder.Services.AddRateLimiter(options =>
 {
     options.AddPolicy("AdministrationReset", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirst("sub")?.Value ?? context.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
-    options.OnRejected = (context, _) => new ValueTask(ApiErrors.WriteAsync(context.HttpContext, 429,
-        "HRM_AUTH_005", "RATE_LIMITED", "Too many password reset attempts."));
+    options.OnRejected = async (context, _) =>
+    {
+        await PasswordResetAudit.Failure(context.HttpContext, 429);
+        await ApiErrors.WriteAsync(context.HttpContext, 429, "HRM_AUTH_005", "RATE_LIMITED", "Too many password reset attempts.");
+    };
 });
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, ScreenPermissionPolicyProvider>();

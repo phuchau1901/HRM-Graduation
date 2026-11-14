@@ -16,13 +16,19 @@ public sealed class ApiInventoryTests
             .OfType<ControllerActionDescriptor>().Where(x => x.ControllerTypeInfo.Namespace?.StartsWith("HRM.API.Modules.") == true).ToArray();
         var routes = actions.SelectMany(x => x.ActionConstraints!.OfType<HttpMethodActionConstraint>()
             .SelectMany(c => c.HttpMethods.Select(method => method + " " + x.AttributeRouteInfo!.Template))).ToArray();
-        Assert.Equal(52, routes.Length); Assert.Equal(routes.Length, routes.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(58, routes.Length); Assert.Equal(routes.Length, routes.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         var business = actions.Where(x => x.ControllerTypeInfo.Namespace!.Contains(".Organization.") || x.ControllerTypeInfo.Namespace!.Contains(".Employees.") || x.ControllerTypeInfo.Namespace!.Contains(".Authorization.")).ToArray();
-        Assert.Equal(42, business.Length);
+        Assert.Equal(48, business.Length);
         Assert.All(business, action =>
         {
             Assert.Contains(action.ControllerTypeInfo.GetCustomAttributes(true), x => x is AuthorizeAttribute);
-            Assert.Contains(action.MethodInfo.GetCustomAttributes(true), x => x is ScreenPermissionAttribute);
+            if (action.AttributeRouteInfo!.Template == "api/users/{userId}/reset-password")
+            {
+                // Conditional authorization: SELF_CHANGE has no screen grant; ADMIN_RESET checks live UPDATE in the service.
+                Assert.Contains(action.MethodInfo.GetCustomAttributes(true), x => x is Microsoft.AspNetCore.RateLimiting.EnableRateLimitingAttribute);
+                Assert.Contains(action.MethodInfo.GetCustomAttributes(true), x => x is Microsoft.AspNetCore.Mvc.ServiceFilterAttribute filter && filter.ServiceType == typeof(HRM.API.Modules.Authorization.Services.PasswordResetAuditFilter));
+            }
+            else Assert.Contains(action.MethodInfo.GetCustomAttributes(true), x => x is ScreenPermissionAttribute);
             Assert.DoesNotContain(action.MethodInfo.GetCustomAttributes(true), x => x is AllowAnonymousAttribute);
         });
     }

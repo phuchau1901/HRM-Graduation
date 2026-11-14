@@ -14,6 +14,40 @@ Phạm vi `dataScopes`: xem [giá trị hỗ trợ, bảng scope theo endpoint v
 | DELETE | `/api/employees/{employeeId}` | WEB_EMPLOYEES / DELETE + data scope |
 | PATCH | `/api/employees/{employeeId}/department` | WEB_EMPLOYEES / UPDATE + data scope |
 
+## Team của nhân viên
+
+- `teamId` nullable, tham chiếu Team cùng Department. Gán mới/đổi Team yêu cầu Team và Department đang hoạt động; không tồn tại/sai phòng/inactive trả `400`.
+- POST nhận `teamId`: null hoặc bỏ qua = chưa gán Team.
+- PUT nhận `teamId`: **bỏ qua giữ Team hiện tại**, gửi null để gỡ, gửi ID hợp lệ để đổi Team. Giữ nguyên Team hiện tại đã inactive khi sửa trường khác được phép. Không cho đổi Department qua PUT hồ sơ.
+- PATCH chuyển Department nhận `teamId` của Department đích; **null hoặc bỏ qua gỡ Team cũ**, cùng transaction với đổi Department/lịch sử/audit/thông báo. Không được mang Team cũ sang phòng khác.
+- GET danh sách, chi tiết, `/unlinked` và các response hồ sơ trả thêm `teamId`, `teamName`; chưa gán Team thì null. GET danh sách/unlinked hỗ trợ filter `teamId` số nguyên dương, chỉ thu hẹp scope.
+- Frontend lấy Teams từ `GET /api/teams?departmentId={id}&isActive=true` sau khi chọn Department; cần `WEB_TEAMS/VIEW`. TeamName lấy từ backend, không hardcode.
+- `EMPLOYEE_TEAM_CHANGED` trong AuditLog lưu before/after TeamId, DepartmentId, actor và traceId khi đổi/gỡ Team. Lịch sử điều chuyển phòng ban hiện tại giữ nguyên.
+- Quyền `WEB_EMPLOYEES` và SELF/DEPARTMENT/ALL giữ nguyên; không có scope TEAM. Xem [API Teams](../Organization/TEAMS_API.md).
+
+Ví dụ thêm Team khi cập nhật hồ sơ (các trường hồ sơ khác vẫn theo DTO PUT):
+
+```json
+{
+  "fullName": "Demo Employee",
+  "email": "employee-demo@example.invalid",
+  "employmentStatus": "ACTIVE",
+  "positionId": null,
+  "teamId": 1
+}
+```
+
+Ví dụ chuyển phòng đồng thời gán Team của phòng đích:
+
+```json
+{
+  "departmentId": 2,
+  "teamId": 3,
+  "effectiveDate": "2026-11-14",
+  "reason": "Chuyển sang đội của phòng đích"
+}
+```
+
 ## Vị trí hiện tại (`positionId`)
 
 Hồ sơ nhân viên có `positionId` kiểu số nguyên 64 bit nullable, tham chiếu `positions.id`. Dữ liệu cũ sau migration có giá trị `null` (chưa gán vị trí).
@@ -71,7 +105,9 @@ JSON Response thành công — HTTP 200:
       "departmentId": 1,
       "positionId": null,
       "employmentStatus": "ACTIVE",
-      "createdAt": "2026-10-24T10:00:00Z"
+      "createdAt": "2026-10-24T10:00:00Z",
+      "teamId": null,
+      "teamName": null
     }
   ]
 }
@@ -115,7 +151,9 @@ Authorization: Bearer <access_token>
       "departmentId": 1,
       "positionId": null,
       "employmentStatus": "ACTIVE",
-      "createdAt": "2026-10-24T10:00:00Z"
+      "createdAt": "2026-10-24T10:00:00Z",
+      "teamId": null,
+      "teamName": null
     }
   ]
 }
@@ -148,9 +186,11 @@ JSON Response thành công — HTTP 200:
   "phoneNumber": null,
   "hireDate": "2024-01-01",
   "departmentId": 1,
-      "positionId": null,
+  "positionId": null,
   "employmentStatus": "ACTIVE",
-  "createdAt": "2026-10-24T10:00:00Z"
+  "createdAt": "2026-10-24T10:00:00Z",
+  "teamId": null,
+  "teamName": null
 }
 ```
 
@@ -195,9 +235,11 @@ JSON Response thành công — HTTP 201:
   "phoneNumber": null,
   "hireDate": "2024-01-01",
   "departmentId": 1,
-      "positionId": null,
+  "positionId": null,
   "employmentStatus": "ACTIVE",
-  "createdAt": "2026-10-24T10:00:00Z"
+  "createdAt": "2026-10-24T10:00:00Z",
+  "teamId": null,
+  "teamName": null
 }
 ```
 
@@ -238,9 +280,11 @@ JSON Response thành công — HTTP 200:
   "phoneNumber": null,
   "hireDate": "2024-01-01",
   "departmentId": 1,
-      "positionId": null,
+  "positionId": null,
   "employmentStatus": "ACTIVE",
-  "createdAt": "2026-10-24T10:00:00Z"
+  "createdAt": "2026-10-24T10:00:00Z",
+  "teamId": null,
+  "teamName": null
 }
 ```
 
@@ -302,7 +346,9 @@ JSON Response thành công — HTTP 200:
   "departmentId": 2,
   "positionId": null,
   "employmentStatus": "ACTIVE",
-  "createdAt": "2026-10-24T10:00:00Z"
+  "createdAt": "2026-10-24T10:00:00Z",
+  "teamId": null,
+  "teamName": null
 }
 ```
 

@@ -30,10 +30,24 @@ public sealed class UserStatusRequest
 {
     [Required, RegularExpression("^(ACTIVE|LOCKED|INACTIVE)$")] public string Status { get; set; } = "";
 }
-public sealed class ResetPasswordRequest
+public static class PasswordResetTypes
 {
-    [Required, MaxLength(1024)] public string CurrentPassword { get; set; } = "";
+    public const string SelfChange = "SELF_CHANGE";
+    public const string AdminReset = "ADMIN_RESET";
+    public static bool IsSupported(string? type) => type is SelfChange or AdminReset;
+}
+public sealed class ResetPasswordRequest : IValidatableObject
+{
+    [Required] public string Type { get; set; } = "";
+    [MaxLength(1024)] public string? OldPassword { get; set; }
     [Required, StringLength(128, MinimumLength = 12)] public string NewPassword { get; set; } = "";
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (!PasswordResetTypes.IsSupported(Type))
+            yield return new ValidationResult("Type must be SELF_CHANGE or ADMIN_RESET.", [nameof(Type)]);
+        if (Type == PasswordResetTypes.SelfChange && string.IsNullOrEmpty(OldPassword))
+            yield return new ValidationResult("OldPassword is required for SELF_CHANGE.", [nameof(OldPassword)]);
+    }
 }
 public sealed class UserRolesRequest { [Required, MaxLength(100)] public long[] RoleIds { get; set; } = []; }
 public sealed class RoleRequest

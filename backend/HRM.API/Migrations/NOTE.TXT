@@ -1,0 +1,13 @@
+--B1  Kiểm tra Migration
+ASPNETCORE_ENVIRONMENT=Development \
+dotnet ef migrations list
+
+--B2 Apply Migration
+
+ASPNETCORE_ENVIRONMENT=Development \
+dotnet ef database update 20261113000000_AddRoleScreenActionDataScope
+
+****
+thay 20261113000000_AddRoleScreenActionDataScope 
+bàng 20261113000000_AddRoleScreenActionDataScope (Pending) 
+của b1

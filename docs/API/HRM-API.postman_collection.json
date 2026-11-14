@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "52 source-backed REST requests. Administration requires reviewed grants and auth_version migration. No real secrets. Run mutations manually in approved environments."
+    "description": "58 source-backed REST endpoints in 61 requests (including role-scope and password-mode examples). Teams requires reviewed WEB_TEAMS grants and AddTeamsAndEmployeeTeam migration. No real secrets. Run mutations manually in approved environments; collection does not apply migrations or grant permissions."
   },
   "auth": {
     "type": "bearer",
@@ -111,7 +111,17 @@
       "type": "string"
     },
     {
-      "key": "reauthPassword",
+      "key": "teamId",
+      "value": "null",
+      "type": "string"
+    },
+    {
+      "key": "otherTeamId",
+      "value": "null",
+      "type": "string"
+    },
+    {
+      "key": "oldPassword",
       "value": "",
       "type": "string"
     }
@@ -454,6 +464,91 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Teams",
+          "description": "Catalog Teams theo Department; requires WEB_TEAMS grants. GET không cấp quyền Employee; SELF/DEPARTMENT/ALL giữ nguyên. Mutation chạy thủ công, không apply migration. TeamId null hợp lệ trên Employee.",
+          "item": [
+            {
+              "name": "POST /api/teams",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/teams",
+                "description": "WEB_TEAMS/NEW. Department phải tồn tại/active. TeamCode normalize uppercase, unique toàn hệ thống; trùng 409. Không tự tạo grant.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"teamCode\": \"DEMO-TEAM\",\n  \"teamName\": \"Demo Team\",\n  \"departmentId\": {{departmentId}},\n  \"description\": \"Team thuộc Department đã chọn\",\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 201) pm.collectionVariables.set('teamId', String(pm.response.json().id));"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "name": "GET /api/teams?page=1&pageSize=30&departmentId={{departmentId}}&isActive=true",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/teams?page=1&pageSize=30&departmentId={{departmentId}}&isActive=true",
+                "description": "WEB_TEAMS/VIEW. Filter departmentId/isActive/search, count trước paging; PageResult<TeamDto>."
+              },
+              "response": []
+            },
+            {
+              "name": "GET /api/teams/{{teamId}}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/teams/{{teamId}}",
+                "description": "WEB_TEAMS/VIEW. TeamDto có departmentName; không tồn tại 404."
+              },
+              "response": []
+            },
+            {
+              "name": "PUT /api/teams/{{teamId}}",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}/api/teams/{{teamId}}",
+                "description": "WEB_TEAMS/UPDATE. Không đổi DepartmentId (409). isActive=false ngừng hoạt động nhưng giữ Employee cũ. Không gán mới Employee vào Team inactive.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"teamCode\": \"DEMO-TEAM\",\n  \"teamName\": \"Demo Team\",\n  \"departmentId\": {{departmentId}},\n  \"description\": \"Team thuộc Department đã chọn\",\n  \"isActive\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            }
+          ]
         }
       ]
     },
@@ -471,10 +566,10 @@
               }
             ],
             "url": "{{baseUrl}}/api/employees",
-            "description": "Tạo hồ sơ nhân viên\nPermission: WEB_EMPLOYEES / NEW + ALL, hoặc DEPARTMENT đúng phòng ban\nBody departmentId phải là số nguyên.\nMã<=20/email<=255 unique; tên<=150/phone<=20; Department ACTIVE; hireDate bắt buộc; birth<=hireDate và không tương lai; status ACTIVE/INACTIVE/TERMINATED. SELF không được ghi.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "description": "Tạo hồ sơ nhân viên\nPermission: WEB_EMPLOYEES / NEW + ALL, hoặc DEPARTMENT đúng phòng ban\nBody departmentId phải là số nguyên.\nMã<=20/email<=255 unique; tên<=150/phone<=20; Department ACTIVE; hireDate bắt buộc; birth<=hireDate và không tương lai; status ACTIVE/INACTIVE/TERMINATED. SELF không được ghi.\nExpected 201; errors 400, 401, 403, 404, 409, 500.\nTeamId tùy chọn, phải active và cùng Department. PUT bỏ teamId giữ Team cũ; null gỡ Team. Response có teamId/teamName. positionId=null gỡ vị trí khi PUT; gửi ID hiện tại nếu muốn giữ.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\",\n  \"employeeCode\": \"DEMO-E01\",\n  \"hireDate\": \"2024-01-01\",\n  \"departmentId\": {{departmentId}}\n}",
+              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\",\n  \"employeeCode\": \"DEMO-E01\",\n  \"hireDate\": \"2024-01-01\",\n  \"departmentId\": {{departmentId}},\n  \"positionId\": null,\n  \"teamId\": {{teamId}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -501,7 +596,17 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees?page=1&pageSize=30",
-            "description": "Danh sách hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + SELF/DEPARTMENT/ALL\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query departmentId positive nullable; employmentStatus<=20.\nScope áp trước count/paging/search. Department query không mở rộng scope.\nExpected 200; errors 400, 401, 403, 500."
+            "description": "Danh sách hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + SELF/DEPARTMENT/ALL\nQuery page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope. Query departmentId positive nullable; employmentStatus<=20.\nScope áp trước count/paging/search. Department query không mở rộng scope.\nExpected 200; errors 400, 401, 403, 500.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/employees/unlinked?page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/employees/unlinked?page=1&pageSize=30",
+            "description": "WEB_EMPLOYEES/VIEW + scope. Chỉ Employee không có bất kỳ User.EmployeeId tham chiếu, kể cả user LOCKED/INACTIVE. Hỗ trợ departmentId/teamId/search/employmentStatus; PageResult<EmployeeDto>.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope."
           },
           "response": []
         },
@@ -511,7 +616,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}",
-            "description": "Chi tiết hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId INT.\nNgoài scope hoặc không tồn tại: 404; không làm lộ danh sách user/auth.\nExpected 200; errors 401, 403, 404, 500."
+            "description": "Chi tiết hồ sơ trong scope\nPermission: WEB_EMPLOYEES / VIEW + row scope\nPath employeeId INT.\nNgoài scope hoặc không tồn tại: 404; không làm lộ danh sách user/auth.\nExpected 200; errors 401, 403, 404, 500.\nResponse EmployeeDto có teamId/teamName nullable. Danh sách hỗ trợ teamId filter chỉ thu hẹp data scope."
           },
           "response": []
         },
@@ -536,10 +641,10 @@
               }
             ],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}",
-            "description": "Cập nhật thông tin hồ sơ\nPermission: WEB_EMPLOYEES / UPDATE + ALL/DEPARTMENT\nPath employeeId; body DTO đầy đủ.\nKhông đổi employeeCode/hireDate/department qua endpoint này. Birth/email/length/status validation. PUT giống dữ liệu hiện tại không phát thêm audit/notification. Notification + audit cùng transaction.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "description": "Cập nhật thông tin hồ sơ\nPermission: WEB_EMPLOYEES / UPDATE + ALL/DEPARTMENT\nPath employeeId; body DTO đầy đủ.\nKhông đổi employeeCode/hireDate/department qua endpoint này. Birth/email/length/status validation. PUT giống dữ liệu hiện tại không phát thêm audit/notification. Notification + audit cùng transaction.\nExpected 200; errors 400, 401, 403, 404, 409, 500.\nTeamId tùy chọn, phải active và cùng Department. PUT bỏ teamId giữ Team cũ; null gỡ Team. Response có teamId/teamName. positionId=null gỡ vị trí khi PUT; gửi ID hiện tại nếu muốn giữ.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\"\n}",
+              "raw": "{\n  \"fullName\": \"Demo Employee\",\n  \"email\": \"employee-demo@example.invalid\",\n  \"dateOfBirth\": \"1995-01-01\",\n  \"phoneNumber\": null,\n  \"employmentStatus\": \"ACTIVE\",\n  \"positionId\": null,\n  \"teamId\": {{teamId}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -560,10 +665,10 @@
               }
             ],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/department",
-            "description": "Chuyển phòng ban, tạo lịch sử\nPermission: WEB_EMPLOYEES / UPDATE + ALL\nPath employeeId; body departmentId là số nguyên.\nPhòng đích ACTIVE và khác phòng hiện tại; effectiveDate từ hire/latest history đến hôm nay UTC; không lên lịch tương lai. Actor từ JWT. Employee/History/Audit/Notification/Outbox commit hoặc rollback cùng nhau.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "description": "Chuyển phòng ban, tạo lịch sử\nPermission: WEB_EMPLOYEES / UPDATE + ALL\nPath employeeId; body departmentId là số nguyên.\nPhòng đích ACTIVE và khác phòng hiện tại; effectiveDate từ hire/latest history đến hôm nay UTC; không lên lịch tương lai. Actor từ JWT. Employee/History/Audit/Notification/Outbox commit hoặc rollback cùng nhau.\nExpected 200; errors 400, 401, 403, 404, 409, 500.\nTeamId phải thuộc Department đích và active; null/bỏ qua gỡ Team cũ. Audit trước/sau cùng transaction; response có teamId/teamName.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"departmentId\": {{otherDepartmentId}},\n  \"effectiveDate\": \"2026-10-24\",\n  \"reason\": \"Điều chuyển thử nghiệm\"\n}",
+              "raw": "{\n  \"departmentId\": {{otherDepartmentId}},\n  \"effectiveDate\": \"2026-10-24\",\n  \"reason\": \"Điều chuyển thử nghiệm\",\n  \"teamId\": {{otherTeamId}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -662,6 +767,16 @@
     {
       "name": "Cleanup — manual demo data only",
       "item": [
+        {
+          "name": "DELETE /api/teams/{{teamId}}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/teams/{{teamId}}",
+            "description": "WEB_TEAMS/DELETE. Chỉ xóa khi không có Employee tham chiếu; nếu còn trả 409. Không tự gỡ Employee. Cân nhắc PUT isActive=false. Chạy thủ công."
+          },
+          "response": []
+        },
         {
           "name": "DELETE /api/departments/{departmentId}",
           "request": {
@@ -1035,24 +1150,20 @@
           ]
         },
         {
-          "name": "POST /api/users/{targetUserId}/reset-password",
+          "name": "ADMIN_RESET — POST /api/users/{targetUserId}/reset-password",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "Content-Type",
                 "value": "application/json"
-              },
-              {
-                "key": "If-Match",
-                "value": "{{userEtag}}"
               }
             ],
             "url": "{{baseUrl}}/api/users/{{targetUserId}}/reset-password",
-            "description": "Reset bởi quản trị viên đã xác thực lại\nPermission: WEB_USERS/APPROVE\nParameters: targetUserId; If-Match\ncurrentPassword là mật khẩu hiện tại của ACTOR, không phải của target; từ chối tự reset, sai xác thực và target vượt quyền; 5 lần/phút/actor; newPassword12..128; audit không chứa credential; revoke access và refresh; không Notification mật khẩu. Không tự tạo mật khẩu.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Sai reauth403; thiếu quyền403; lần6=429; thành công200; token cũ401; password cũ login401.",
+            "description": "ADMIN_RESET: JWT + live WEB_USERS/UPDATE. Actor khác target; target capabilities không vượt actor; giữ bảo vệ quản trị hiện tại. Không cần oldPassword/currentPassword hoặc If-Match. Thành công 204, auth_version tăng và refresh tokens revoke. 400 policy/type;401 JWT;403 quyền/self/target vượt authority;404 target thiếu;409 recovery guard;429 quota chung SELF_CHANGE/ADMIN_RESET 5/phút/actor. Không tự cấp quyền hoặc gửi password vào notification.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"currentPassword\": \"{{reauthPassword}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "raw": "{\n  \"type\": \"ADMIN_RESET\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1067,10 +1178,42 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));",
-                  "if (pm.response.code < 300) {",
-                  "  const etag = pm.response.headers.get('ETag'); if (etag) pm.collectionVariables.set('userEtag', etag);",
-                  "}"
+                  "pm.test(\"Reset succeeds without a response body\", function () { pm.response.to.have.status(204); pm.expect(pm.response.text()).to.eql(\"\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SELF_CHANGE — POST /api/users/{userId}/reset-password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/{{userId}}/reset-password",
+            "description": "SELF_CHANGE: JWT chính chủ, route userId trùng JWT, không cần WEB_USERS grants/If-Match. oldPassword bắt buộc; newPassword 12..128, không blank. Không gửi confirmPassword. 204 thành công và token hiện tại bị vô hiệu: đăng nhập lại. 400 validation;401 oldPassword sai/JWT;403 nhắm người khác;429 quota chung 5/phút/actor. Dùng tài khoản thử nghiệm được duyệt.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"SELF_CHANGE\",\n  \"oldPassword\": \"{{oldPassword}}\",\n  \"newPassword\": \"{{newPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Reset succeeds without a response body\", function () { pm.response.to.have.status(204); pm.expect(pm.response.text()).to.eql(\"\"); });"
                 ]
               }
             }

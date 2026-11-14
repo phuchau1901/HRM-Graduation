@@ -2,14 +2,14 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **52 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **58 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
 | Auth | 3 | IMPLEMENTED |
 | Authorization / Administration | 21 | IMPLEMENTED |
-| Organization | 10 | IMPLEMENTED |
-| Employees / Contracts / History | 11 | IMPLEMENTED |
+| Organization (Departments / Positions / Teams) | 15 | IMPLEMENTED |
+| Employees / Contracts / History | 12 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
 | Attendance | 0 | Model có, API MISSING |
 | Leave / Overtime / Approvals | 0 | Model có, API MISSING |
@@ -41,6 +41,11 @@ Có **52 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | POST | `/api/positions` | [Organization](../modules/Organization/POSITIONS_API.md) | WEB_POSITIONS / NEW |
 | PUT | `/api/positions/{positionId}` | [Organization](../modules/Organization/POSITIONS_API.md) | WEB_POSITIONS / UPDATE |
 | DELETE | `/api/positions/{positionId}` | [Organization](../modules/Organization/POSITIONS_API.md) | WEB_POSITIONS / DELETE |
+| GET | `/api/teams` | [Teams](../modules/Organization/TEAMS_API.md) | WEB_TEAMS / VIEW |
+| GET | `/api/teams/{id}` | [Teams](../modules/Organization/TEAMS_API.md) | WEB_TEAMS / VIEW |
+| POST | `/api/teams` | [Teams](../modules/Organization/TEAMS_API.md) | WEB_TEAMS / NEW |
+| PUT | `/api/teams/{id}` | [Teams](../modules/Organization/TEAMS_API.md) | WEB_TEAMS / UPDATE |
+| DELETE | `/api/teams/{id}` | [Teams](../modules/Organization/TEAMS_API.md) | WEB_TEAMS / DELETE |
 | GET | `/api/employees` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / VIEW + data scope |
 | GET | `/api/employees/unlinked` | [Employees](../modules/Employees/PROFILES_API.md#get-apiemployeesunlinked) | WEB_EMPLOYEES / VIEW + data scope |
 | GET | `/api/employees/{employeeId}` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / VIEW + data scope |
@@ -63,7 +68,7 @@ Có **52 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | POST | `/api/users` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds |
 | PUT | `/api/users/{targetUserId}` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/UPDATE |
 | PATCH | `/api/users/{targetUserId}/status` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/UPDATE |
-| POST | `/api/users/{targetUserId}/reset-password` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/APPROVE |
+| POST | `/api/users/{targetUserId}/reset-password` | [Authorization](../modules/Authorization/USERS_API.md) | SELF_CHANGE: JWT chính chủ; ADMIN_RESET: live WEB_USERS/UPDATE |
 | PUT | `/api/users/{targetUserId}/roles` | [Authorization](../modules/Authorization/USERS_API.md) | WEB_USERS/APPROVE |
 | GET | `/api/roles?page=1&pageSize=30` | [Authorization](../modules/Authorization/ROLES_API.md) | WEB_ROLES/VIEW |
 | GET | `/api/roles/{roleId}` | [Authorization](../modules/Authorization/ROLES_API.md) | WEB_ROLES/VIEW |

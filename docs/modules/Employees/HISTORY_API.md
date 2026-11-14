@@ -48,3 +48,7 @@ JSON Response thành công — HTTP 200:
 ### Kiểm thử endpoint
 
 Không JWT401; thiếu action403; SELF chỉ đọc chính mình; DEPARTMENT giới hạn phòng ban; ALL vẫn phải có action; kiểm tra ngày/trạng thái/FK; mutation và audit/notification phải cùng transaction.
+
+## Audit chuyển Team
+
+Chuyển/gỡ Team được ghi `EMPLOYEE_TEAM_CHANGED` tại AuditLog với BeforeJSON/AfterJSON chứa TeamId, DepartmentId, actor và traceId. Không tạo dòng employee_histories giả cho thay đổi Team, để giữ quy tắc lịch sử phòng ban theo ngày hiệu lực. GET history hiện tại vẫn trả lịch sử phòng ban; chưa có API audit riêng.

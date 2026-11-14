@@ -32,7 +32,8 @@ public sealed class OrganizationService(AppDbContext db)
     public async Task DeleteDepartmentAsync(int id, CancellationToken ct)
     {
         var entity = await db.Set<Department>().FindAsync([id], ct) ?? throw BusinessException.Missing();
-        if (await db.Set<Employee>().AnyAsync(x => x.DepartmentId == id, ct) ||
+        if (await db.Set<HRM.API.Modules.Organization.Entities.Team>().AnyAsync(x => x.DepartmentId == id, ct) ||
+            await db.Set<Employee>().AnyAsync(x => x.DepartmentId == id, ct) ||
             await db.Set<EmployeeHistory>().AnyAsync(x => x.OldDepartmentID == id || x.NewDepartmentID == id, ct))
             throw BusinessException.Conflict("Department is referenced; deactivate it instead of deleting it.");
         db.Remove(entity); await db.SaveChangesAsync(ct);

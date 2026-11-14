@@ -4,7 +4,7 @@ Tài liệu được tổ chức theo module, đối chiếu source tại `backe
 
 ## Bắt đầu
 
-- [API Inventory — 52 REST endpoint và SignalR](API/README.md)
+- [API Inventory — 58 REST endpoint và SignalR](API/README.md)
 - [Cấu hình và chạy local](guides/DEVELOPMENT.md)
 - [Quy ước HTTP, lỗi, phân quyền và CORS](guides/CONVENTIONS.md)
 - [Database và migrations](guides/DATABASE.md)
@@ -17,7 +17,7 @@ Tài liệu được tổ chức theo module, đối chiếu source tại `backe
 | --- | --- | --- |
 | [Auth](modules/Auth/README.md) | Login, profile, password, JWT/session | API có |
 | [Authorization](modules/Authorization/README.md) | User, Role, Screen, permission matrix, bootstrap | API có |
-| [Organization](modules/Organization/README.md) | Departments, Positions | API có |
+| [Organization](modules/Organization/README.md) | Departments, Positions, Teams | API có |
 | [Employees](modules/Employees/README.md) | Hồ sơ, hợp đồng, lịch sử, data scope | API có |
 | [Notifications](modules/Notifications/README.md) | Target, inbox, outbox, worker, SignalR | API có; FCM chưa có |
 | [Attendance](modules/Attendance/README.md) | Ca, lịch, chấm công, QR, hiệu chỉnh | Chỉ model; API chưa có |
@@ -36,7 +36,7 @@ docs/
   modules/
     Auth/                       # README, API, SECURITY, TESTS
     Authorization/              # README, Users/Roles/Screens/Permissions API, SECURITY, TESTS
-    Organization/               # README, Departments/Positions API, TESTS
+    Organization/               # README, Departments/Positions/Teams API, TESTS
     Employees/                  # README, Profiles/Contracts/History API, DATA_SCOPE, TESTS
     Notifications/              # README, API, ARCHITECTURE, TESTS
     Attendance/                 # README trạng thái thực tế

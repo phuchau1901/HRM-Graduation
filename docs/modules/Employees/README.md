@@ -28,3 +28,7 @@ Mutation hồ sơ/chuyển phòng/hợp đồng tích hợp NotificationService 
 - [Kiểm thử Employees](TESTS.md)
 
 Quy ước chung: [HTTP và phân quyền](../../guides/CONVENTIONS.md). Cấu trúc dữ liệu: [database và migrations](../../guides/DATABASE.md).
+
+## Teams
+
+Employee có `TeamId` nullable, composite FK bảo đảm Team thuộc Department của Employee. Các response hồ sơ có `TeamId` và `TeamName`. PUT cũ không gửi teamId giữ nguyên Team; chuyển Department gỡ Team cũ nếu không chỉ định Team mới hợp lệ. Audit `EMPLOYEE_TEAM_CHANGED` lưu before/after và actor trong cùng transaction. Team không thêm data scope mới. Xem [API Teams](../Organization/TEAMS_API.md) và [Profiles API](PROFILES_API.md#team-của-nhân-viên).

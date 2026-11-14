@@ -250,7 +250,7 @@ public sealed class EmployeeApiTests
     private static EmployeeProfileRequest Profile() => new() { FullName = "Updated", Email = "updated@example.invalid", EmploymentStatus = "ACTIVE" };
     private static EmployeeCreateRequest Create(int department) => new() { EmployeeCode = "NEW01", FullName = "New Employee", Email = "new@example.invalid", HireDate = new(2020, 1, 1), DepartmentId = department };
     private static ContractRequest Contract(string no) => new() { ContractNo = no, ContractType = "FIXED_TERM", StartDate = Today.AddDays(-1), EndDate = Today.AddDays(30) };
-    private sealed class Harness : IAsyncDisposable
+    internal sealed class Harness : IAsyncDisposable
     {
         public AuthApiFactory App { get; private set; } = null!;
         public HttpClient Client { get; private set; } = null!;

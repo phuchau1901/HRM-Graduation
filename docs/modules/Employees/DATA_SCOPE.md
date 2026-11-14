@@ -92,3 +92,7 @@ Before rollout, export the approved legacy mapping, current user-role assignment
 The schema migration adds nullable metadata only and copies no grants. Existing scoped employee endpoints will deny until approved scopes are configured. Plan a coordinated rollout; do not silently default scopes. Re-login is required after permission changes. Direct SQL permission backfills must also revoke refresh tokens and increment auth_version in a reviewed transaction; prefer the permission API.
 
 Review SQL: [schema SQL](../../API/role-action-data-scope.review.sql). No migration has been applied. MySQL DDL may auto-commit; schedule separately from data backfill. Rollback drops metadata and requires coordinated application rollback; it does not restore legacy configuration automatically.
+
+## Teams không mở rộng scope
+
+Team là cấu trúc tổ chức, không phải giá trị `dataScopes` mới. `SELF`/`DEPARTMENT`/`ALL` và screen/action hiện có giữ nguyên. Filter `teamId` trên Employee chỉ thu hẹp query đã áp scope. Quyền catalog `WEB_TEAMS` không cấp quyền đọc/ghi Employee.
