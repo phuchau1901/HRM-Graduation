@@ -168,6 +168,7 @@ builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<AdministrationService>();
 builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<HRM.API.Modules.System.Services.SystemSettingsService>();
+builder.Services.AddScoped<HRM.API.Modules.System.Services.AuditLogService>();
 builder.Services.AddScoped<HRM.API.Modules.System.Services.PasswordPolicyService>();
 builder.Services.AddScoped<HRM.API.Modules.System.Services.AttendanceConfigurationService>();
 builder.Services.AddScoped<HRM.API.Modules.System.Services.AttendanceOperationsService>();

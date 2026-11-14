@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **77 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **79 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -16,12 +16,15 @@ Có **77 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | Leave / Overtime / Approvals | 0 | Model có, API MISSING |
 | Payroll / Timesheets | 0 | Model có, API MISSING |
 | Performance / KPI | 0 | Model có, API MISSING |
-| System / Dashboard / Reports | 0 | Audit/model có, API độc lập MISSING |
+| AuditLog (System) | 2 | IMPLEMENTED; WEB_AUDIT_LOGS/VIEW |
+| Dashboard / Reports | 0 | API MISSING |
 
 ## Toàn bộ REST endpoint
 
 | Method | URL | Module / đặc tả | Permission |
 | --- | --- | --- | --- |
+| GET | `/api/audit-logs` | [System](../modules/System/API.md#auditlog) | WEB_AUDIT_LOGS/VIEW |
+| GET | `/api/audit-logs/{id}` | [System](../modules/System/API.md#auditlog) | WEB_AUDIT_LOGS/VIEW |
 | GET | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/VIEW |
 | PUT | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/UPDATE + If-Match |
 | GET | `/api/system-settings/attendance` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/VIEW |

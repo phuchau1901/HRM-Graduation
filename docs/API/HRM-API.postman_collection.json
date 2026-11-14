@@ -179,6 +179,10 @@
       "key": "qrToken",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "auditLogId",
+      "value": ""
     }
   ],
   "item": [
@@ -1736,6 +1740,29 @@
                 "exec": [
                   "pm.test('Expected success status 200', () => pm.expect(pm.response.code).to.eql(200));"
                 ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "AuditLog",
+          "item": [
+            {
+              "name": "List Audit Logs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/audit-logs?page=1&pageSize=30&entityType=System",
+                "description": "JWT + explicit WEB_AUDIT_LOGS/VIEW. Global audit access. Optional actorUserId/action/entityType/entityId/search/fromUtc/toUtc filters; ISO8601 UTC timestamps. Metadata only."
+              }
+            },
+            {
+              "name": "Get Audit Log",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/audit-logs/{{auditLogId}}",
+                "description": "JWT + WEB_AUDIT_LOGS/VIEW. Returns metadata plus parsed beforeJson/afterJson (nullable). 404 if absent. No write/delete API."
               }
             }
           ]

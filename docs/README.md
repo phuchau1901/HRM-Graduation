@@ -4,7 +4,7 @@ Tài liệu được tổ chức theo module, đối chiếu source tại `backe
 
 ## Bắt đầu
 
-- [API Inventory — 77 REST endpoint và SignalR](API/README.md)
+- [API Inventory — 79 REST endpoint và SignalR](API/README.md)
 - [Cấu hình và chạy local](guides/DEVELOPMENT.md)
 - [Quy ước HTTP, lỗi, phân quyền và CORS](guides/CONVENTIONS.md)
 - [Database và migrations](guides/DATABASE.md)

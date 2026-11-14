@@ -151,3 +151,26 @@ POST /api/qr-sessions: WEB_QR_SESSIONS/NEW, body `{"locationCode":"HQ","lifetime
 401 thiếu/sai JWT;403 thiếu live grant/scope/evidence;404 resource ngoài scope/không tồn tại;400 validation/policy/timezone/forged-time fields;409 duplicate/khung giờ/legacy/history/status không hợp lệ;412 version stale;428 thiếu If-Match;500 hạ tầng. Password reset vẫn quota429 hiện có. JSON/DTO và generic error envelope giữ convention dự án.
 
 Chưa có API AttendanceAdjustments/approval workflow hoàn chỉnh; bảng cũ được giữ nguyên, không được mô tả là API đã triển khai. Không tự apply migration hoặc deploy.
+
+## AuditLog
+
+Các mutation có ghi audit nghiệp vụ trong DB. Đã có API đọc log; chưa có UI hoặc field Description riêng. [Cấu trúc, mô tả từng Action, payload và giới hạn coverage](AUDIT_LOG.md). Không nhầm API audit với audit triển khai hoặc HTTP access logs.
+
+
+### GET /api/audit-logs
+
+JWT + `WEB_AUDIT_LOGS / VIEW`. Quyền đọc **toàn hệ thống**, phải được cấp rõ ràng qua cơ chế Screens/Role permissions hiện có; không tự tạo screen/grant và không kế thừa quyền Settings/Employee. Không có API thêm/sửa/xóa audit. Response không cache.
+
+Query: `page` (mặc định 1), `pageSize` (mặc định 30, tối đa 100), `search` (tối đa 150 ký tự; tìm actor/action/entityType/entityId, không tìm payload). Bộ lọc chính xác: `actorUserId`, `action`, `entityType` (tối đa 100), `entityId` (tối đa 60). `fromUtc`, `toUtc` là ISO8601 timestamps, nên gửi `Z` hoặc offset tường minh; offset được chuyển UTC, hai đầu bao gồm, from không được sau to. Không lọc theo result vì chưa có cột result thống nhất.
+
+```json
+{"success":true,"total":1,"page":1,"pageSize":30,"data":[{"id":100,"actorUserId":"admin","action":"SETTINGS_UPDATED","entityType":"System","entityId":"PASSWORD_POLICY","createdAt":"2026-11-15T01:00:00Z"}]}
+```
+
+Count sau bộ lọc và trước phân trang; sắp xếp createdAt giảm dần, id giảm dần. EF AsNoTracking + projection; không tải before/after ở danh sách.
+
+### GET /api/audit-logs/{id}
+
+Cùng JWT/quyền VIEW, kiểm tra quyền trước lookup. Trả trực tiếp object metadata như trên, thêm `beforeJson`, `afterJson` là JSON value/object hoặc null, không phải chuỗi escape. Actor có thể null. CreatedAt trả UTC `Z`. Payload khác nhau theo nguồn ghi log, không bảo đảm mọi event có result/traceId hoặc đầy đủ hồ sơ trước/sau. Xem [mô tả từng Action và ví dụ detail](AUDIT_LOG.md).
+
+Status: 200 thành công; 400 query sai; 401 chưa xác thực; 403 thiếu quyền; 404 không có log (detail). Lỗi giữ envelope hiện tại. Không tạo migration, không sửa log cũ.

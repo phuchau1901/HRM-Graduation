@@ -16,3 +16,10 @@ npm --prefix web-admin run build
 ```
 
 Các tests không kết nối DB live. SQLite concurrency dùng nhiều connection file-backed; không tuyên bố đã apply/test migration trên MySQL Production. Kết quả cuối và lỗi baseline NV/TX xem [Implementation](IMPLEMENTATION.md#7-kiểm-chứng-và-giới-hạn).
+
+
+## AuditLog API
+
+`AuditLogApiTests`: 7 cases kiểm tra JWT, quyền riêng (Settings VIEW không thay thế), thu hồi grant khi JWT cũ vẫn tồn tại, bộ lọc trước phân trang, thứ tự ổn định, JSON detail/null/UTC, không cache, 404, không có DELETE, query sai/overflow. ApiInventoryTests kiểm kê 79 routes, 69 business actions bảo vệ bằng JWT/quyền.
+
+Kiểm chứng lần bổ sung API: backend build thành công (0 warnings/errors). Full suite: 264 tests, 255 passed, 9 failed. Cả 7 AuditLog cases và inventory passed; 9 lỗi EmployeeCreationTests đã có sẵn do generator trả TX trong khi tests yêu cầu NV, không sửa trong phạm vi AuditLog. Không kết nối DB live hoặc apply migration.
