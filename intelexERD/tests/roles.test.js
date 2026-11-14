@@ -69,3 +69,26 @@ test('rename role uses fresh detail version and sends only code and name',async(
  assert.throws(()=>apiUpdateRole(5,'',{}),/version/);
  }finally{globalThis.fetch=originalFetch;}
 });
+
+test('role screen menu places organization catalogs and shifts under Master Data without duplicate labels',()=>{
+ const catalog=[{id:1,code:'WEB_DEPARTMENTS',name:'Phòng ban',platform:'WEB'},{id:2,code:'WEB_POSITIONS',name:'Chức vụ',platform:'WEB'},{id:3,code:'WEB_TEAMS',name:'Teams',platform:'WEB'},{id:4,code:'WEB_SHIFTS',name:'Ca làm việc',platform:'WEB'},{id:5,code:'WEB_SYSTEM_SETTINGS',name:'Cấu hình hệ thống',platform:'WEB'},{id:6,code:'WEB_ORGANIZATION',name:'Tổ chức',platform:'WEB'}];
+ const groups=roleMenuGroups(catalog),admin=groups.find(group=>group.name==='Administration');
+ assert.deepEqual(admin.entries.filter(screen=>screen.label.startsWith('Master Data')).map(screen=>screen.code),['WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_SHIFTS']);
+ assert.deepEqual(admin.entries.filter(screen=>screen.label==='System Settings').map(screen=>screen.code),['WEB_SYSTEM_SETTINGS']);
+ assert.deepEqual(groups.find(group=>group.name==='Human Resources').entries.map(screen=>screen.code),['WEB_ORGANIZATION']);
+ const entries=groups.flatMap(group=>group.entries);assert.equal(new Set(entries.map(screen=>screen.id)).size,catalog.length);assert.equal(new Set(admin.entries.map(screen=>screen.label)).size,admin.entries.length);
+});
+test('Master Data exposes a nested screen submenu including shared attendance settings',()=>{
+ const catalog=[['WEB_DEPARTMENTS','Phòng ban'],['WEB_POSITIONS','Chức vụ'],['WEB_TEAMS','Teams'],['WEB_SHIFTS','Ca làm việc'],['WEB_SYSTEM_SETTINGS','Cấu hình hệ thống']].map(([code,name],index)=>({id:index+1,code,name,platform:'WEB'}));
+ const admin=roleMenuGroups(catalog).find(group=>group.name==='Administration');
+ assert.equal(admin.subgroups[0].name,'Master Data');assert.equal(admin.subgroups[0].key,'Administration/Master Data');
+ assert.deepEqual(admin.subgroups[0].entries.map(screen=>screen.label),['Phòng ban','Chức vụ','Teams','Chấm công','Ca làm việc']);
+ assert.equal(admin.subgroups[0].entries.find(screen=>screen.label==='Chấm công').code,'WEB_SYSTEM_SETTINGS');
+});
+
+test('Master Data container does not create an overview child',()=>{
+ const catalog=[{id:1,code:'WEB_MASTER_DATA',name:'Master Data',platform:'WEB'},{id:2,code:'WEB_TEAMS',name:'Teams',platform:'WEB'}];
+ const admin=roleMenuGroups(catalog).find(group=>group.name==='Administration');
+ assert.deepEqual(admin.subgroups[0].entries.map(screen=>screen.code),['WEB_TEAMS']);
+ assert.ok(!admin.subgroups[0].entries.some(screen=>screen.label==='Tổng quan'));
+});

@@ -106,14 +106,31 @@ export function apiUpdateUserRoles(userId,version,roleIds){
 }
 
 export function apiResetUserPassword(userId,version,payload){
- if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
  if(!['SELF_CHANGE','ADMIN_RESET'].includes(payload?.type))throw Error('Loại thay đổi mật khẩu không hợp lệ.');
- const body={type:payload.type,newPassword:payload.newPassword,...(payload.type==='SELF_CHANGE'?{currentPassword:payload.currentPassword}:{})};
- return request(`/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'POST',headers:{'If-Match':`"${version}"`},body:JSON.stringify(body)});
+ const body={type:payload.type,newPassword:payload.newPassword,...(payload.type==='SELF_CHANGE'?{oldPassword:payload.oldPassword}:{})};
+ return request(`/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'POST',body:JSON.stringify(body)});
 }
 
 export function apiOrganization(kind,id=null,payload=null,query=''){
  if(!['departments','positions','teams'].includes(kind))throw Error('Danh mục không hợp lệ.');
  const path=`/api/${kind}`+(id===null?'':`/${encodeURIComponent(id)}`)+(query?`?${query}`:'');
  return request(path,payload===null?{}:{method:id===null?'POST':'PUT',body:JSON.stringify(payload)});
+}
+
+export function apiSystemSettings(kind,settings=null,version=null){
+ if(!['password-policy','attendance'].includes(kind))throw Error('Loại cấu hình hệ thống không hợp lệ.');
+ if(settings===null)return request(`/api/system-settings/${kind}`);
+ if(!Number.isSafeInteger(version)||version<1)throw Error('Thiếu phiên bản cấu hình hợp lệ. Vui lòng tải lại.');
+ return request(`/api/system-settings/${kind}`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify(settings)});
+}
+
+export function apiShifts(page=1,search=''){return request('/api/shifts?'+new URLSearchParams({page,pageSize:30,search}));}
+export function apiShiftDetail(id){return request(`/api/shifts/${encodeURIComponent(id)}`);}
+export function apiSaveShift(id,payload,version=null){
+ const headers={};
+ if(id!==null){
+ if(version===null||version===undefined||!String(version)||!/^[A-Za-z0-9_-]+$/.test(String(version)))throw Error('Thiếu phiên bản ca làm việc. Vui lòng tải lại.');
+ headers['If-Match']=`"${version}"`;
+ }
+ return request('/api/shifts'+(id===null?'':`/${encodeURIComponent(id)}`),{method:id===null?'POST':'PUT',headers,body:JSON.stringify(payload)});
 }

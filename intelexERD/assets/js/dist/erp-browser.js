@@ -110,16 +110,33 @@ function apiUpdateUserRoles(userId,version,roleIds){
 }
 
 function apiResetUserPassword(userId,version,payload){
- if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
  if(!['SELF_CHANGE','ADMIN_RESET'].includes(payload?.type))throw Error('Loại thay đổi mật khẩu không hợp lệ.');
- const body={type:payload.type,newPassword:payload.newPassword,...(payload.type==='SELF_CHANGE'?{currentPassword:payload.currentPassword}:{})};
- return request(`/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'POST',headers:{'If-Match':`"${version}"`},body:JSON.stringify(body)});
+ const body={type:payload.type,newPassword:payload.newPassword,...(payload.type==='SELF_CHANGE'?{oldPassword:payload.oldPassword}:{})};
+ return request(`/api/users/${encodeURIComponent(userId)}/reset-password`,{method:'POST',body:JSON.stringify(body)});
 }
 
 function apiOrganization(kind,id=null,payload=null,query=''){
  if(!['departments','positions','teams'].includes(kind))throw Error('Danh mục không hợp lệ.');
  const path=`/api/${kind}`+(id===null?'':`/${encodeURIComponent(id)}`)+(query?`?${query}`:'');
  return request(path,payload===null?{}:{method:id===null?'POST':'PUT',body:JSON.stringify(payload)});
+}
+
+function apiSystemSettings(kind,settings=null,version=null){
+ if(!['password-policy','attendance'].includes(kind))throw Error('Loại cấu hình hệ thống không hợp lệ.');
+ if(settings===null)return request(`/api/system-settings/${kind}`);
+ if(!Number.isSafeInteger(version)||version<1)throw Error('Thiếu phiên bản cấu hình hợp lệ. Vui lòng tải lại.');
+ return request(`/api/system-settings/${kind}`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify(settings)});
+}
+
+function apiShifts(page=1,search=''){return request('/api/shifts?'+new URLSearchParams({page,pageSize:30,search}));}
+function apiShiftDetail(id){return request(`/api/shifts/${encodeURIComponent(id)}`);}
+function apiSaveShift(id,payload,version=null){
+ const headers={};
+ if(id!==null){
+ if(version===null||version===undefined||!String(version)||!/^[A-Za-z0-9_-]+$/.test(String(version)))throw Error('Thiếu phiên bản ca làm việc. Vui lòng tải lại.');
+ headers['If-Match']=`"${version}"`;
+ }
+ return request('/api/shifts'+(id===null?'':`/${encodeURIComponent(id)}`),{method:id===null?'POST':'PUT',headers,body:JSON.stringify(payload)});
 }
 
 
@@ -208,7 +225,12 @@ const screenRoutes={
  '/admin/permissions':['WEB_PERMISSIONS'], 
  '/admin/audit-logs':['WEB_AUDIT_LOGS'],
  '/admin/settings':['WEB_SYSTEM_SETTINGS'], 
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS']
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_SYSTEM_SETTINGS','WEB_SHIFTS']
+};
+// Permission editor placement follows menu ownership, independently of route access aliases.
+const roleScreenRoutes={...screenRoutes,
+ '/hr/organization':['WEB_ORGANIZATION'],
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_SHIFTS']
 };
 function screenAllowed(path,flag='canView'){
  const current=apiSession();if(!current)return false;
@@ -297,6 +319,159 @@ function exportReport(f){csvDownload('intelex-bao-cao-cham-cong',['Mã NV','Nhâ
 function attendanceReport(f){const rows=reportRows(f);return `<div class="toolbar"><select data-filter="period" aria-label="Kỳ báo cáo"><option value="day" ${f.period!=='month'&&f.period!=='range'?'selected':''}>Theo ngày</option><option value="month" ${f.period==='month'?'selected':''}>Theo tháng</option><option value="range" ${f.period==='range'?'selected':''}>Khoảng ngày</option></select>${f.period==='month'?`<input type="month" aria-label="Tháng báo cáo" data-filter="month" value="${f.month||'2026-10'}" max="2026-10">`:f.period==='range'?`<input type="date" aria-label="Từ ngày" data-filter="from" value="${f.from||f.date}" max="2026-10-19"><input type="date" aria-label="Đến ngày" data-filter="to" value="${f.to||f.date}" max="2026-10-19">`:`<input type="date" aria-label="Ngày báo cáo" data-filter="date" value="${f.date}" max="2026-10-19">`}${teamOptions(f)}<select data-filter="department" aria-label="Phòng ban"><option value="">Tất cả phòng ban</option>${s.departments.map(d=>`<option value="${d.id}" ${f.department===d.id?'selected':''}>${e(d.name)}</option>`).join('')}</select><select data-filter="employee" aria-label="Nhân viên"><option value="">Tất cả nhân viên</option>${scope.employees(s,user()).filter(u=>!f.team||u.teamId===f.team).map(u=>`<option value="${u.id}" ${f.employee===u.id?'selected':''}>${e(u.name)}</option>`).join('')}</select>${button('Xuất CSV','export-report','download')}${button('In / PDF','print','print')}</div><div class="kpis">${kpi('Nhân sự',rows.length,'người','Theo phạm vi & bộ lọc','users','blue')}${kpi('Tổng giờ công',rows.reduce((n,r)=>n+Number(r.worked),0).toLocaleString('vi-VN'),'giờ','Chỉ tính các ca đã check-out','clock','teal')}${kpi('Lượt đi trễ',rows.reduce((n,r)=>n+r.late,0),'lượt','Theo giờ bắt đầu ca','calendar','orange')}${kpi('Ngày phép',rows.reduce((n,r)=>n+r.leave,0),'ngày','Theo lịch nghỉ đã duyệt','sun','purple')}</div>${card('Báo cáo chấm công chi tiết','Công thực tế = giờ công hợp lệ / 8 · Ngày chưa kết thúc chỉ ghi nhận giờ vào',table(['Nhân viên','Công chuẩn','Công thực tế','Đi trễ','Về sớm','Tăng ca (giờ)','Nghỉ phép','Giờ công'],rows.map(r=>[person(r.u),r.standard,r.actual,r.late,r.early,r.overtime,r.leave,r.worked]),{page:f.page,size:Number(f.size)||10}),`<select aria-label="Số dòng mỗi trang" data-filter="size">${[10,20,50].map(n=>`<option value="${n}" ${Number(f.size)===n?'selected':''}>${n} dòng</option>`).join('')}</select>`)}<p class="muted" style="font-size:11px;margin-top:14px">Số liệu đến ngày demo 19/10/2026. Ca mẫu 8 giờ/ngày, không tính ngày lễ. Ngày chưa có dữ liệu không được tính là vắng không phép.</p>`;}
 
 
+// Source: pages/system-settings.js
+
+const systemSettingTabs={'password-policy':'Chính sách mật khẩu'};
+const passwordSettingFlags=[['requireUppercase','Yêu cầu chữ hoa'],['requireLowercase','Yêu cầu chữ thường'],['requireDigit','Yêu cầu chữ số'],['requireSpecialCharacter','Yêu cầu ký tự đặc biệt'],['disallowUsernameInPassword','Không cho chứa tên đăng nhập']];
+const attendanceSettingFlags=[['requireQr','Yêu cầu mã QR'],['requireGps','Yêu cầu vị trí GPS'],['allowOvernightShifts','Cho phép ca qua đêm']];
+const attendanceSettingNumbers=[['checkInBeforeStartMinutes','Cho phép check-in trước giờ bắt đầu (phút)',1440],['checkInAfterStartMinutes','Cho phép check-in sau giờ bắt đầu (phút)',1440],['checkOutBeforeEndMinutes','Cho phép check-out trước giờ kết thúc (phút)',1440],['checkOutAfterEndMinutes','Cho phép check-out sau giờ kết thúc (phút)',1440],['lateGraceMinutes','Thời gian đi trễ được bỏ qua (phút)',240],['earlyLeaveGraceMinutes','Thời gian về sớm được bỏ qua (phút)',240]];
+const missingPunchRules=['REJECT_CHECKOUT_WITHOUT_CHECKIN','INCOMPLETE'];
+function systemSettingsGrant(flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_SYSTEM_SETTINGS'&&p.canView==='Y'&&p[flag]==='Y');}
+function validateSystemSettings(kind,settings){
+ const integer=(key,min,max)=>{if(!Number.isInteger(settings[key])||settings[key]<min||settings[key]>max)throw Error(`${key} phải là số nguyên từ ${min} đến ${max}.`);};
+ const boolean=key=>{if(typeof settings[key]!=='boolean')throw Error(`${key} phải là giá trị bật/tắt.`);};
+ if(kind==='password-policy'){
+ integer('minimumLength',1,1024);integer('maximumLength',1,1024);integer('passwordHistoryCount',0,100);
+ passwordSettingFlags.forEach(([key])=>boolean(key));
+ if(settings.minimumLength>settings.maximumLength)throw Error('Độ dài tối thiểu không được lớn hơn độ dài tối đa.');
+ const groups=passwordSettingFlags.slice(0,4).filter(([key])=>settings[key]).length;
+ if(settings.maximumLength<groups)throw Error('Độ dài tối đa phải đủ cho số nhóm ký tự bắt buộc.');
+ }else if(kind==='attendance'){
+ if(typeof settings.timezone!=='string'||!settings.timezone.trim())throw Error('Vui lòng nhập múi giờ.');
+ attendanceSettingNumbers.forEach(([key,,max])=>integer(key,0,max));attendanceSettingFlags.forEach(([key])=>boolean(key));
+ if(!Array.isArray(settings.workingDays)||!settings.workingDays.length||new Set(settings.workingDays).size!==settings.workingDays.length||settings.workingDays.some(day=>!Number.isInteger(day)||day<1||day>7))throw Error('Chọn ít nhất một ngày làm việc hợp lệ, không trùng.');
+ if(!missingPunchRules.includes(settings.missingPunchRule))throw Error('Quy tắc thiếu lượt chấm công không hợp lệ.');
+ if(!Array.isArray(settings.locations)||settings.locations.length>20)throw Error('Cho phép tối đa 20 địa điểm.');
+ if((settings.requireQr||settings.requireGps)&&!settings.locations.length)throw Error('Cần ít nhất một địa điểm khi bật QR hoặc GPS.');
+ const codes=new Set();
+ for(const location of settings.locations){
+ if(typeof location.code!=='string'||!location.code.trim()||location.code.length>50||location.code!==location.code.toUpperCase()||codes.has(location.code))throw Error('Mã địa điểm phải viết hoa, không trùng và dài tối đa 50 ký tự.');
+ codes.add(location.code);
+ if(typeof location.name!=='string'||!location.name.trim()||location.name.length>150)throw Error('Tên địa điểm phải có từ 1 đến 150 ký tự.');
+ for(const [key,min,max] of [['latitude',-90,90],['longitude',-180,180],['radiusMeters',10,10000]])if(!Number.isFinite(location[key])||location[key]<min||location[key]>max)throw Error(`${key} của địa điểm phải từ ${min} đến ${max}.`);
+ }
+ }else throw Error('Loại cấu hình không hợp lệ.');
+ return settings;
+}
+function systemSettingToggle(key,label,value){return `<label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input name="${key}" type="checkbox" role="switch" ${value?'checked':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>`;}
+function systemSettingNumber(label,key,value,min,max){return field(label,key,'number',value,`required min="${min}" max="${max}" step="1"`);}
+function passwordPolicySelect(label,key,value,choices,unit){
+ const values=[...new Set([...choices,value])].sort((a,b)=>a-b);
+ return `<label>${label}<select name="${key}">${values.map(option=>`<option value="${option}" ${option===value?'selected':''}>${option} ${unit}</option>`).join('')}</select></label>`;
+}
+async function mountSystemSettings(root,filters={},options={}){
+ if(!root)return;
+ const tabs=options.embedded?{attendance:'Chấm công'}:systemSettingTabs;
+ let tab=tabs[filters.tab]?filters.tab:Object.keys(tabs)[0],generation=0,saving=false,dirty=false;
+ async function load(){
+ const current=++generation,kind=tab;dirty=false;options.onDirty?.(false);
+ root.innerHTML=`<div class="tabs" role="tablist" aria-label="Cấu hình hệ thống">${Object.entries(tabs).map(([key,label])=>`<button type="button" role="tab" class="tab ${key===kind?'active':''}" aria-selected="${key===kind}" data-system-tab="${key}">${label}</button>`).join('')}</div><div id="system-settings-panel" role="tabpanel"><p role="status">Đang tải cấu hình…</p></div>`;
+ root.querySelectorAll('[data-system-tab]').forEach(button=>button.onclick=()=>{if(saving||button.dataset.systemTab===tab)return;if(dirty&&!confirm('Bỏ các thay đổi cấu hình chưa lưu?'))return;tab=button.dataset.systemTab;load();});
+ if(options.embedded)root.querySelector('[role=tablist]').remove();
+ const panel=root.querySelector('#system-settings-panel');
+
+ try{
+ if(!systemSettingsGrant('canView'))throw Error('Bạn chưa có quyền xem WEB_SYSTEM_SETTINGS.');
+ const result=await apiSystemSettings(kind);if(!root.isConnected||current!==generation)return;
+ if(!result?.settings||!Number.isSafeInteger(result.version)||result.version<1)throw Error('Cấu hình hoặc phiên bản trả về không hợp lệ.');
+ let version=result.version,locationSequence=0;
+ const settings=result.settings,canUpdate=systemSettingsGrant('canUpdate');
+ panel.innerHTML=`<form id="system-settings-form" class="user-registration ${kind==='password-policy'?'password-policy-card':''}">${kind==='password-policy'?`<div class="password-policy-heading"><div><h2>Password Policy</h2><p>Chính sách mật khẩu hệ thống</p></div>${icon('shield',18)}</div>`:''}<fieldset class="user-edit-fieldset" ${canUpdate?'':'disabled'}>${kind==='password-policy'?`<div class="form-grid">${passwordPolicySelect('Độ dài tối thiểu','minimumLength',settings.minimumLength,[8,10,12,14,16],'ký tự')}${passwordPolicySelect('Độ dài tối đa','maximumLength',settings.maximumLength,[32,64,128],'ký tự')}</div><div class="system-settings-switches">${passwordSettingFlags.map(([key,label])=>`<label class="password-policy-check"><span>${label}</span><input type="checkbox" name="${key}" ${settings[key]?'checked':''}><span class="password-policy-checkmark" aria-hidden="true">✓</span></label>`).join('')}</div>${passwordPolicySelect('Không được trùng mật khẩu gần nhất','passwordHistoryCount',settings.passwordHistoryCount,[0,1,3,5,10],'mật khẩu')}<p class="muted">Áp dụng khi tạo hoặc đổi mật khẩu. Mật khẩu hiện có vẫn giữ hiệu lực. Đặt số mật khẩu ghi nhớ bằng 0 để tắt kiểm tra lịch sử.</p>`:`<div class="form-grid">${field('Múi giờ','timezone','text',settings.timezone,'required maxlength="150" placeholder="Asia/Ho_Chi_Minh"')}${attendanceSettingNumbers.map(([key,label,max])=>systemSettingNumber(label,key,settings[key],0,max)).join('')}<label>Khi thiếu lượt check-in<select name="missingPunchRule"><option value="REJECT_CHECKOUT_WITHOUT_CHECKIN" ${settings.missingPunchRule==='REJECT_CHECKOUT_WITHOUT_CHECKIN'?'selected':''}>Từ chối check-out khi chưa check-in</option><option value="INCOMPLETE" ${settings.missingPunchRule==='INCOMPLETE'?'selected':''}>Ghi nhận chưa đầy đủ</option></select></label></div><fieldset class="system-working-days"><legend>Ngày làm việc</legend><div>${['Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy','Chủ nhật'].map((label,index)=>`<label><input type="checkbox" name="workingDays" value="${index+1}" ${settings.workingDays?.includes(index+1)?'checked':''}> ${label}</label>`).join('')}</div></fieldset><div class="system-settings-switches attendance-settings-switches">${attendanceSettingFlags.map(([key,label])=>systemSettingToggle(key,label,settings[key])).join('')}</div><h3>Địa điểm chấm công</h3><div id="system-settings-locations"></div><button type="button" class="btn" id="system-settings-add-location">Thêm địa điểm</button><p class="muted">Tối đa 20 địa điểm. Bật QR hoặc GPS cần ít nhất một địa điểm. Cấu hình mới áp dụng cho lịch được tạo hoặc cập nhật sau đó; lịch và lượt chấm công đã lưu giữ nguyên quy tắc.</p>`}<div class="form-actions"><button type="submit" class="btn primary">Lưu cấu hình</button></div></fieldset><p id="system-settings-feedback" role="status">${canUpdate?'':'Bạn có quyền xem; cần WEB_SYSTEM_SETTINGS/UPDATE để lưu.'}</p></form>`;
+ const form=panel.querySelector('form'),fieldset=form.querySelector('fieldset'),feedback=panel.querySelector('#system-settings-feedback');
+ form.oninput=form.onchange=()=>{dirty=true;options.onDirty?.(true);};
+ function addLocation(location={}){
+ const container=panel.querySelector('#system-settings-locations');if(container.children.length>=20)return;
+ const index=locationSequence++,prefix=`location-${index}-`,row=document.createElement('section');row.className='system-settings-location';row.dataset.locationPrefix=prefix;
+ row.innerHTML=`<div class="form-grid">${field('Mã địa điểm',prefix+'code','text',location.code||'','required maxlength="50"')}${field('Tên địa điểm',prefix+'name','text',location.name||'','required maxlength="150"')}${field('Vĩ độ',prefix+'latitude','number',location.latitude??'','required min="-90" max="90" step="any"')}${field('Kinh độ',prefix+'longitude','number',location.longitude??'','required min="-180" max="180" step="any"')}${field('Bán kính (mét)',prefix+'radiusMeters','number',location.radiusMeters??100,'required min="10" max="10000" step="1"')}</div><button type="button" class="btn danger" data-remove-location>Xóa địa điểm</button>`;
+ row.querySelector('[data-remove-location]').onclick=()=>{if(saving)return;row.remove();dirty=true;options.onDirty?.(true);panel.querySelector('#system-settings-add-location').disabled=false;};container.appendChild(row);
+ panel.querySelector('#system-settings-add-location').disabled=container.children.length>=20;
+ }
+ if(kind==='attendance'){
+ (settings.locations||[]).forEach(addLocation);
+ panel.querySelector('#system-settings-add-location').onclick=()=>{if(!saving){addLocation();dirty=true;options.onDirty?.(true);}};
+ }
+ form.onsubmit=async ev=>{
+ ev.preventDefault();ev.stopPropagation();if(saving||!canUpdate)return;
+ const data=new FormData(form),payload={};
+ if(kind==='password-policy'){
+ for(const key of ['minimumLength','maximumLength','passwordHistoryCount'])payload[key]=Number(data.get(key));
+ passwordSettingFlags.forEach(([key])=>{payload[key]=data.has(key);});
+ }else{
+ payload.timezone=data.get('timezone').trim();attendanceSettingNumbers.forEach(([key])=>{payload[key]=Number(data.get(key));});
+ attendanceSettingFlags.forEach(([key])=>{payload[key]=data.has(key);});
+ payload.workingDays=data.getAll('workingDays').map(Number);payload.missingPunchRule=data.get('missingPunchRule');
+ payload.locations=[...panel.querySelectorAll('[data-location-prefix]')].map(row=>{const prefix=row.dataset.locationPrefix;return {code:data.get(prefix+'code').trim().toUpperCase(),name:data.get(prefix+'name').trim(),latitude:Number(data.get(prefix+'latitude')),longitude:Number(data.get(prefix+'longitude')),radiusMeters:Number(data.get(prefix+'radiusMeters'))};});
+ }
+ try{validateSystemSettings(kind,payload);}catch(err){feedback.textContent=err.message;return;}
+ saving=true;options.onSaving?.(true);fieldset.disabled=true;root.querySelectorAll('[data-system-tab]').forEach(button=>button.disabled=true);feedback.textContent='Đang lưu cấu hình…';
+ try{const saved=await apiSystemSettings(kind,payload,version);if(!form.isConnected)return;
+ if(!Number.isSafeInteger(saved?.version)||saved.version<1)throw Error('Chưa nhận phiên bản mới. Hãy tải lại trang để xác nhận trước khi lưu tiếp.');
+ version=saved.version;dirty=false;options.onDirty?.(false);feedback.textContent='Đã lưu cấu hình thành công.';
+ }catch(err){if(form.isConnected)feedback.textContent=err.message+' Nếu có xung đột phiên bản, tải lại cấu hình trước khi sửa và lưu lại.';}
+ finally{saving=false;options.onSaving?.(false);if(form.isConnected){fieldset.disabled=!canUpdate;root.querySelectorAll('[data-system-tab]').forEach(button=>button.disabled=false);}}
+ };
+ }catch(err){if(!root.isConnected||current!==generation)return;panel.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn" id="system-settings-retry">Thử lại</button>`;panel.querySelector('button').onclick=load;}
+ }
+ await load();
+}
+
+
+// Source: password-policy.js
+
+function passwordPolicyRules(password,username,policy){
+ const rules=[{key:'length',label:`Từ ${policy.minimumLength} đến ${policy.maximumLength} ký tự`,passed:!!password.trim()&&password.length>=policy.minimumLength&&password.length<=policy.maximumLength}];
+ for(const [key,pattern,label] of [['requireUppercase',/\p{Lu}/u,'Có chữ hoa (A–Z)'],['requireLowercase',/\p{Ll}/u,'Có chữ thường (a–z)'],['requireDigit',/\p{Nd}/u,'Có chữ số (0–9)'],['requireSpecialCharacter',/[^\p{L}\p{N}\s]/u,'Có ký tự đặc biệt (!@#$…)']])if(policy[key])rules.push({key,label,passed:pattern.test(password)});
+ if(policy.disallowUsernameInPassword)rules.push({key:'username',label:'Không chứa tên đăng nhập',passed:!username||!password.toLowerCase().includes(username.toLowerCase())});
+ return rules;
+}
+function passwordPolicyErrors(password,username,policy){
+ const errors=[];
+ if(!password.trim())errors.push('Mật khẩu không được để trống hoặc chỉ chứa khoảng trắng.');
+ return [...errors,...passwordPolicyRules(password,username,policy).filter(rule=>!rule.passed).map(rule=>rule.key==='length'?`Mật khẩu phải dài từ ${policy.minimumLength} đến ${policy.maximumLength} ký tự.`:rule.label+'.')];
+}
+function bindPasswordPolicy(form,{passwordName,confirmName=null,username,optional=false}){
+ const input=form.elements[passwordName],note=document.createElement('div');note.className='password-policy-help';note.setAttribute('aria-live','polite');
+ const host=input.closest('label, .user-password-field');
+ host?.classList.add('password-validation-field');
+ host?.appendChild(note);
+ function decorate(control){
+ const wrapper=document.createElement('span');wrapper.className='password-validation-input';control.before(wrapper);wrapper.appendChild(control);
+ const tick=document.createElement('span');tick.className='password-validation-tick';tick.textContent='✓';tick.hidden=true;tick.setAttribute('aria-hidden','true');wrapper.appendChild(tick);
+ return (valid,invalid)=>{wrapper.classList.toggle('is-valid',valid);wrapper.classList.toggle('is-invalid',invalid);tick.hidden=!valid;if(invalid)control.setAttribute('aria-invalid','true');else control.removeAttribute('aria-invalid');};
+ }
+ const markInput=decorate(input),confirm=confirmName?form.elements[confirmName]:null,markConfirm=confirm?decorate(confirm):null;
+ confirm?.closest('label')?.classList.add('password-validation-field');
+ const confirmNote=confirm?document.createElement('span'):null;
+ if(confirmNote){confirmNote.className='password-confirm-feedback';confirmNote.setAttribute('aria-live','polite');confirm.closest('label')?.appendChild(confirmNote);}
+ let policy=null,unavailable=false;
+ function render(){
+ const entered=!!input.value;
+ const rules=policy?passwordPolicyRules(input.value,username(),policy):[];
+ const valid=!!policy&&entered&&rules.every(rule=>rule.passed);
+ markInput(valid,!!policy&&entered&&!valid);
+ if(policy){
+ note.innerHTML=`<ul class="password-policy-rules">${rules.map(rule=>`<li class="password-policy-rule ${entered?(rule.passed?'is-passed':'is-failed'):''}"><span class="password-policy-rule-mark" aria-hidden="true">${entered?(rule.passed?'✓':'×'):'•'}</span><span>${e(rule.label)}</span></li>`).join('')}</ul>${policy.passwordHistoryCount?`<p class="password-policy-history">Không trùng ${policy.passwordHistoryCount} mật khẩu gần nhất — kiểm tra khi lưu.</p>`:''}`;
+ }
+ if(confirm){const matched=!!confirm.value&&confirm.value===input.value;markConfirm(matched&&valid,!!confirm.value&&!matched);confirmNote.textContent=confirm.value&&!matched?'Mật khẩu nhập lại không khớp.':'';}
+ }
+ note.textContent='Đang tải chính sách mật khẩu…';
+ const ready=apiSystemSettings('password-policy').then(result=>{
+ policy=validateSystemSettings('password-policy',result.settings);
+ if(!form.isConnected)return;
+ for(const name of [passwordName,confirmName].filter(Boolean)){form.elements[name].minLength=policy.minimumLength;form.elements[name].maxLength=policy.maximumLength;}
+ render();
+ }).catch(()=>{unavailable=true;if(form.isConnected)note.textContent='Không tải được chính sách mật khẩu. Máy chủ sẽ kiểm tra khi lưu.';});
+ input.addEventListener('input',render);confirm?.addEventListener('input',render);form.elements.userId?.addEventListener('input',render);
+ form.addEventListener('reset',()=>setTimeout(()=>{if(form.isConnected)render();},0));
+ return async()=>{
+ await ready;render();
+ if(optional&&!input.value)return;
+ if(!input.value.trim())throw Error('Mật khẩu không được để trống hoặc chỉ chứa khoảng trắng.');
+ if(!unavailable){const errors=passwordPolicyErrors(input.value,username(),policy);if(errors.length)throw Error(errors.join(' '));}
+ };
+}
+
+
 // Source: pages/master-data.js
 
 const organizationCatalogs={
@@ -312,7 +487,7 @@ function organizationPayload(kind,values,original=null){
  if(kind==='teams')payload.departmentId=original?original.departmentId:Number(values.departmentId);
  return payload;
 }
-async function mountMasterData(root,filters={}){
+async function mountOrganizationData(root,filters={},options={}){
  if(!root)return;
  let kind=organizationCatalogs[filters.tab]?filters.tab:Object.keys(organizationCatalogs).find(key=>organizationGrant(key,'canView'))||'departments',page=1,search='',active='',generation=0;
  const error=(err,retry)=>{if(!root.isConnected)return;root.innerHTML=`<p role="alert">${e(err.message)}</p><button class="btn" id="organization-retry">Thử lại</button>`;root.querySelector('#organization-retry').onclick=retry;};
@@ -326,6 +501,7 @@ async function mountMasterData(root,filters={}){
  if(!root.isConnected||current!==generation)return;
  if(!Array.isArray(result?.data))throw Error('Danh sách danh mục không hợp lệ.');
  root.innerHTML=`<div class="tabs" role="tablist" aria-label="Danh mục tổ chức">${Object.entries(organizationCatalogs).map(([key,item])=>`<button type="button" role="tab" aria-selected="${kind===key}" class="tab ${kind===key?'active':''}" data-org-tab="${key}">${item.label}</button>`).join('')}</div>${canView?`<form id="organization-search" class="toolbar"><input name="search" maxlength="150" value="${e(search)}" placeholder="Tìm mã hoặc tên" aria-label="Tìm danh mục"><select name="active" aria-label="Trạng thái"><option value="">Tất cả trạng thái</option><option value="true" ${active==='true'?'selected':''}>Hoạt động</option><option value="false" ${active==='false'?'selected':''}>Ngừng hoạt động</option></select><button class="btn">Tìm kiếm</button>${organizationGrant(kind,'canNew')?'<button type="button" class="btn primary" id="organization-create">Thêm mới</button>':''}</form><div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên</th>${kind==='teams'?'<th>Phòng ban</th>':''}${config.description?'<th>Mô tả</th>':''}<th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${result.data.map(item=>`<tr><td>${e(item[config.code])}</td><td>${e(item[config.name])}</td>${kind==='teams'?`<td>${e(item.departmentName||'—')}</td>`:''}${config.description?`<td class="organization-description">${e(item.description||'—')}</td>`:''}<td>${item.isActive?'Hoạt động':'Ngừng hoạt động'}</td><td><button type="button" class="btn" data-org-edit="${e(item.id)}" ${organizationGrant(kind,'canUpdate')?'':'disabled'}>Chỉnh sửa</button></td></tr>`).join('')}</tbody></table></div>${result.data.length?'':'<p>Không có dữ liệu phù hợp.</p>'}<div class="toolbar user-pagination"><button class="btn" id="organization-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} bản ghi</span><button class="btn" id="organization-next" ${page*30>=result.total?'disabled':''}>Trang sau</button></div>`:'<p>Bạn chưa có quyền xem danh mục này.</p>'}`;
+ root.querySelector('[role=tablist]')?.remove();
  root.querySelectorAll('[data-org-tab]').forEach(button=>button.onclick=()=>{kind=button.dataset.orgTab;page=1;search='';active='';list();});
  root.querySelector('#organization-create')?.addEventListener('click',()=>edit());
  root.querySelectorAll('[data-org-edit]').forEach(button=>button.onclick=()=>edit(button.dataset.orgEdit));
@@ -342,19 +518,90 @@ async function mountMasterData(root,filters={}){
  if(!root.isConnected||current!==generation)return;
  root.innerHTML=`<button type="button" class="btn" id="organization-back">← Danh sách</button><h2 class="role-editor-title">${id===null?'Thêm':'Chỉnh sửa'} ${config.label}</h2><form id="organization-edit" class="user-registration"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Mã','code','text',item?.[config.code]||'',`required maxlength="${config.max}" ${kind==='teams'?'pattern="[A-Za-z0-9][A-Za-z0-9_-]*"':''}`)}${field('Tên','name','text',item?.[config.name]||'','required maxlength="150"')}${kind==='teams'?(item?`${field('Phòng ban','departmentName','text',item.departmentName||String(item.departmentId),'readonly')}<p class="muted">Phòng ban của team không thể thay đổi sau khi tạo.</p>`:`<label>Phòng ban<select name="departmentId" required><option value="">Chọn phòng ban</option>${departments.map(dep=>`<option value="${e(dep.id)}">${e(dep.departmentName)}</option>`).join('')}</select></label>`):''}${config.description?`<label>Mô tả<textarea name="description" maxlength="500">${e(item?.description||'')}</textarea></label>`:''}<label>Trạng thái<select name="isActive"><option value="true" ${item?.isActive!==false?'selected':''}>Hoạt động</option><option value="false" ${item?.isActive===false?'selected':''}>Ngừng hoạt động</option></select></label></div><div class="form-actions"><button type="submit" class="btn primary">Lưu lại</button></div></fieldset><p id="organization-feedback" role="status"></p></form>`;
  const form=root.querySelector('#organization-edit'),feedback=root.querySelector('#organization-feedback');let saving=false;
- root.querySelector('#organization-back').onclick=()=>{if(!saving)list();};
+ form.oninput=form.onchange=()=>options.onDirty?.(true);
+ root.querySelector('#organization-back').onclick=()=>{if(!saving){options.onDirty?.(false);list();}};
  form.onsubmit=async ev=>{
  ev.preventDefault();ev.stopPropagation();if(saving)return;
  const data=new FormData(form),values={code:data.get('code'),name:data.get('name'),description:data.get('description')||'',isActive:data.get('isActive')==='true',departmentId:data.get('departmentId')};
  if(!values.code.trim()||!values.name.trim()){feedback.textContent='Mã và tên không được để trống.';return;}
  const payload=organizationPayload(kind,values,item);
  if(kind==='teams'&&!item&&!departments.some(dep=>dep.id===payload.departmentId)){feedback.textContent='Vui lòng chọn phòng ban đang hoạt động.';return;}
- saving=true;form.querySelector('fieldset').disabled=true;feedback.textContent='Đang lưu…';
- try{await apiOrganization(kind,id,payload);if(!form.isConnected)return;await list();}
+ saving=true;options.onSaving?.(true);form.querySelector('fieldset').disabled=true;feedback.textContent='Đang lưu…';
+ try{await apiOrganization(kind,id,payload);if(!form.isConnected)return;options.onDirty?.(false);await list();}
  catch(err){if(form.isConnected)feedback.textContent=err.message;}
- finally{saving=false;if(form.isConnected)form.querySelector('fieldset').disabled=false;}
+ finally{saving=false;options.onSaving?.(false);if(form.isConnected)form.querySelector('fieldset').disabled=false;}
  };
  }catch(err){if(current===generation)error(err,()=>edit(id));}
+ }
+ await list();
+}
+
+const masterDataTabs={departments:'Phòng ban',positions:'Chức vụ',teams:'Teams',attendance:'Chấm công',shifts:'Ca làm việc'};
+async function mountMasterData(root,filters={}){
+ if(!root)return;
+ const screens={departments:'WEB_DEPARTMENTS',positions:'WEB_POSITIONS',teams:'WEB_TEAMS',attendance:'WEB_SYSTEM_SETTINGS',shifts:'WEB_SHIFTS'};
+ let tab=masterDataTabs[filters.tab]?filters.tab:Object.keys(masterDataTabs).find(key=>apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===screens[key]&&p.canView==='Y'))||'departments',dirty=false,saving=false;
+ async function draw(){
+ dirty=false;
+ root.innerHTML=`<div class="tabs" role="tablist" aria-label="Master Data">${Object.entries(masterDataTabs).map(([key,label])=>`<button type="button" role="tab" aria-selected="${key===tab}" class="tab ${key===tab?'active':''}" data-master-tab="${key}">${label}</button>`).join('')}</div><div id="master-data-panel" role="tabpanel"></div>`;
+ root.querySelectorAll('[data-master-tab]').forEach(button=>button.onclick=()=>{if(saving||button.dataset.masterTab===tab)return;if(dirty&&!confirm('Bỏ các thay đổi chưa lưu?'))return;tab=button.dataset.masterTab;draw();});
+ const panel=root.querySelector('#master-data-panel'),options={onDirty:value=>{if(panel.isConnected)dirty=value;},onSaving:value=>{if(!panel.isConnected)return;saving=value;root.querySelectorAll('[data-master-tab]').forEach(button=>button.disabled=value);}};
+ if(tab==='attendance')await mountSystemSettings(panel,{tab:'attendance'},{...options,embedded:true});
+ else if(tab==='shifts')await mountShifts(panel,options);
+ else await mountOrganizationData(panel,{tab},options);
+ }
+ await draw();
+}
+
+
+function shiftGrant(flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_SHIFTS'&&p.canView==='Y'&&p[flag]==='Y');}
+function validateShift(payload){
+ if(!payload.code.trim()||payload.code.length>30)throw Error('Mã ca bắt buộc và tối đa 30 ký tự.');
+ if(!payload.name.trim()||payload.name.length>100)throw Error('Tên ca bắt buộc và tối đa 100 ký tự.');
+ const seconds=value=>{const match=/^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);if(!match||Number(match[1])>23||Number(match[2])>59||Number(match[3]||0)>59)throw Error('Giờ ca không hợp lệ.');return Number(match[1])*3600+Number(match[2])*60+Number(match[3]||0);};
+ const start=seconds(payload.startTime),end=seconds(payload.endTime);
+ if(start===end)throw Error('Giờ bắt đầu và kết thúc không được trùng nhau.');
+ const duration=((end-start+86400)%86400)/60;
+ if(!Number.isInteger(payload.breakMinutes)||payload.breakMinutes<0||payload.breakMinutes>=duration)throw Error('Phút nghỉ phải không âm và nhỏ hơn thời lượng ca.');
+ if(payload.lateGraceMinutes!==null&&(!Number.isInteger(payload.lateGraceMinutes)||payload.lateGraceMinutes<0||payload.lateGraceMinutes>240||payload.lateGraceMinutes>=duration))throw Error('Phút cho phép đi trễ phải từ 0 đến 240 và nhỏ hơn thời lượng ca.');
+ return payload;
+}
+async function mountShifts(root,{onDirty=()=>{},onSaving=()=>{}}={}){
+ let page=1,search='',generation=0;
+ const showError=(err,retry)=>{if(!root.isConnected)return;root.innerHTML=`<p role="alert">${e(err.message)}</p><button class="btn" id="shift-retry">Thử lại</button>`;root.querySelector('#shift-retry').onclick=retry;};
+ async function list(){
+ const current=++generation;onDirty(false);root.innerHTML='<p role="status">Đang tải ca làm việc…</p>';
+ try{
+ if(!shiftGrant('canView'))throw Error('Bạn chưa có quyền WEB_SHIFTS/VIEW để xem ca làm việc.');
+ const result=await apiShifts(page,search);if(!root.isConnected||current!==generation)return;
+ if(!Array.isArray(result?.data))throw Error('Danh sách ca không hợp lệ.');
+ root.innerHTML=`<form class="toolbar" id="shift-search"><input name="search" value="${e(search)}" maxlength="150" placeholder="Tìm mã hoặc tên ca" aria-label="Tìm ca làm việc"><button class="btn">Tìm kiếm</button>${shiftGrant('canNew')?'<button type="button" id="shift-create" class="btn primary">Thêm ca làm việc</button>':''}</form><div class="table-wrap"><table><thead><tr><th>Mã ca</th><th>Tên ca</th><th>Bắt đầu</th><th>Kết thúc</th><th>Nghỉ (phút)</th><th>Đi trễ cho phép (phút)</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${result.data.map(item=>`<tr><td>${e(item.code)}</td><td>${e(item.name)}</td><td>${e(item.startTime)}</td><td>${e(item.endTime)}${item.endTime<item.startTime?' <span class="tag">Qua đêm</span>':''}</td><td>${e(item.breakMinutes)}</td><td>${e(item.lateGraceMinutes??'Mặc định')}</td><td>${item.isActive?'Hoạt động':'Ngừng hoạt động'}</td><td><button type="button" class="btn" data-shift-edit="${e(item.id)}">${shiftGrant('canUpdate')?'Chỉnh sửa':'Chi tiết'}</button></td></tr>`).join('')}</tbody></table></div>${result.data.length?'':'<p>Chưa có ca phù hợp.</p>'}<div class="toolbar user-pagination"><button class="btn" id="shift-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} ca</span><button class="btn" id="shift-next" ${page*30>=result.total?'disabled':''}>Trang sau</button></div>`;
+ const form=root.querySelector('#shift-search');form.onsubmit=ev=>{ev.preventDefault();ev.stopPropagation();search=form.elements.search.value.trim();page=1;list();};
+ root.querySelector('#shift-create')?.addEventListener('click',()=>edit());
+ root.querySelectorAll('[data-shift-edit]').forEach(button=>button.onclick=()=>edit(button.dataset.shiftEdit));
+ root.querySelector('#shift-prev').onclick=()=>{page--;list();};root.querySelector('#shift-next').onclick=()=>{page++;list();};
+ }catch(err){if(current===generation)showError(err,list);}
+ }
+ async function edit(id=null){
+ const current=++generation;root.innerHTML='<p role="status">Đang tải thông tin ca…</p>';
+ try{
+ const item=id===null?{}:await apiShiftDetail(id);if(!root.isConnected||current!==generation)return;
+ const canSave=shiftGrant(id===null?'canNew':'canUpdate');let saving=false,dirty=false;
+ root.innerHTML=`<button type="button" class="btn" id="shift-back">← Danh sách ca</button><h2 class="role-editor-title">${id===null?'Thêm':'Chi tiết'} ca làm việc</h2><form id="shift-form" class="user-registration"><fieldset class="user-edit-fieldset" ${canSave?'':'disabled'}><div class="form-grid">${field('Mã ca','code','text',item.code||'','required maxlength="30"')}${field('Tên ca','name','text',item.name||'','required maxlength="100"')}${field('Giờ bắt đầu','startTime','time',item.startTime||'','required step="1"')}${field('Giờ kết thúc','endTime','time',item.endTime||'','required step="1"')}${field('Nghỉ giữa ca (phút)','breakMinutes','number',item.breakMinutes??0,'required min="0" max="1439" step="1"')}${field('Cho phép đi trễ (phút)','lateGraceMinutes','number',item.lateGraceMinutes??'','min="0" max="240" step="1" placeholder="Dùng mặc định cấu hình chấm công"')}<label>Trạng thái<select name="isActive"><option value="true" ${item.isActive!==false?'selected':''}>Hoạt động</option><option value="false" ${item.isActive===false?'selected':''}>Ngừng hoạt động</option></select></label></div><p class="muted">Để trống phút đi trễ để lấy mặc định từ cấu hình chấm công. Ca qua đêm cần được bật trong cấu hình. Sửa ca không thay đổi lịch làm việc đã tạo.</p><div class="form-actions"><button type="submit" class="btn primary">Lưu ca làm việc</button></div></fieldset><p id="shift-feedback" role="status"></p></form>`;
+ const form=root.querySelector('#shift-form'),fieldset=form.querySelector('fieldset'),feedback=root.querySelector('#shift-feedback');
+ form.oninput=form.onchange=()=>{dirty=true;onDirty(true);};
+ root.querySelector('#shift-back').onclick=()=>{if(!saving&&(!dirty||confirm('Bỏ thay đổi ca chưa lưu?')))list();};
+ form.onsubmit=async ev=>{
+ ev.preventDefault();ev.stopPropagation();if(saving||!canSave)return;
+ const data=new FormData(form),normalizeTime=value=>value.length===5?value+':00':value;
+ const payload={code:data.get('code').trim().toUpperCase(),name:data.get('name').trim(),startTime:normalizeTime(data.get('startTime')),endTime:normalizeTime(data.get('endTime')),breakMinutes:Number(data.get('breakMinutes')),lateGraceMinutes:data.get('lateGraceMinutes')===''?null:Number(data.get('lateGraceMinutes')),isActive:data.get('isActive')==='true'};
+ try{validateShift(payload);}catch(err){feedback.textContent=err.message;return;}
+ saving=true;onSaving(true);fieldset.disabled=true;feedback.textContent='Đang lưu ca…';
+ try{await apiSaveShift(id,payload,item.version);if(form.isConnected){onDirty(false);await list();}}
+ catch(err){if(form.isConnected)feedback.textContent=err.message+' Nếu phiên bản đã thay đổi, hãy mở lại ca trước khi lưu.';}
+ finally{saving=false;onSaving(false);if(form.isConnected)fieldset.disabled=!canSave;}
+ };
+ }catch(err){if(current===generation)showError(err,()=>edit(id));}
  }
  await list();
 }
@@ -397,10 +644,17 @@ function roleMenuGroups(catalog,platform='WEB'){
  catalog=catalog.filter(screen=>!screen.platform||screen.platform===platform);
  const used=new Set();const groups=nav.map(group=>{
  const entries=(group.children||[[group.name,group.route]]).flatMap(([label,path])=>{
- const codes=(screenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]).map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
- return catalog.filter(screen=>codes.includes(screen.code)&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label};});
+ const codes=(roleScreenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]).map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
+ return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:codes.length>1?label+' · '+screen.name:label,...(path==='/admin/master-data'?{parentMenu:'Master Data'}:{})};}));
  });return {name:group.name,icon:group.icon,section:group.section,nested:!!group.children,entries};
  }).filter(group=>group.entries.length);
+ for(const group of groups){
+ const entries=group.entries.filter(screen=>screen.parentMenu==='Master Data'&&!screen.code.endsWith('_MASTER_DATA')).map(screen=>({...screen,label:screen.name}));
+ const settings=catalog.find(screen=>screen.code===(platform==='MOBILE'?'MOBILE_SYSTEM_SETTINGS':'WEB_SYSTEM_SETTINGS'));
+ if(entries.length&&settings)entries.splice(Math.max(0,entries.findIndex(screen=>screen.code.endsWith('_SHIFTS'))),0,{...settings,label:'Chấm công'});
+ group.subgroups=entries.length?[{name:'Master Data',key:group.name+'/Master Data',entries}]:[];
+ }
+
  const remaining=catalog.filter(screen=>!used.has(screen.id));
  if(remaining.length)groups.push({name:'Màn hình khác',icon:'grid',nested:true,entries:remaining.map(screen=>({...screen,label:screen.name}))});
  return groups;
@@ -437,7 +691,10 @@ async function mountRoles(root,filters){
  const selectedByPlatform={WEB:screens.find(screen=>screen.platform==='WEB'),MOBILE:screens.find(screen=>screen.platform==='MOBILE')};
  let selected=selectedByPlatform.WEB;let saving=false;let nameDraft=role.name;
  const openByPlatform={WEB:new Set(),MOBILE:new Set()};
- for(const platform of ['WEB','MOBILE'])roleMenuGroups(screens,platform).filter(group=>group.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id)).forEach(group=>openByPlatform[platform].add(group.name));
+ for(const platform of ['WEB','MOBILE'])for(const group of roleMenuGroups(screens,platform)){
+ if(group.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id))openByPlatform[platform].add(group.name);
+ for(const subgroup of group.subgroups||[])if(subgroup.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id)){openByPlatform[platform].add(group.name);openByPlatform[platform].add(subgroup.key);}
+ }
  const canSave=roleGrant('WEB_PERMISSIONS','canUpdate')&&roleGrant('WEB_PERMISSIONS','canApprove');
  function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
  function draw(){
@@ -445,8 +702,17 @@ async function mountRoles(root,filters){
  root.innerHTML=`<button class="btn" id="role-back">← Danh sách role</button><h2 class="role-editor-title">Chỉnh sửa role</h2><form id="role-rename" class="role-name-editor"><label for="role-name">Tên role</label><input id="role-name" name="name" required maxlength="100" value="${e(nameDraft)}" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}><button class="btn" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}>Lưu tên role</button><span class="muted">${e(role.code)}</span></form><p class="muted">Chọn màn hình trong menu, sau đó bật các chức năng được phép.</p><div class="tabs role-platform-tabs" role="tablist" aria-label="Nền tảng phân quyền">${['WEB','MOBILE'].map(platform=>`<button type="button" role="tab" id="role-platform-${platform}" class="tab ${activePlatform===platform?'active':''}" aria-selected="${activePlatform===platform}" aria-controls="role-platform-panel" data-role-platform="${platform}">${icon(platform==='WEB'?'grid':'person',16)} ${platform}</button>`).join('')}</div><div class="role-editor" id="role-platform-panel" role="tabpanel" aria-labelledby="role-platform-${activePlatform}"><nav class="role-menu" aria-label="Màn hình phân quyền">${menuGroups.map(group=>{
  const active=group.entries.some(screen=>screen.id===selected?.id),open=openGroups.has(group.name);
  const screenButton=screen=>`<div class="role-screen-row"><button type="button" class="role-screen ${selected?.id===screen.id?'selected':''}" data-screen-id="${e(screen.id)}" ${selected?.id===screen.id?'aria-current="true"':''}><span>${e(screen.label)}</span>${changed.has(screen.code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(screen)}</div>`;
- return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="nav-label">${e(group.name)}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${group.entries.map(screenButton).join('')}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
- }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${selected.code==='WEB_EMPLOYEES'?`<div class="role-scope"><select data-role-scope="${flag}" aria-label="Phạm vi ${label}" ${!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||saving?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([value,text])=>`<option value="${value}" ${(scopes.get(selected.code)?.[flag]||'SELF')===value?'selected':''}>${text}</option>`).join('')}</select></div>`:''}</div>`).join('')}</div>${selected.code==='WEB_EMPLOYEES'?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
+ const renderedSubgroups=new Set();
+ const menuEntries=group.entries.map(screen=>{
+ if(!screen.parentMenu)return screenButton(screen);
+ if(renderedSubgroups.has(screen.parentMenu))return '';
+ renderedSubgroups.add(screen.parentMenu);
+ const subgroup=group.subgroups.find(item=>item.name===screen.parentMenu);if(!subgroup)return '';
+ const expanded=openGroups.has(subgroup.key),subActive=subgroup.entries.some(item=>item.id===selected?.id);
+ return `<button type="button" class="role-subgroup-toggle ${subActive?'active':''}" data-role-group="${e(subgroup.key)}" aria-expanded="${expanded}"><span>${e(subgroup.name)}</span><span class="chev ${expanded?'role-chevron-open':''}">${icon('chevron',12)}</span>${subgroup.entries.some(item=>changed.has(item.code))?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${expanded?`<div class="submenu role-submenu role-subgroup-items">${subgroup.entries.map(screenButton).join('')}</div>`:''}`;
+ }).join('');
+ return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="nav-label">${e(group.name)}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${menuEntries}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
+ }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu trong System Settings và cấu hình Chấm công trong Master Data theo API.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${selected.code==='WEB_EMPLOYEES'?`<div class="role-scope"><select data-role-scope="${flag}" aria-label="Phạm vi ${label}" ${!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||saving?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([value,text])=>`<option value="${value}" ${(scopes.get(selected.code)?.[flag]||'SELF')===value?'selected':''}>${text}</option>`).join('')}</select></div>`:''}</div>`).join('')}</div>${selected.code==='WEB_EMPLOYEES'?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
  root.querySelector('#role-name').oninput=ev=>{nameDraft=ev.target.value;};
  root.querySelector('#role-rename').onsubmit=async ev=>{
  ev.preventDefault();ev.stopPropagation();if(saving||!roleGrant('WEB_ROLES','canUpdate'))return;
@@ -536,8 +802,9 @@ async function userRegistration(root){
  const canAssign=userApiGrant('WEB_USERS','canApprove'),canEmployee=userApiGrant('WEB_EMPLOYEES','canNew');
  let departments=null,departmentsLoading=false,busy=false,teams=[],teamsLoading=false,teamGeneration=0,positions=null,positionsLoading=false;
  const canTeams=userApiGrant('WEB_TEAMS','canView'),canPositions=userApiGrant('WEB_POSITIONS','canView');
- root.innerHTML=`<a class="btn" href="#/admin/users">← Danh sách tài khoản</a><form id="system-user-register" class="user-registration"><section class="user-form-section"><h2>Thông tin tài khoản</h2><div class="form-grid">${field('Tên đăng nhập','userId','text','','required maxlength="100" pattern="[A-Za-z0-9][A-Za-z0-9_.-]*" autocomplete="off"')}${field('Email','email','email','','required maxlength="255" autocomplete="off"')}${field('Mật khẩu','password','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}${field('Nhập lại mật khẩu','confirmPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}</div></section><section class="user-form-section"><h2>Vai trò</h2><p class="muted">Có thể chọn nhiều vai trò cho tài khoản.</p><div id="system-role-options" class="user-role-picker">${canAssign?'Đang tải vai trò…':'Bạn chưa có quyền gán vai trò. Tài khoản sẽ được tạo chưa có vai trò.'}</div></section><section class="user-form-section"><label class="role-toggle-row"><span><strong>Tạo kèm hồ sơ nhân viên</strong><small class="user-field-note">Tạo và liên kết cùng lúc; mã nhân viên được hệ thống tự cấp</small></span><span class="role-switch"><input type="checkbox" role="switch" name="createEmployee" ${canEmployee?'':'disabled'}><span class="role-switch-track" aria-hidden="true"></span></span></label>${!canEmployee?'<p class="muted">Bạn chưa có quyền tạo hồ sơ nhân viên.</p>':''}<fieldset id="system-employee-fields" hidden disabled><div class="form-grid">${field('Họ và tên','fullName','text','','required maxlength="150"')}${registrationDateField('Ngày sinh','dateOfBirth')}${field('Số điện thoại','phoneNumber','tel','','maxlength="20"')}${registrationDateField('Ngày vào làm','hireDate',true)}<label>Phòng ban<select name="departmentId" required><option value="">Chọn phòng ban</option></select></label><label>Chức danh (tùy chọn)<select name="positionId" disabled><option value="">Chưa chọn chức danh</option></select></label><label>Team (tùy chọn)<select name="teamId" disabled><option value="">Chọn phòng ban trước</option></select></label></div><p id="system-position-feedback" role="status"></p><p id="system-team-feedback" role="status"></p><p id="system-department-error" role="alert"></p></fieldset></section><p id="system-register-feedback" class="form-error" role="alert"></p><div class="form-actions"><a class="btn" href="#/admin/users">Hủy</a><button type="submit" class="btn primary" id="system-register-submit">Đăng ký tài khoản</button></div></form>`;
+ root.innerHTML=`<a class="btn" href="#/admin/users">← Danh sách tài khoản</a><form id="system-user-register" class="user-registration"><section class="user-form-section"><h2>Thông tin tài khoản</h2><div class="form-grid">${field('Tên đăng nhập','userId','text','','required maxlength="100" pattern="[A-Za-z0-9][A-Za-z0-9_.-]*" autocomplete="off"')}${field('Email','email','email','','required maxlength="255" autocomplete="off"')}${field('Mật khẩu','password','password','','required maxlength="1024" autocomplete="new-password"')}${field('Nhập lại mật khẩu','confirmPassword','password','','required maxlength="1024" autocomplete="new-password"')}</div></section><section class="user-form-section"><h2>Vai trò</h2><p class="muted">Có thể chọn nhiều vai trò cho tài khoản.</p><div id="system-role-options" class="user-role-picker">${canAssign?'Đang tải vai trò…':'Bạn chưa có quyền gán vai trò. Tài khoản sẽ được tạo chưa có vai trò.'}</div></section><section class="user-form-section"><label class="role-toggle-row"><span><strong>Tạo kèm hồ sơ nhân viên</strong><small class="user-field-note">Tạo và liên kết cùng lúc; mã nhân viên được hệ thống tự cấp</small></span><span class="role-switch"><input type="checkbox" role="switch" name="createEmployee" ${canEmployee?'':'disabled'}><span class="role-switch-track" aria-hidden="true"></span></span></label>${!canEmployee?'<p class="muted">Bạn chưa có quyền tạo hồ sơ nhân viên.</p>':''}<fieldset id="system-employee-fields" hidden disabled><div class="form-grid">${field('Họ và tên','fullName','text','','required maxlength="150"')}${registrationDateField('Ngày sinh','dateOfBirth')}${field('Số điện thoại','phoneNumber','tel','','maxlength="20"')}${registrationDateField('Ngày vào làm','hireDate',true)}<label>Phòng ban<select name="departmentId" required><option value="">Chọn phòng ban</option></select></label><label>Chức danh (tùy chọn)<select name="positionId" disabled><option value="">Chưa chọn chức danh</option></select></label><label>Team (tùy chọn)<select name="teamId" disabled><option value="">Chọn phòng ban trước</option></select></label></div><p id="system-position-feedback" role="status"></p><p id="system-team-feedback" role="status"></p><p id="system-department-error" role="alert"></p></fieldset></section><p id="system-register-feedback" class="form-error" role="alert"></p><div class="form-actions"><a class="btn" href="#/admin/users">Hủy</a><button type="submit" class="btn primary" id="system-register-submit">Đăng ký tài khoản</button></div></form>`;
  const form=root.querySelector('#system-user-register'),feedback=root.querySelector('#system-register-feedback'),employeeFields=root.querySelector('#system-employee-fields');
+ const checkRegistrationPassword=bindPasswordPolicy(form,{passwordName:'password',confirmName:'confirmPassword',username:()=>form.elements.userId.value.trim()});
  form.querySelectorAll('[data-date-picker]').forEach(picker=>{
  const input=form.elements[picker.dataset.datePicker];
  input.oninput=()=>{const value=registrationDateValue(input.value);input.setCustomValidity(value===null?'Nhập ngày hợp lệ theo định dạng dd/mm/yyyy.':'');picker.value=value||'';};
@@ -575,6 +842,8 @@ async function userRegistration(root){
  if(canAssign){apiAllRoles().then(roles=>{if(!root.isConnected)return;rolesReady=true;mountUserRolePicker(root.querySelector('#system-role-options'),roles);}).catch(err=>{if(!root.isConnected)return;root.querySelector('#system-role-options').textContent=err.message+' Quay lại trang đăng ký để tải lại vai trò.';});}
  form.onsubmit=async ev=>{ev.preventDefault();ev.stopPropagation();if(busy)return;feedback.textContent='';
  if(!rolesReady){feedback.textContent='Chưa tải được danh sách vai trò. Vui lòng thử lại.';return;}
+ try{await checkRegistrationPassword();}catch(err){feedback.textContent=err.message;return;}
+ if(busy)return;
  const data=new FormData(form),staff=form.elements.createEmployee.checked;
  if(data.get('password')!==data.get('confirmPassword')){feedback.textContent='Mật khẩu nhập lại không khớp.';return;}
  if(staff&&(!departments||departmentsLoading||!departments.some(dep=>String(dep.id)===data.get('departmentId')))){feedback.textContent='Vui lòng chọn phòng ban hợp lệ.';return;}
@@ -616,7 +885,6 @@ async function saveSystemUserChanges(current,changes){
  saved=await apiUpdateUserRoles(current.userId,current.version,changes.roleIds);Object.assign(current,saved);
  }
  if(changes.newPassword){
- const latest=await apiUserDetail(current.userId);Object.assign(current,latest);
  saved=await apiResetUserPassword(current.userId,current.version,{type:'ADMIN_RESET',newPassword:changes.newPassword});
  if(!saved?.version)throw Error('Chưa nhận phiên bản sau đổi mật khẩu. Hãy mở lại tài khoản để xác nhận.');
  Object.assign(current,saved);
@@ -626,11 +894,12 @@ async function saveSystemUserChanges(current,changes){
 async function editSystemUser(root,userId,back){
  root.innerHTML='<p role="status">Đang tải thông tin tài khoản…</p>';
  try{const current=await apiUserDetail(userId);if(!root.isConnected)return;
- const canUpdate=userApiGrant('WEB_USERS','canUpdate'),canRoles=userApiGrant('WEB_USERS','canApprove')&&apiSession()?.user?.userId!==userId;
+ const canUpdate=userApiGrant('WEB_USERS','canUpdate'),canReset=userApiGrant('WEB_USERS','canUpdate')&&apiSession()?.user?.userId!==userId,canRoles=userApiGrant('WEB_USERS','canApprove')&&apiSession()?.user?.userId!==userId;
  let busy=false,employeeId=current.employeeId??null,employeePage=1,employeeSearch='',searchGeneration=0;
- root.innerHTML=`<button type="button" class="btn" id="system-edit-back">← Danh sách tài khoản</button><form id="system-edit-form" class="user-registration"><fieldset class="user-edit-fieldset"><section class="user-form-section"><h2>Chỉnh sửa tài khoản</h2><div class="form-grid">${field('Tên đăng nhập','userId','text',current.userId,'readonly')}${field('Email','email','email',current.email,`required maxlength="255" ${canUpdate?'':'readonly'}`)}<div class="user-password-field"><label for="system-new-password">Mật khẩu</label><div class="user-password-control"><input id="system-new-password" name="newPassword" type="password" placeholder="********" minlength="12" maxlength="128" autocomplete="new-password" ${canRoles?'':'disabled'}><button type="button" class="btn" id="system-password-eye" aria-label="Xem mật khẩu mới" aria-pressed="false" ${canRoles?'':'disabled'}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small class="muted">Để trống để giữ nguyên mật khẩu. Nút mắt chỉ hiển thị mật khẩu mới bạn nhập.</small></div></div></section><section class="user-form-section"><h2>Vai trò</h2><div id="system-edit-role-picker" class="user-role-picker">Đang tải vai trò…</div></section><section class="user-form-section"><h2>Liên kết nhân viên</h2><div id="system-linked-employee"></div>${canUpdate&&userApiGrant('WEB_EMPLOYEES','canView')?'<div class="toolbar user-employee-search"><input id="system-employee-search" placeholder="Tìm mã hoặc tên nhân viên" maxlength="150" aria-label="Tìm nhân viên"><button type="button" class="btn" id="system-employee-find">Tìm kiếm</button></div><div id="system-employee-results"></div>':'<p class="muted">Cần quyền xem nhân viên để tìm hồ sơ liên kết.</p>'}</section></fieldset><p id="system-edit-feedback" class="form-error" role="alert"></p><div class="form-actions"><button type="button" class="btn" id="system-edit-cancel">Hủy</button><button type="submit" class="btn primary">Lưu lại</button></div></form>`;
+ root.innerHTML=`<button type="button" class="btn" id="system-edit-back">← Danh sách tài khoản</button><form id="system-edit-form" class="user-registration"><fieldset class="user-edit-fieldset"><section class="user-form-section"><h2>Chỉnh sửa tài khoản</h2><div class="form-grid">${field('Tên đăng nhập','userId','text',current.userId,'readonly')}${field('Email','email','email',current.email,`required maxlength="255" ${canUpdate?'':'readonly'}`)}<div class="user-password-field"><label for="system-new-password">Mật khẩu</label><div class="user-password-control"><input id="system-new-password" name="newPassword" type="password" placeholder="********" maxlength="1024" autocomplete="new-password" ${canReset?'':'disabled'}><button type="button" class="btn" id="system-password-eye" aria-label="Xem mật khẩu mới" aria-pressed="false" ${canReset?'':'disabled'}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div><small class="muted">Để trống để giữ nguyên mật khẩu. Nút mắt chỉ hiển thị mật khẩu mới bạn nhập.</small></div></div></section><section class="user-form-section"><h2>Vai trò</h2><div id="system-edit-role-picker" class="user-role-picker">Đang tải vai trò…</div></section><section class="user-form-section"><h2>Liên kết nhân viên</h2><div id="system-linked-employee"></div>${canUpdate&&userApiGrant('WEB_EMPLOYEES','canView')?'<div class="toolbar user-employee-search"><input id="system-employee-search" placeholder="Tìm mã hoặc tên nhân viên" maxlength="150" aria-label="Tìm nhân viên"><button type="button" class="btn" id="system-employee-find">Tìm kiếm</button></div><div id="system-employee-results"></div>':'<p class="muted">Cần quyền xem nhân viên để tìm hồ sơ liên kết.</p>'}</section></fieldset><p id="system-edit-feedback" class="form-error" role="alert"></p><div class="form-actions"><button type="button" class="btn" id="system-edit-cancel">Hủy</button><button type="submit" class="btn primary">Lưu lại</button></div></form>`;
  const form=root.querySelector('#system-edit-form'),feedback=root.querySelector('#system-edit-feedback');
  const passwordInput=form.elements.newPassword;
+ const checkEditedPassword=bindPasswordPolicy(form,{passwordName:'newPassword',username:()=>current.userId,optional:true});
  root.querySelector('#system-password-eye')?.addEventListener('click',ev=>{
  const visible=passwordInput.type==='password';passwordInput.type=visible?'text':'password';
  ev.currentTarget.setAttribute('aria-pressed',String(visible));ev.currentTarget.setAttribute('aria-label',visible?'Ẩn mật khẩu mới':'Xem mật khẩu mới');
@@ -656,10 +925,12 @@ async function editSystemUser(root,userId,back){
  root.querySelector('#system-employee-find')?.addEventListener('click',()=>{employeeSearch=root.querySelector('#system-employee-search').value.trim();employeePage=1;findEmployees();});
  root.querySelector('#system-employee-search')?.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();root.querySelector('#system-employee-find').click();}});
  form.onsubmit=async ev=>{ev.preventDefault();ev.stopPropagation();if(busy)return;
+ try{await checkEditedPassword();}catch(err){feedback.textContent=err.message;return;}
+ if(busy)return;
  if(!rolesReady){feedback.textContent='Chưa tải được vai trò. Vui lòng mở lại tài khoản.';return;}
  busy=true;form.querySelector('fieldset').disabled=true;const submit=form.querySelector('[type="submit"]');submit.disabled=true;submit.textContent='Đang lưu…';feedback.textContent='';
  const previousVersion=current.version;
- try{await saveSystemUserChanges(current,{profile:canUpdate?{email:form.elements.email.value.trim(),employeeId}:null,roleIds:canRoles?getRoles():null,newPassword:canRoles?passwordInput.value:undefined});if(!root.isConnected)return;passwordInput.value='';passwordInput.type='password';root.querySelector('#system-password-eye')?.setAttribute('aria-pressed','false');feedback.textContent='Đã lưu tài khoản thành công.';findEmployees();}
+ try{await saveSystemUserChanges(current,{profile:canUpdate?{email:form.elements.email.value.trim(),employeeId}:null,roleIds:canRoles?getRoles():null,newPassword:canReset?passwordInput.value:undefined});if(!root.isConnected)return;passwordInput.value='';passwordInput.dispatchEvent(new Event('input'));passwordInput.type='password';root.querySelector('#system-password-eye')?.setAttribute('aria-pressed','false');feedback.textContent='Đã lưu tài khoản thành công.';findEmployees();}
  catch(err){if(!root.isConnected)return;feedback.textContent=(current.version!==previousVersion?'Một phần thay đổi đã được lưu; các thay đổi còn lại chưa hoàn tất. ':'')+err.message+' Nếu có xung đột phiên bản, mở lại tài khoản để tải dữ liệu mới.';}
  finally{busy=false;if(root.isConnected){form.querySelector('fieldset').disabled=false;submit.disabled=false;submit.textContent='Lưu lại';}}
  };
@@ -688,7 +959,7 @@ function hrPage(f,path){if(apiSession()&&(path==='/hr/employees'||path.startsWit
  const tab=f.tab||'departments';return `${tabs([['departments','Phòng ban'],['teams','Teams'],['positions','Chức vụ']],tab)}<div class="project-grid">${(tab==='departments'?s.departments:tab==='teams'?s.teams:s.positions.map(name=>({name}))).map(x=>`<article class="card project-card"><div class="icon-tile blue">${icon('briefcase',22)}</div><h2>${e(x.name)}</h2><p>${tab==='departments'?s.users.filter(u=>u.departmentId===x.id).length+' nhân sự':tab==='teams'?s.users.filter(u=>u.teamId===x.id).length+' thành viên':'Chức danh tại Intelex'}</p></article>`).join('')}</div>`;
 }
 const permissionActions=[['team','Quản lý team'],['project.create','Tạo/sửa dự án'],['task.create','Tạo/giao công việc'],['hr','Quản lý nhân sự'],['admin','Quản trị hệ thống']];
-function adminPage(f,path){if(path==='/admin/master-data'&&apiSession())return '<section class="card user-admin" id="master-data-api-root"></section>';if(path==='/admin/users'||path==='/admin/users/register')return '<section class="card user-admin" id="users-api-root"></section>';if(path==='/admin/roles')return '<section class="card role-admin" id="roles-api-root"></section>';
+function adminPage(f,path){if(path==='/admin/settings'&&apiSession())return '<section class="card user-admin" id="system-settings-api-root"></section>';if(path==='/admin/master-data'&&apiSession())return '<section class="card user-admin" id="master-data-api-root"></section>';if(path==='/admin/users'||path==='/admin/users/register')return '<section class="card user-admin" id="users-api-root"></section>';if(path==='/admin/roles')return '<section class="card role-admin" id="roles-api-root"></section>';
  if(path==='/admin/roles'||path==='/admin/permissions')return card('Ma trận quyền','Các thay đổi chỉ áp dụng trong bản demo hiện tại',table(['Quyền','Dev','Leader','Manager','HR','Admin'],permissionActions.map(([action,label])=>[label,...['Dev','Leader','Manager','HR','Admin'].map(role=>{const sample=s.users.find(u=>u.role===role),allowed=scope.can(s,sample,action);return `<input type="checkbox" aria-label="${label} cho ${role}" data-permission="${action}" data-role="${role}" ${allowed?'checked':''} ${role==='Admin'&&action==='admin'?'disabled':''}>`;})])));
  if(path==='/admin/audit-logs')return `<div class="card">${table(['Thời gian','Người thực hiện','Hành động'],s.auditLogs.map(a=>[`${dateLabel(a.createdAt)} ${timeLabel(a.createdAt)}`,e(s.users.find(u=>u.id===a.actorId)?.name),e(a.action)]),{page:f.page})}</div>`;
  if(path==='/admin/settings')return card('Thiết lập công ty','Cấu hình cho bản demo trên trình duyệt',`<div class="card-body"><form data-form="settings" class="settings-form"><div class="form-grid">${field('Tên công ty','companyName','text',s.settings.companyName,'required')}${field('Bắt đầu ca','shiftStart','time',s.settings.shiftStart,'required')}${field('Kết thúc ca','shiftEnd','time',s.settings.shiftEnd,'required')}</div><p class="muted" style="margin-top:15px">Giờ nghỉ trưa cố định 12:00–13:00. Lịch làm việc: thứ Hai–thứ Sáu.</p>${formFooter()}</form></div>`);
@@ -733,18 +1004,19 @@ function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const
  case 'account':{const api=apiSession();openDialog('Tài khoản',`<p>${e(api?.user?.userId||'')}</p><p>${e(api?.user?.email||'')}</p><div class="form-actions">${button('Đổi mật khẩu','self-password','shield')}${button('Đăng xuất','backend-logout','logout','danger')}</div>`);return;}
  case 'self-password':{
  const account=apiSession()?.user;if(!account)return;
- openDialog('Đổi mật khẩu',`<form id="self-password-form"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Mật khẩu hiện tại','currentPassword','password','','required autocomplete="current-password"')}${field('Mật khẩu mới','newPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}${field('Nhập lại mật khẩu mới','confirmPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}</div><label><input type="checkbox" id="self-password-visible"> Hiện mật khẩu</label><div class="form-actions"><button type="submit" class="btn primary">Đổi mật khẩu</button></div></fieldset><p role="alert" id="self-password-feedback"></p></form>`);
+ openDialog('Đổi mật khẩu',`<form id="self-password-form"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Mật khẩu hiện tại','currentPassword','password','','required autocomplete="current-password"')}${field('Mật khẩu mới','newPassword','password','','required maxlength="1024" autocomplete="new-password"')}${field('Nhập lại mật khẩu mới','confirmPassword','password','','required maxlength="1024" autocomplete="new-password"')}</div><label><input type="checkbox" id="self-password-visible"> Hiện mật khẩu</label><div class="form-actions"><button type="submit" class="btn primary">Đổi mật khẩu</button></div></fieldset><p role="alert" id="self-password-feedback"></p></form>`);
  const form=document.getElementById('self-password-form'),feedback=document.getElementById('self-password-feedback');
+ const checkSelfPassword=bindPasswordPolicy(form,{passwordName:'newPassword',confirmName:'confirmPassword',username:()=>account.userId});
  form.querySelector('#self-password-visible').onchange=ev=>{form.querySelectorAll('input[name]').forEach(input=>input.type=ev.target.checked?'text':'password');};
  let saving=false;
  form.onsubmit=async ev=>{
  ev.preventDefault();ev.stopPropagation();if(saving)return;
  const newPassword=form.elements.newPassword.value;
  if(newPassword!==form.elements.confirmPassword.value){feedback.textContent='Mật khẩu nhập lại không khớp.';return;}
- if(!newPassword.trim()){feedback.textContent='Mật khẩu không được chỉ chứa khoảng trắng.';return;}
+ try{await checkSelfPassword();}catch(err){feedback.textContent=err.message;return;}
+ if(saving)return;
  saving=true;form.querySelector('fieldset').disabled=true;feedback.textContent='Đang đổi mật khẩu…';
- try{const own=await me();const version=own?.version||own?.user?.version||(await apiUserDetail(account.userId)).version;
- await apiResetUserPassword(account.userId,version,{type:'SELF_CHANGE',currentPassword:form.elements.currentPassword.value,newPassword});
+ try{await apiResetUserPassword(account.userId,null,{type:'SELF_CHANGE',oldPassword:form.elements.currentPassword.value,newPassword});
  form.reset();closeDialog();apiLogout();toast('Đã đổi mật khẩu. Vui lòng đăng nhập lại.');
  }catch(err){if(form.isConnected)feedback.textContent=err.message;}
  finally{saving=false;if(form.isConnected)form.querySelector('fieldset').disabled=false;}
@@ -819,7 +1091,7 @@ const path=getPath(),u=user();let unread=s.notifications.filter(n=>n.recipientId
 function header(path){const u=user(),home=path==='/dashboard';const primary=(path.includes('tasks')&&scope.can(s,u,'task.create'))?button('Tạo công việc','new-task','plus','primary'):path==='/projects'&&scope.can(s,u,'project.create')?button('Tạo dự án','new-project','plus','primary'):path==='/hr/employees'&&scope.can(s,u,'hr')?button('Thêm nhân viên','new-employee','plus','primary'):path==='/workspace/leave'?button('Tạo đơn nghỉ','new-request','plus','primary'):'';return `<div class="page-heading"><div><div class="eyebrow">${home?'YOUR WORK, CONNECTED':'INTELEX WORKSPACE'}</div><h1>${pageTitle(path)}${home?'<span style="color:#d7aa64;font-weight:400;margin-left:9px">✦</span>':''}</h1><p>${home?`Chào ${e(u.name.split(' ').pop())}, cùng xem đội ngũ đang làm việc thế nào hôm nay.`:'Một không gian chung để kết nối con người và công việc.'}</p></div><div class="heading-actions">${home?`${teamOptions(filters)}<input type="date" aria-label="Ngày dashboard" data-filter="date" value="${filters.date}" max="2026-10-19">${button('','refresh','refresh','','aria-label="Làm mới dashboard"')}`:primary}</div></div>`;}
 function routeTabs(path){const group=groupFor(path);if(!group?.children||path.startsWith('/projects/prj-')||/^\/hr\/employees\/.+/.test(path))return '';return `<div class="tabs route-tabs">${group.children.filter(([,p])=>scope.routeAllowed(s,user(),p)).map(([name,p])=>`<a class="tab ${p===path?'active':''}" href="#${p}">${name}</a>`).join('')}</div>`;}
 function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn một mục trong menu hoặc chuyển tài khoản demo.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return approvalPage(filters);if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return `${tabs([['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['system','Hệ thống']],filters.tab||'all')}<div class="toolbar">${button('Đánh dấu tất cả đã đọc','read-all','check')}</div>${card('Hộp thư thông báo','Thông tin dành riêng cho bạn',`<div class="card-body">${notifications(99,filters.tab||'all')}</div>`)}`;if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
-function renderContent(){const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/admin/master-data'&&scope.routeAllowed(s,user(),path))mountMasterData(document.getElementById('master-data-api-root'),filters);if(path==='/admin/roles'&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
+function renderContent(){const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/admin/settings'&&scope.routeAllowed(s,user(),path))mountSystemSettings(document.getElementById('system-settings-api-root'),filters);if(path==='/admin/master-data'&&scope.routeAllowed(s,user(),path))mountMasterData(document.getElementById('master-data-api-root'),filters);if(path==='/admin/roles'&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
 function render(full=false){if(!apiSession()){loginScreen();return;}if(full)shell();else renderContent();}
 function navigate(){if(lastPath!==getPath()){filters=newFilters();document.body.classList.remove('mobile-open');lastPath=getPath();const g=groupFor(lastPath);if(g?.children)expanded.add(g.name);if(document.getElementById('modal').open)closeDialog();}shell();window.scrollTo(0,0);}
 window.addEventListener('hashchange',navigate);

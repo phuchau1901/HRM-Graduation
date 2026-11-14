@@ -1,3 +1,4 @@
+import {bindPasswordPolicy} from './password-policy.js';
 import {exportReport} from './pages/attendance-report.js';
 import {DOCUMENT_CONTENTS} from './data/document-content.js';
 import {state as s,user,save,reset,log,demoNow,updateTask,createRequest,decideRequest,cancelRequest,attendanceStatus} from './store.js';
@@ -7,7 +8,7 @@ import {e,id,labels,dateLabel,timeLabel,csvDownload,hours} from './utils.js';
 import {icon,avatar,person,badge,button,field,selectField,notesField,formFooter,details,downloadLink} from './components/ui.js';
 import {attendanceRows,notifications} from './pages/dashboard.js';
 import {getPath} from './router.js';
-import {apiSession,apiLogout,login,apiUserDetail,apiResetUserPassword,me} from './api/client.js';
+import {apiSession,apiLogout,login,apiUserDetail,apiResetUserPassword} from './api/client.js';
 const roles=['Admin','Dev','Leader','Manager','HR'];
 export function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const f=ctx.filters;
  function form(title,name,body,dataId=''){openDialog(title,`<form data-form="${name}" data-id="${e(dataId)}"><div class="form-grid">${body}</div>${formFooter()}</form>`);}
@@ -26,18 +27,19 @@ export function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ct
  case 'account':{const api=apiSession();openDialog('Tài khoản',`<p>${e(api?.user?.userId||'')}</p><p>${e(api?.user?.email||'')}</p><div class="form-actions">${button('Đổi mật khẩu','self-password','shield')}${button('Đăng xuất','backend-logout','logout','danger')}</div>`);return;}
  case 'self-password':{
  const account=apiSession()?.user;if(!account)return;
- openDialog('Đổi mật khẩu',`<form id="self-password-form"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Mật khẩu hiện tại','currentPassword','password','','required autocomplete="current-password"')}${field('Mật khẩu mới','newPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}${field('Nhập lại mật khẩu mới','confirmPassword','password','','required minlength="12" maxlength="128" autocomplete="new-password"')}</div><label><input type="checkbox" id="self-password-visible"> Hiện mật khẩu</label><div class="form-actions"><button type="submit" class="btn primary">Đổi mật khẩu</button></div></fieldset><p role="alert" id="self-password-feedback"></p></form>`);
+ openDialog('Đổi mật khẩu',`<form id="self-password-form"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Mật khẩu hiện tại','currentPassword','password','','required autocomplete="current-password"')}${field('Mật khẩu mới','newPassword','password','','required maxlength="1024" autocomplete="new-password"')}${field('Nhập lại mật khẩu mới','confirmPassword','password','','required maxlength="1024" autocomplete="new-password"')}</div><label><input type="checkbox" id="self-password-visible"> Hiện mật khẩu</label><div class="form-actions"><button type="submit" class="btn primary">Đổi mật khẩu</button></div></fieldset><p role="alert" id="self-password-feedback"></p></form>`);
  const form=document.getElementById('self-password-form'),feedback=document.getElementById('self-password-feedback');
+ const checkSelfPassword=bindPasswordPolicy(form,{passwordName:'newPassword',confirmName:'confirmPassword',username:()=>account.userId});
  form.querySelector('#self-password-visible').onchange=ev=>{form.querySelectorAll('input[name]').forEach(input=>input.type=ev.target.checked?'text':'password');};
  let saving=false;
  form.onsubmit=async ev=>{
  ev.preventDefault();ev.stopPropagation();if(saving)return;
  const newPassword=form.elements.newPassword.value;
  if(newPassword!==form.elements.confirmPassword.value){feedback.textContent='Mật khẩu nhập lại không khớp.';return;}
- if(!newPassword.trim()){feedback.textContent='Mật khẩu không được chỉ chứa khoảng trắng.';return;}
+ try{await checkSelfPassword();}catch(err){feedback.textContent=err.message;return;}
+ if(saving)return;
  saving=true;form.querySelector('fieldset').disabled=true;feedback.textContent='Đang đổi mật khẩu…';
- try{const own=await me();const version=own?.version||own?.user?.version||(await apiUserDetail(account.userId)).version;
- await apiResetUserPassword(account.userId,version,{type:'SELF_CHANGE',currentPassword:form.elements.currentPassword.value,newPassword});
+ try{await apiResetUserPassword(account.userId,null,{type:'SELF_CHANGE',oldPassword:form.elements.currentPassword.value,newPassword});
  form.reset();closeDialog();apiLogout();toast('Đã đổi mật khẩu. Vui lòng đăng nhập lại.');
  }catch(err){if(form.isConnected)feedback.textContent=err.message;}
  finally{saving=false;if(form.isConnected)form.querySelector('fieldset').disabled=false;}

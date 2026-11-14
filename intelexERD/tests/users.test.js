@@ -70,16 +70,16 @@ test('employee linking queries unlinked endpoint with server pagination and enco
  assert.equal(url.searchParams.get('pageSize'),'10');assert.equal(url.searchParams.get('search'),'NV & tên');
  assert.equal(url.searchParams.has('employmentStatus'),false);assert.deepEqual(result,{total:0,data:[]});
 });
-test('password reset posts actor reauthentication and new password with aggregate version',async()=>{
+test('self password change posts old password without requiring an admin version',async()=>{
  const {apiResetUserPassword}=await import('../assets/js/api/client.js');
  let seen;globalThis.fetch=async(url,options)=>{seen={url,options};return ok({userId:'target/name',version:'after-reset'});};
- const saved=await apiResetUserPassword('target/name','current-version',{type:'SELF_CHANGE',currentPassword:'actor-test-password',newPassword:'target-test-password'});
+ const saved=await apiResetUserPassword('target/name','current-version',{type:'SELF_CHANGE',oldPassword:'actor-test-password',newPassword:'target-test-password'});
  assert.match(seen.url,/\/api\/users\/target%2Fname\/reset-password$/);
- assert.equal(seen.options.method,'POST');assert.equal(seen.options.headers.get('If-Match'),'"current-version"');
- assert.deepEqual(JSON.parse(seen.options.body),{type:'SELF_CHANGE',currentPassword:'actor-test-password',newPassword:'target-test-password'});
- assert.equal(saved.version,'after-reset');assert.throws(()=>apiResetUserPassword('target','','a','b'),/version/);
+ assert.equal(seen.options.method,'POST');assert.equal(seen.options.headers.has('If-Match'),false);
+ assert.deepEqual(JSON.parse(seen.options.body),{type:'SELF_CHANGE',oldPassword:'actor-test-password',newPassword:'target-test-password'});
+ assert.equal(saved.version,'after-reset');assert.throws(()=>apiResetUserPassword('target',null,{type:'UNKNOWN'}),/Loại/);
  globalThis.fetch=async()=>({ok:false,status:403,json:async()=>({message:'Sai mật khẩu xác thực'})});
- await assert.rejects(apiResetUserPassword('target','v1',{type:'SELF_CHANGE',currentPassword:'wrong',newPassword:'target-test-password'}),/Sai mật khẩu xác thực/);
+ await assert.rejects(apiResetUserPassword('target','v1',{type:'SELF_CHANGE',oldPassword:'wrong',newPassword:'target-test-password'}),/Sai mật khẩu xác thực/);
 });
 
 test('admin reset omits old password and runs only when a new password is supplied',async()=>{
@@ -88,9 +88,9 @@ test('admin reset omits old password and runs only when a new password is suppli
  globalThis.fetch=async(url,options)=>{calls.push({url,options});return ok({...current,version:options.method==='POST'?'v3':'v2'});};
  await saveSystemUserChanges(current,{newPassword:''});assert.equal(calls.length,0);
  await saveSystemUserChanges(current,{newPassword:'new-test-password'});
- assert.equal(calls.length,2);assert.match(calls[1].url,/reset-password$/);
- assert.equal(calls[1].options.headers.get('If-Match'),'"v2"');
- assert.deepEqual(JSON.parse(calls[1].options.body),{type:'ADMIN_RESET',newPassword:'new-test-password'});
+ assert.equal(calls.length,1);assert.match(calls[0].url,/reset-password$/);
+ assert.equal(calls[0].options.headers.has('If-Match'),false);
+ assert.deepEqual(JSON.parse(calls[0].options.body),{type:'ADMIN_RESET',newPassword:'new-test-password'});
  assert.equal(current.version,'v3');
 });
 test('team selector loads all active teams in the selected department',async()=>{
