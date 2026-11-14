@@ -720,6 +720,10 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("PhoneNumber");
 
+                    b.Property<long?>("PositionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("PositionId");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DepartmentId");
@@ -729,6 +733,8 @@ namespace HRM.API.Migrations
 
                     b.HasIndex("EmployeeCode")
                         .IsUnique();
+
+                    b.HasIndex("PositionId");
 
                     b.ToTable("employees", (string)null);
                 });
@@ -2073,7 +2079,14 @@ namespace HRM.API.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("HRM.API.Modules.Organization.Entities.Position", "Position")
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Department");
+
+                    b.Navigation("Position");
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Employees.Entities.EmployeeHistory", b =>

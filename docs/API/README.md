@@ -42,6 +42,7 @@ Có **52 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | PUT | `/api/positions/{positionId}` | [Organization](../modules/Organization/POSITIONS_API.md) | WEB_POSITIONS / UPDATE |
 | DELETE | `/api/positions/{positionId}` | [Organization](../modules/Organization/POSITIONS_API.md) | WEB_POSITIONS / DELETE |
 | GET | `/api/employees` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / VIEW + data scope |
+| GET | `/api/employees/unlinked` | [Employees](../modules/Employees/PROFILES_API.md#get-apiemployeesunlinked) | WEB_EMPLOYEES / VIEW + data scope |
 | GET | `/api/employees/{employeeId}` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / VIEW + data scope |
 | POST | `/api/employees` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / NEW + data scope |
 | PUT | `/api/employees/{employeeId}` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / UPDATE + data scope |

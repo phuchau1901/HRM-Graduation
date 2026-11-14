@@ -28,6 +28,7 @@ Giá trị chuỗi phải viết hoa chính xác. Chuỗi rỗng, `NONE`, `TEAM`
 | Endpoint | Screen / action | Scope thực thi được |
 | --- | --- | --- |
 | `GET /api/employees` | `WEB_EMPLOYEES / VIEW` | `SELF`, `DEPARTMENT`, `ALL` |
+| `GET /api/employees/unlinked` | `WEB_EMPLOYEES / VIEW` | `SELF`, `DEPARTMENT`, `ALL`; chỉ nhân viên chưa được user nào liên kết |
 | `GET /api/employees/{employeeId}` | `WEB_EMPLOYEES / VIEW` | `SELF`, `DEPARTMENT`, `ALL` |
 | `GET /api/employees/{employeeId}/history` | `WEB_EMPLOYEES / VIEW` | `SELF`, `DEPARTMENT`, `ALL` |
 | `POST /api/employees` | `WEB_EMPLOYEES / NEW` | `DEPARTMENT` (departmentId phải thuộc phòng ban của actor), `ALL` |

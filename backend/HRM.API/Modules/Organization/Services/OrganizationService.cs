@@ -60,7 +60,8 @@ public sealed class OrganizationService(AppDbContext db)
     public async Task DeletePositionAsync(long id, CancellationToken ct)
     {
         var entity = await db.Set<Position>().FindAsync([id], ct) ?? throw BusinessException.Missing();
-        if (await db.Set<EmployeeHistory>().AnyAsync(x => x.OldPositionID == id || x.NewPositionID == id, ct))
+        if (await db.Set<Employee>().AnyAsync(x => x.PositionId == id, ct) ||
+            await db.Set<EmployeeHistory>().AnyAsync(x => x.OldPositionID == id || x.NewPositionID == id, ct))
             throw BusinessException.Conflict("Position is referenced; deactivate it instead of deleting it.");
         db.Remove(entity); await db.SaveChangesAsync(ct);
     }

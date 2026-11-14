@@ -13,6 +13,8 @@ public sealed class EmployeesController(EmployeeService service) : ControllerBas
     private string Actor => User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
     [HttpGet, ScreenPermission("WEB_EMPLOYEES", "VIEW")]
     public async Task<IActionResult> List([FromQuery] EmployeeQuery q, CancellationToken ct) => Ok(await service.ListAsync(Actor, q, ct));
+    [HttpGet("unlinked"), ScreenPermission("WEB_EMPLOYEES", "VIEW")]
+    public async Task<IActionResult> Unlinked([FromQuery] EmployeeQuery q, CancellationToken ct) => Ok(await service.UnlinkedAsync(Actor, q, ct));
     [HttpGet("{id:int}"), ScreenPermission("WEB_EMPLOYEES", "VIEW")]
     public async Task<IActionResult> Get(int id, CancellationToken ct) => Ok(await service.GetAsync(Actor, id, ct));
     [HttpPost, ScreenPermission("WEB_EMPLOYEES", "NEW")]

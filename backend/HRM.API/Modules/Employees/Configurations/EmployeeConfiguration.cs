@@ -35,6 +35,9 @@ public class EmployeeConfiguration
             .HasForeignKey(x => x.DepartmentId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.Property(x => x.PositionId).HasColumnName("PositionId").HasColumnType("bigint").IsRequired(false);
+        builder.HasOne(x => x.Position).WithMany().HasForeignKey(x => x.PositionId).OnDelete(DeleteBehavior.Restrict);
+
         // Explicit Railway column mappings from HRM_DB_COLUMNS.csv.
         builder.Property(x => x.Id).HasColumnName("Id").HasColumnType("int").IsRequired().ValueGeneratedOnAdd();
         builder.Property(x => x.DateOfBirth).HasColumnName("DateOfBirth").HasColumnType("date").IsRequired(false);

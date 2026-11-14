@@ -14,7 +14,7 @@ Entity hiện có: `Contract`, `Employee`, `EmployeeHistory`.
 
 EmployeeService dùng EmployeeDataScope để giới hạn query trước khi đọc/ghi. WEB_EMPLOYEES bảo vệ hồ sơ/lịch sử; WEB_CONTRACTS bảo vệ hợp đồng. DELETE hồ sơ là ngừng hoạt động, không xóa lịch sử nghiệp vụ. Hợp đồng có DRAFT/ACTIVE/EXPIRED/TERMINATED/CANCELLED; ngày kết thúc không trước ngày bắt đầu; ContractNo unique.
 
-Chuyển phòng ban có EffectiveDate và Reason, ghi EmployeeHistory cùng UserId từ JWT. Employee hiện không có PositionId hiện tại; không tự suy ra hoặc bổ sung schema vị trí cho hồ sơ.
+Chuyển phòng ban có EffectiveDate và Reason, ghi EmployeeHistory cùng UserId từ JWT. Employee có `PositionId` nullable tham chiếu `positions.id`; API tạo/sửa hồ sơ nhận `positionId`, API đọc trả vị trí hiện tại. Dữ liệu cũ chưa gán vị trí có giá trị null.
 
 Mutation hồ sơ/chuyển phòng/hợp đồng tích hợp NotificationService hiện có, lưu audit và thông báo trong cùng AppDbContext transaction. Payload thông báo generic, không chứa dữ liệu nhân sự chi tiết; lỗi lưu thông báo làm rollback nghiệp vụ.
 

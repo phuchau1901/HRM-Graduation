@@ -28,6 +28,92 @@ internal sealed class FailNotificationInsertInterceptor(bool enabled) : DbComman
 public sealed class EmployeeApiTests
 {
     [Fact]
+    public async Task EmployeePositionSupportsCreateReadUpdateClearAndValidation()
+    {
+        await using var h = await Harness.Create("ALL");
+        long firstId, secondId, inactiveId;
+        using (var services = h.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            var first = new Position { Code = "P1", Name = "First", IsActive = true };
+            var second = new Position { Code = "P2", Name = "Second", IsActive = true };
+            var inactive = new Position { Code = "P3", Name = "Inactive", IsActive = false };
+            db.AddRange(first, second, inactive); await db.SaveChangesAsync();
+            firstId = first.ID; secondId = second.ID; inactiveId = inactive.ID;
+        }
+        var create = Create(h.Department); create.PositionId = firstId;
+        var createdResponse = await h.Client.PostAsJsonAsync("/api/employees", create);
+        Assert.Equal(HttpStatusCode.Created, createdResponse.StatusCode);
+        var created = (await createdResponse.Content.ReadFromJsonAsync<EmployeeDto>())!;
+        Assert.Equal(firstId, created.PositionId);
+        var url = $"/api/employees/{created.Id}";
+        Assert.Equal(firstId, (await h.Client.GetFromJsonAsync<EmployeeDto>(url))!.PositionId);
+        var list = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>("/api/employees?search=NEW01"))!;
+        Assert.Equal(firstId, Assert.Single(list.Data).PositionId);
+        var unlinked = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>("/api/employees/unlinked?search=NEW01"))!;
+        Assert.Equal(firstId, Assert.Single(unlinked.Data).PositionId);
+        var update = Profile(); update.PositionId = secondId;
+        var updated = await h.Client.PutAsJsonAsync(url, update);
+        Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        Assert.Equal(secondId, (await updated.Content.ReadFromJsonAsync<EmployeeDto>())!.PositionId);
+        foreach (var invalid in new[] { 0L, -1L, long.MaxValue, inactiveId })
+        {
+            update.PositionId = invalid;
+            Assert.Equal(HttpStatusCode.BadRequest, (await h.Client.PutAsJsonAsync(url, update)).StatusCode);
+            create.EmployeeCode = "INVALID"; create.Email = "invalid@example.invalid"; create.PositionId = invalid;
+            Assert.Equal(HttpStatusCode.BadRequest, (await h.Client.PostAsJsonAsync("/api/employees", create)).StatusCode);
+        }
+        Assert.Equal(secondId, (await h.Client.GetFromJsonAsync<EmployeeDto>(url))!.PositionId);
+        await OrganizationApiTests.Grant(h.App, "WEB_POSITIONS");
+        await OrganizationApiTests.Login(h.Client, h.App);
+        Assert.Equal(HttpStatusCode.Conflict, (await h.Client.DeleteAsync($"/api/positions/{secondId}")).StatusCode);
+        update.PositionId = null;
+        Assert.Equal(HttpStatusCode.OK, (await h.Client.PutAsJsonAsync(url, update)).StatusCode);
+        Assert.Null((await h.Client.GetFromJsonAsync<EmployeeDto>(url))!.PositionId);
+    }
+
+    [Theory]
+    [InlineData("ALL", 2)]
+    [InlineData("DEPARTMENT", 1)]
+    [InlineData("SELF", 0)]
+    public async Task UnlinkedEmployeesFiltersBeforePaginationAndRespectsScope(string scope, int expected)
+    {
+        await using var h = await Harness.Create(scope);
+        var page = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>("/api/employees/unlinked?pageSize=1"))!;
+        Assert.Equal(expected, page.Total);
+        Assert.DoesNotContain(page.Data, x => x.Id == h.Self);
+        if (expected > 0) Assert.Equal(h.Peer, Assert.Single(page.Data).Id);
+        else Assert.Empty(page.Data);
+        var other = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>($"/api/employees/unlinked?departmentId={h.OtherDepartment}"))!;
+        Assert.Equal(scope == "ALL" ? 1 : 0, other.Total);
+        var searched = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>("/api/employees/unlinked?search=E2&employmentStatus=ACTIVE"))!;
+        Assert.Equal(scope == "SELF" ? 0 : 1, searched.Total);
+        using var services = h.App.Services.CreateScope();
+        var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Add(new User { UserId = "locked-linked", Email = "locked@example.invalid", EmployeeId = h.Peer, Status = "LOCKED", PasswordHash = "unused" });
+        await db.SaveChangesAsync();
+        var afterLink = (await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>("/api/employees/unlinked"))!;
+        Assert.DoesNotContain(afterLink.Data, x => x.Id == h.Peer);
+        Assert.Equal(scope == "ALL" ? 1 : 0, afterLink.Total);
+    }
+
+    [Fact]
+    public async Task UnlinkedEmployeesRequiresAuthenticationAndViewGrant()
+    {
+        await using var h = await Harness.Create("ALL");
+        h.Client.DefaultRequestHeaders.Authorization = null;
+        Assert.Equal(HttpStatusCode.Unauthorized, (await h.Client.GetAsync("/api/employees/unlinked")).StatusCode);
+        await OrganizationApiTests.Login(h.Client, h.App);
+        using (var services = h.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.RoleDetails.ExecuteUpdateAsync(x => x.SetProperty(d => d.CanView, "N"));
+        }
+        await OrganizationApiTests.Login(h.Client, h.App);
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync("/api/employees/unlinked")).StatusCode);
+    }
+
+    [Fact]
     public async Task MissingScopeDeniesDespiteGrantedActionAndLegacyConfiguration()
     {
         await using var h = await Harness.Create("ALL");

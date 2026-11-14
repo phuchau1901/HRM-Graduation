@@ -8,6 +8,7 @@ public sealed class EmployeeQuery : PageQuery
 }
 public class EmployeeProfileRequest
 {
+    [Range(1, long.MaxValue)] public long? PositionId { get; set; }
     [Required, MaxLength(150)] public string FullName { get; set; } = "";
     [Required, EmailAddress, MaxLength(255)] public string Email { get; set; } = "";
     public DateOnly? DateOfBirth { get; set; }
@@ -36,7 +37,7 @@ public sealed class ContractRequest
     [MaxLength(500)] public string? AttachmentUrl { get; set; }
 }
 public sealed record EmployeeDto(int Id, string EmployeeCode, string FullName, string Email, DateOnly? DateOfBirth,
-    string? PhoneNumber, DateOnly HireDate, int DepartmentId, string EmploymentStatus, DateTime CreatedAt);
+    string? PhoneNumber, DateOnly HireDate, int DepartmentId, long? PositionId, string EmploymentStatus, DateTime CreatedAt);
 public sealed record ContractDto(long Id, int EmployeeId, string ContractNo, string ContractType,
     DateOnly StartDate, DateOnly? EndDate, string Status, string? AttachmentUrl);
 public sealed record EmployeeHistoryDto(long Id, int EmployeeId, int? OldDepartmentId, int? NewDepartmentId,
