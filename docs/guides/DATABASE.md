@@ -88,3 +88,15 @@ Không cần migration mới cho thay đổi này, không apply migration cũ, k
 ## Audit Employee GET: names và trạng thái migration
 
 Projection đọc tên Department/Team/Position không đổi schema/model, không cần migration mới. [Báo cáo audit](../modules/Employees/EMPLOYEE_READ.md) ghi rõ hai migration PositionId/TeamId có trong source/snapshot nhưng Applied/Pending trên DB đích **chưa xác minh**. Không suy trạng thái DB từ snapshot hoặc báo cáo agent không chạy migration. Có SQL metadata read-only để operator đối chiếu; không tự apply hoặc thêm cột/fallback giả.
+
+## System Settings và snapshot Attendance
+
+Migration `20261114112511_AddSystemSettingsAndAttendanceRules` (chưa apply bởi agent): tạo system_settings (setting_key VARCHAR40 PK, json_value LONGTEXT, version BIGINT concurrency, updated_at_utc DATETIME6) và password_histories (id BIGINT auto, user_id VARCHAR100 FK users, hash VARCHAR500/salt VARCHAR44 chỉ lưu credential, created_at_utc DATETIME6, index user_id/id).
+
+Thêm shifts.version và work_schedules.version BIGINT NOT NULL DEFAULT0, work_schedules.rules_snapshot_json LONGTEXT NULL. Giữ nguyên shifts/work_schedules/attendances/adjustments/requests/qr_sessions, actual timestamp/FK hiện có; không backfill hoặc chuyển giờ cũ. Index employee_id/work_date thay index employee_id đơn; migration tạo index mới trước khi drop index cũ để FK MySQL luôn có supporting index, Down làm ngược tương ứng.
+
+Chỉ seed hai rows cấu hình PASSWORD_POLICY/ATTENDANCE, không seed user/role/grant hay password history. Default policy12..128 tương thích; history thu thập khi đổi password từ thời điểm bật. History retention pruning chỉ áp các hash được lưu bởi chức năng này trong các lần đổi password sau đó, không xóa tài khoản/nhân viên/công cũ.
+
+Snapshot theo lịch chứa timezone/date và UTC start/end/windows, break/grace, QR/GPS/locations/missing rule và settingsVersion. Legacy snapshot null cần review riêng, không dùng ca hiện tại để suy kết quả cũ. PasswordPolicy và snapshot DTO được validate trước serialize; LONGTEXT ở đây là payload JSON được kiểm soát, không phải mặc định mapping string tùy ý.
+
+[Migration source](../../backend/HRM.API/Migrations/20261114112511_AddSystemSettingsAndAttendanceRules.cs) · [SQL review](../../database/migrations/20261114112511_AddSystemSettingsAndAttendanceRules.sql) · [Audit và trạng thái Pending](../modules/System/IMPLEMENTATION.md#3-migration-và-trạng-thái-pending). Không kết nối DB live, không khẳng định Applied/Pending từ snapshot, không tự apply hoặc rollback; MySQL DDL có thể auto-commit. Cần schema mới trước khi dùng cấu hình/password-creation/chấm công mới. Down mất settings/history/snapshot mới nên chỉ rollback có backup và phối hợp binary.

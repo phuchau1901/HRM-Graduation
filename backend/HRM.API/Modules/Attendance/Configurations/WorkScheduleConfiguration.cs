@@ -10,6 +10,9 @@ public class WorkScheduleConfiguration : IEntityTypeConfiguration<WorkSchedule>
     public void Configure(EntityTypeBuilder<WorkSchedule> entity)
     {
         entity.ToTable("work_schedules");
+        entity.Property(x => x.Version).HasColumnName("version").HasColumnType("bigint").HasDefaultValue(0L).IsConcurrencyToken();
+        entity.Property(x => x.RulesSnapshotJson).HasColumnName("rules_snapshot_json").HasColumnType("longtext").IsRequired(false);
+        entity.HasIndex(x => new { x.EmployeeID, x.WorkDate });
         entity.HasKey(x => x.ID);
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.EmployeeID).HasColumnName("employee_id").HasColumnType("int").IsRequired();

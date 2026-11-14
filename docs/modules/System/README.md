@@ -1,21 +1,9 @@
-# System — Audit và hạ tầng dùng chung
+# System — Settings, Password Policy & Attendance Configuration
 
-[Danh mục tài liệu](../../README.md) · [API Inventory](../../API/README.md)
+[API Specification](API.md) · [Audit/triển khai](IMPLEMENTATION.md) · [Tests](TESTS.md) · [Database](../../guides/DATABASE.md)
 
-Trạng thái: **PARTIAL — model/hạ tầng có; API nghiệp vụ MISSING**. Có Entity AuditLog, Notification và tích hợp audit; chưa có API quản trị System độc lập.
+Module System sở hữu cấu hình toàn cục, PasswordPolicyService và các controller/service cấu hình/chấm công. Tái sử dụng entity/table của module Attendance; không dựng bộ bảng Shift/Schedule/Attendance thứ hai. Frontend có hai tab Password Policy, Attendance Settings và màn Ca & lịch làm việc dùng các bảng/API thực.
 
-## Phạm vi source
+Các quyền cần được quản trị viên đăng ký/cấp có chọn lọc: WEB_SYSTEM_SETTINGS (VIEW/UPDATE), WEB_SHIFTS, WEB_WORK_SCHEDULES, WEB_ATTENDANCE, WEB_QR_SESSIONS. Không seed grant hoặc dựa vào tên role ADMIN. Cấu hình/ca/QR là global qua grant; dữ liệu lịch/chấm công Employee phải có scope theo screen/action.
 
-Source: `backend/HRM.API/Modules/System/`.
-
-Entity hiện có: `AuditLog`, `Notification`.
-
-## Phạm vi và giới hạn
-
-AuditLog lưu actor, action, entity/type/id, JSON trước/sau và thời gian. API quản trị bổ sung traceId trong JSON; không lưu password/hash/salt/token. Notification là entity nội dung dùng bởi module Notifications. API Dashboard/Reports và API tra cứu/export audit chưa triển khai; không giả định endpoint public cho bảng audit.
-
-## Tài liệu module
-
-- [Kiểm thử và quy trình chung](../../guides/TESTING.md)
-
-Quy ước chung: [HTTP và phân quyền](../../guides/CONVENTIONS.md). Cấu trúc dữ liệu: [database và migrations](../../guides/DATABASE.md).
+Migration mới: `20261114112511_AddSystemSettingsAndAttendanceRules`. Chỉ tạo hai bảng mới system_settings/password_histories, thêm version/snapshot/index trên bảng có sẵn và hai dòng settings mặc định. Không apply DB, không seed user/role/grant, không backfill giờ cũ, không deploy. Snapshot lịch cũ để null, yêu cầu review rõ ràng trước khi sử dụng cho punch mới.

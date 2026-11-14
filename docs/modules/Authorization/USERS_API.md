@@ -80,7 +80,7 @@ Tạo tài khoản; có thể tạo kèm hồ sơ nhân viên bằng createEmplo
 
 - ScreenPermission: `WEB_USERS/NEW; thêm WEB_USERS/APPROVE nếu có RoleIds`. Role: tài khoản có grant tương ứng; không có bypass theo tên Role.
 - Parameters: Không có.
-- Validation/nghiệp vụ: UserId string max100, [A-Za-z0-9][A-Za-z0-9_.-]*; email255 unique; Employee tồn tại, chưa gán account; Role hợp lệ không trùng; password12..128, không blank; dùng PasswordService random salt32 PBKDF2. Role chỉ được gán trong quyền hiện có của actor.
+- Validation/nghiệp vụ: UserId string max100, [A-Za-z0-9][A-Za-z0-9_.-]*; email255 unique; Employee tồn tại, chưa gán account; Role hợp lệ không trùng; password theo PasswordPolicyService trong DB (mặc định12..128), không blank; dùng PasswordService random salt32 PBKDF2. Role chỉ được gán trong quyền hiện có của actor.
 - Success: `201`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
 - Test cases: 201; ID/email trùng409; employee/Role sai400; vượt quyền403; không password trong response/audit.
 
@@ -242,7 +242,7 @@ Header: `Authorization: Bearer <access_token>`, `Content-Type: application/json`
 | --- | --- | --- |
 | type | string, bắt buộc | Chính xác `SELF_CHANGE` hoặc `ADMIN_RESET`; constants `PasswordResetTypes` ở backend |
 | oldPassword | string/null | Bắt buộc với SELF_CHANGE, tối đa 1024; không bắt buộc và không dùng xác thực trong ADMIN_RESET |
-| newPassword | string, bắt buộc | Policy quản trị hiện có: 12..128 ký tự, không blank; không thêm quy tắc mới vào PasswordService |
+| newPassword | string, bắt buộc | PasswordPolicyService trong DB, mặc định12..128, flags/history cấu hình; transport cap1024; không đổi PasswordService hashing |
 
 Không gửi `confirmPassword` lên backend. UI tự so khớp trước khi gọi API.
 
@@ -337,3 +337,5 @@ Response thành công:
   "employeeCode": null
 }
 ```
+
+Password policy hiện có thể cấu hình tại [System Settings](../System/API.md). Policy DB dùng chung cho User create và cả hai loại reset; không hardcode12..128 ở DTO nữa, không áp hồi tố vào login/password cũ.

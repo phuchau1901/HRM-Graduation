@@ -3,6 +3,7 @@ namespace HRM.API.Modules.Attendance.Entities;
 
 public class Shift
 {
+    public long Version { get; set; }
     public long ID { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

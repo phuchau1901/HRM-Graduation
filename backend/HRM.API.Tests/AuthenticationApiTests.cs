@@ -175,6 +175,7 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
     public string? EmployeeScope { get; init; }
     public bool FailNotificationWrites { get; init; }
     public string? SqliteDatabasePath { get; init; }
+    public TimeProvider? TestClock { get; init; }
     public Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor? CreationInterceptor { get; init; }
     public string Password { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
     public string SigningKey { get; } = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
@@ -191,6 +192,7 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
         if (NotificationOrigin is not null) builder.UseSetting("Notifications:AllowedOrigins:0", NotificationOrigin);
         builder.ConfigureTestServices(services =>
         {
+            if (TestClock is not null) { services.RemoveAll<TimeProvider>(); services.AddSingleton(TestClock); }
             services.AddControllers().AddApplicationPart(typeof(PermissionProbeController).Assembly);
             services.RemoveAll<AppDbContext>();
             services.AddScoped<AppDbContext>(_ =>
@@ -227,7 +229,7 @@ internal sealed class AuthorizationTestContext(DbContextOptions<AppDbContext> op
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-        var keep = new[] { typeof(HRM.API.Modules.Organization.Entities.Team), typeof(HRM.API.Modules.Auth.Entities.RefreshToken), typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction), typeof(HRM.API.Modules.Organization.Entities.Position),
+        var keep = new[] { typeof(HRM.API.Modules.System.Entities.SystemSetting), typeof(HRM.API.Modules.System.Entities.PasswordHistory), typeof(HRM.API.Modules.Attendance.Entities.Shift), typeof(HRM.API.Modules.Attendance.Entities.WorkSchedule), typeof(HRM.API.Modules.Attendance.Entities.Attendance), typeof(HRM.API.Modules.Attendance.Entities.QRSession), typeof(HRM.API.Modules.Attendance.Entities.AttendanceRequest), typeof(HRM.API.Modules.Attendance.Entities.AttendanceAdjustment), typeof(HRM.API.Modules.Organization.Entities.Team), typeof(HRM.API.Modules.Auth.Entities.RefreshToken), typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction), typeof(HRM.API.Modules.Organization.Entities.Position),
             typeof(HRM.API.Modules.Employees.Entities.EmployeeHistory), typeof(HRM.API.Modules.Employees.Entities.Contract),
             typeof(HRM.API.Modules.Employees.Entities.Employee), typeof(HRM.API.Modules.System.Entities.Notification),
             typeof(HRM.API.Modules.System.Entities.AuditLog), typeof(HRM.API.Modules.Notifications.Entities.NotificationTarget),

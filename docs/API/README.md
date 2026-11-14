@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **58 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **77 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -11,7 +11,8 @@ Có **58 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | Organization (Departments / Positions / Teams) | 15 | IMPLEMENTED |
 | Employees / Contracts / History | 12 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
-| Attendance | 0 | Model có, API MISSING |
+| Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow chưa có API |
+| System Settings | 4 | IMPLEMENTED |
 | Leave / Overtime / Approvals | 0 | Model có, API MISSING |
 | Payroll / Timesheets | 0 | Model có, API MISSING |
 | Performance / KPI | 0 | Model có, API MISSING |
@@ -21,6 +22,25 @@ Có **58 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 
 | Method | URL | Module / đặc tả | Permission |
 | --- | --- | --- | --- |
+| GET | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/VIEW |
+| PUT | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/UPDATE + If-Match |
+| GET | `/api/system-settings/attendance` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/VIEW |
+| PUT | `/api/system-settings/attendance` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/UPDATE + If-Match |
+| GET | `/api/shifts` | [System](../modules/System/API.md) | WEB_SHIFTS/VIEW |
+| GET | `/api/shifts/{id}` | [System](../modules/System/API.md) | WEB_SHIFTS/VIEW |
+| POST | `/api/shifts` | [System](../modules/System/API.md) | WEB_SHIFTS/NEW |
+| PUT | `/api/shifts/{id}` | [System](../modules/System/API.md) | WEB_SHIFTS/UPDATE + If-Match |
+| GET | `/api/work-schedules` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/VIEW + scope |
+| GET | `/api/work-schedules/{id}` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/VIEW + scope |
+| POST | `/api/work-schedules` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/NEW + write scope |
+| PUT | `/api/work-schedules/{id}` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/UPDATE + write scope + If-Match |
+| PATCH | `/api/work-schedules/{id}/cancel` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/DELETE + write scope + If-Match |
+| POST | `/api/work-schedules/{id}/close` | [System](../modules/System/API.md) | WEB_ATTENDANCE/APPROVE + scope |
+| GET | `/api/attendances` | [System](../modules/System/API.md) | WEB_ATTENDANCE/VIEW + scope |
+| POST | `/api/attendances/check-in` | [System](../modules/System/API.md) | WEB_ATTENDANCE/NEW + scope + own Employee |
+| POST | `/api/attendances/check-out` | [System](../modules/System/API.md) | WEB_ATTENDANCE/UPDATE + scope + own Employee |
+| GET | `/api/qr-sessions` | [System](../modules/System/API.md) | WEB_QR_SESSIONS/VIEW |
+| POST | `/api/qr-sessions` | [System](../modules/System/API.md) | WEB_QR_SESSIONS/NEW |
 | POST | `/api/auth/login` | [Auth](../modules/Auth/API.md) | Anonymous + LoginRateLimiter |
 | GET | `/api/auth/me` | [Auth](../modules/Auth/API.md) | JWT, User ACTIVE, session version hợp lệ |
 | GET | `/api/auth/me/permissions` | [Auth](../modules/Auth/API.md) | JWT, User ACTIVE, session version hợp lệ |

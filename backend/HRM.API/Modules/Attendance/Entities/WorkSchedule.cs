@@ -3,6 +3,8 @@ namespace HRM.API.Modules.Attendance.Entities;
 
 public class WorkSchedule
 {
+    public long Version { get; set; }
+    public string? RulesSnapshotJson { get; set; }
     public long ID { get; set; }
     public int EmployeeID { get; set; }
     public long ShiftID { get; set; }

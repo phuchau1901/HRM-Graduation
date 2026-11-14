@@ -36,7 +36,7 @@ public sealed class AuthServiceTests : IDisposable
         _db.Database.EnsureCreated();
         var context = new DefaultHttpContext();
         context.Connection.RemoteIpAddress = IPAddress.Loopback;
-        _auth = new(_db, _passwords, _limiter, new HttpContextAccessor { HttpContext = context });
+        _auth = new(_db, _passwords, _limiter, new HttpContextAccessor { HttpContext = context }, new HRM.API.Modules.System.Services.PasswordPolicyService(_db, _passwords, TimeProvider.System));
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class AuthServiceTests : IDisposable
         Assert.Null(typeof(User).GetProperty("Username"));
         Assert.Equal("Id", Assert.Single(model.FindEntityType(typeof(Employee))!.FindPrimaryKey()!.Properties).Name);
         Assert.DoesNotContain(model.GetEntityTypes().SelectMany(e => e.GetProperties()),
-            p => p.GetColumnType() == "decimal(65,30)" || p.GetColumnType() == "longtext");
+            p => p.GetColumnType() == "decimal(65,30)" || p.GetColumnType() == "longtext" && p.Name is not ("RulesSnapshotJson" or "JsonValue"));
         Assert.False(db.Database.HasPendingModelChanges());
         var script = db.GetService<IMigrator>().GenerateScript();
         Assert.Contains("CREATE TABLE `screens`", script); Assert.Contains("CREATE TABLE `role_details`", script);
@@ -192,7 +192,7 @@ public sealed class AuthServiceTests : IDisposable
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
-            foreach (var entity in builder.Model.GetEntityTypes().Where(e => e.ClrType != typeof(User) && e.ClrType != typeof(RefreshToken)).ToArray())
+            foreach (var entity in builder.Model.GetEntityTypes().Where(e => e.ClrType != typeof(User) && e.ClrType != typeof(RefreshToken) && e.ClrType != typeof(HRM.API.Modules.System.Entities.SystemSetting) && e.ClrType != typeof(HRM.API.Modules.System.Entities.PasswordHistory)).ToArray())
                 builder.Ignore(entity.ClrType);
             SqliteTestModel.UseSqliteIdentityTypes(builder);
         }

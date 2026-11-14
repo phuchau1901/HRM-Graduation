@@ -1,21 +1,9 @@
 # Attendance — Chấm công
 
-[Danh mục tài liệu](../../README.md) · [API Inventory](../../API/README.md)
+[API do module System cung cấp](../System/API.md) · [Audit triển khai](../System/IMPLEMENTATION.md) · [Tests](../System/TESTS.md)
 
-Trạng thái: **PARTIAL — model/hạ tầng có; API nghiệp vụ MISSING**. Đã có Entity/Fluent Configuration; chưa có Controller, DTO hoặc Service HTTP nghiệp vụ.
+Các entity/table Attendance, AttendanceAdjustment, AttendanceRequest, QRSession, Shift, WorkSchedule đã tồn tại trước khi triển khai cấu hình. Giữ nguyên module Entities/Configurations này; controller, DTO và service mới nằm trong Modules/System theo cấu trúc yêu cầu, không tạo lại bảng/module song song.
 
-## Phạm vi source
+Hiện có 15 endpoints thực cho Shifts (4), WorkSchedules (6), Attendance (3), QRSessions (2). Giờ ca là địa phương theo timezone cấu hình, actual timestamps UTC do server cấp, WorkDate theo ngày bắt đầu ca. Snapshot lịch bảo vệ lịch sử khi chỉnh ca/settings; legacy rules=null không được tự tính lại. Dữ liệu nhân viên dùng SELF/DEPARTMENT/ALL theo action, không mở quyền do có quyền settings.
 
-Source: `backend/HRM.API/Modules/Attendance/`.
-
-Entity hiện có: `Attendance`, `AttendanceAdjustment`, `AttendanceRequest`, `QRSession`, `Shift`, `WorkSchedule`.
-
-## Phạm vi và giới hạn
-
-Phạm vi model: ca làm, lịch làm, chấm công, hiệu chỉnh/yêu cầu và phiên QR. Chưa có API để tạo ca, phân lịch, check-in/out hoặc phê duyệt hiệu chỉnh. Cần chốt timezone, ca qua ngày, chống gửi trùng và khóa kỳ trước triển khai. Không ghi các route dự kiến như API đang chạy.
-
-## Tài liệu module
-
-- [Kiểm thử và quy trình chung](../../guides/TESTING.md)
-
-Quy ước chung: [HTTP và phân quyền](../../guides/CONVENTIONS.md). Cấu trúc dữ liệu: [database và migrations](../../guides/DATABASE.md).
+AttendanceAdjustments vẫn chỉ có model/table ProposedCheckIn/Out/Reason/Status, chưa có submission/approval APIs. Không tuyên bố workflow duyệt chỉnh công, overtime, payroll hoặc giả lập lại dữ liệu cũ đã hoàn chỉnh.

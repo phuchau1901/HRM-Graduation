@@ -18,7 +18,7 @@ public sealed class UserUpdateRequest : UserUpdateRequestBase { }
 public sealed class UserCreateRequest : UserUpdateRequestBase, IValidatableObject
 {
     [Required, MaxLength(100), RegularExpression("^[A-Za-z0-9][A-Za-z0-9_.-]*$")] public string UserId { get; set; } = "";
-    [Required, StringLength(128, MinimumLength = 12)] public string Password { get; set; } = "";
+    [Required, MaxLength(1024)] public string Password { get; set; } = "";
     [Required, MaxLength(100)] public long[] RoleIds { get; set; } = [];
     public bool CreateEmployee { get; set; }
     public HRM.API.Modules.Employees.DTOs.EmployeeCreateRequest? Employee { get; set; }
@@ -51,7 +51,7 @@ public sealed class ResetPasswordRequest : IValidatableObject
 {
     [Required] public string Type { get; set; } = "";
     [MaxLength(1024)] public string? OldPassword { get; set; }
-    [Required, StringLength(128, MinimumLength = 12)] public string NewPassword { get; set; } = "";
+    [Required, MaxLength(1024)] public string NewPassword { get; set; } = "";
     public IEnumerable<ValidationResult> Validate(ValidationContext context)
     {
         if (!PasswordResetTypes.IsSupported(Type))

@@ -11,13 +11,14 @@ using HRM.API.Modules.Authorization.Entities;
 using HRM.API.Modules.Employees.Entities;
 using HRM.API.Modules.Employees.Services;
 using HRM.API.Modules.System.Entities;
+using HRM.API.Modules.System.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRM.API.Modules.Authorization.Services;
 
 // All administration writes take the same existing catalog-row lock before reading grants.
 // No role name carries implicit privilege. All grants come from the database.
-public sealed class AdministrationService(AppDbContext db, IPermissionService permissions, PasswordService passwords, EmployeeService employees)
+public sealed class AdministrationService(AppDbContext db, IPermissionService permissions, PasswordService passwords, EmployeeService employees, PasswordPolicyService policy)
 {
     public const string Users = "WEB_USERS", Roles = "WEB_ROLES", Permissions = "WEB_PERMISSIONS";
     public static string Version(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
@@ -134,6 +135,7 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
             if (await db.Set<User>().AnyAsync(x => x.UserId == request.UserId, ct)) throw BusinessException.Conflict("User ID already exists.");
             await CheckUser(null, request, ct); await ValidateRoles(actor, request.RoleIds, ct);
             if (request.RoleIds.Length > 0) await Demand(actor, Users, "APPROVE", ct);
+            await policy.ValidateAsync(request.UserId, request.Password, ct);
             var employeeId = request.EmployeeId;
             if (request.CreateEmployee)
             {
@@ -209,6 +211,8 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
             var roleIds = await db.Set<UserRole>().Where(x => x.UserID == id).Select(x => x.RoleID).ToArrayAsync(ct);
             await Dominates(actor, roleIds, ct);
         }
+        await policy.ValidateAsync(user!.UserId, request.NewPassword, ct);
+        await policy.RememberAsync(user, ct);
         var credentials = passwords.Hash(request.NewPassword);
         user!.PasswordHash = credentials.PasswordHash; user.Salt = credentials.Salt;
         await db.SaveChangesAsync(ct);

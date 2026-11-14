@@ -27,7 +27,7 @@ public sealed class AuthSeederTests
         await using var db = new AuthorizationTestContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
         var passwords = new PasswordService(); var secrets = Secrets();
-        var seeder = new AuthSeeder(db, passwords, new TestEnvironment("Development"), Settings(true));
+        var seeder = new AuthSeeder(db, passwords, new TestEnvironment("Development"), Settings(true), new HRM.API.Modules.System.Services.PasswordPolicyService(db, new PasswordService(), TimeProvider.System));
         await seeder.SeedAsync(secrets);
         Assert.Equal(1, await db.Set<Role>().CountAsync()); Assert.Equal(1, await db.Set<User>().CountAsync());
         Assert.Equal(1, await db.Set<UserRole>().CountAsync());
@@ -57,7 +57,7 @@ public sealed class AuthSeederTests
         using var connection = new SqliteConnection("Data Source=:memory:"); await connection.OpenAsync();
         await using var db = new AuthorizationTestContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
-        await new AuthSeeder(db, new PasswordService(), new TestEnvironment(env), Settings(enabled)).SeedAsync(Secrets());
+        await new AuthSeeder(db, new PasswordService(), new TestEnvironment(env), Settings(enabled), new HRM.API.Modules.System.Services.PasswordPolicyService(db, new PasswordService(), TimeProvider.System)).SeedAsync(Secrets());
         Assert.Equal(0, await db.Set<User>().CountAsync()); Assert.Equal(0, await db.Set<Role>().CountAsync());
     }
 
@@ -67,7 +67,7 @@ public sealed class AuthSeederTests
         using var connection = new SqliteConnection("Data Source=:memory:"); await connection.OpenAsync();
         await using var db = new AuthorizationTestContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options);
         await db.Database.EnsureCreatedAsync();
-        var seeder = new AuthSeeder(db, new PasswordService(), new TestEnvironment("Development"), Settings(true));
+        var seeder = new AuthSeeder(db, new PasswordService(), new TestEnvironment("Development"), Settings(true), new HRM.API.Modules.System.Services.PasswordPolicyService(db, new PasswordService(), TimeProvider.System));
         await Assert.ThrowsAsync<InvalidOperationException>(() => seeder.SeedAsync(new ConfigurationBuilder().Build()));
         Assert.Equal(0, await db.Set<Role>().CountAsync()); Assert.Equal(0, await db.Set<User>().CountAsync());
     }

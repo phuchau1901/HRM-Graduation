@@ -1,10 +1,11 @@
 using HRM.API.Modules.Auth.Services;
+using HRM.API.Modules.System.Services;
 using HRM.API.Modules.Authorization.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace HRM.API.Data.Seeders;
 
-public sealed class AuthSeeder(AppDbContext db, PasswordService passwords, IHostEnvironment environment, IConfiguration settings)
+public sealed class AuthSeeder(AppDbContext db, PasswordService passwords, IHostEnvironment environment, IConfiguration settings, PasswordPolicyService policy)
 {
     private static readonly (string UserId, string Role)[] Accounts =
     [ ("admin", "ADMIN") ];
@@ -20,6 +21,7 @@ public sealed class AuthSeeder(AppDbContext db, PasswordService passwords, IHost
         foreach (var account in missing)
             if (!PasswordService.IsValidPasswordInput(userSecrets[$"AuthSeed:Passwords:{account.UserId}"]))
                 throw new InvalidOperationException($"Missing or invalid demo password in user-secrets for '{account.UserId}'.");
+        foreach (var account in missing) await policy.ValidateAsync(account.UserId, userSecrets[$"AuthSeed:Passwords:{account.UserId}"]!, ct);
         var roles = await db.Set<Role>().ToListAsync(ct);
         foreach (var code in Accounts.Select(x => x.Role).Distinct())
             if (!roles.Any(r => string.Equals(r.Code, code, StringComparison.OrdinalIgnoreCase)))

@@ -10,7 +10,7 @@ export function createApi(token, onUnauthorized = () => {}) {
     return body;
   };
 }
-export function can(permissions, code, action) { return permissions?.some(p => p.code === code && p[{ VIEW: 'canView', NEW: 'canNew', UPDATE: 'canUpdate' }[action]] === 'Y') || false; }
+export function can(permissions, code, action) { return permissions?.some(p => p.code === code && p[{ VIEW: 'canView', NEW: 'canNew', UPDATE: 'canUpdate', DELETE: 'canDelete', APPROVE: 'canApprove', EXPORT: 'canExport' }[action]] === 'Y') || false; }
 export async function allPages(api, path, signal) {
   const rows = [];
   for (let page = 1; ; page++) {
