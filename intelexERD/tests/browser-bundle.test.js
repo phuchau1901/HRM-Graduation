@@ -11,7 +11,7 @@ function fileEnvironment(){
  function node(id){if(!nodes.has(id))nodes.set(id,{innerHTML:'',textContent:'',open:false,isConnected:true,classList:{add(){},remove(){},toggle(){}},addEventListener(){},focus(){},close(){this.open=false;},showModal(){this.open=true;}});return nodes.get(id);}
  const document={getElementById:node,activeElement:null,title:'',body:{classList:{remove(){},toggle(){}}},addEventListener(name,fn){if(!listeners.has(name))listeners.set(name,[]);listeners.get(name).push(fn);}};
  const location={protocol:'file:',hash:''};
- const context=vm.createContext({document,location,history:{replaceState(a,b,url){location.hash=url;}},window:{addEventListener(){},scrollTo(){}},localStorage:{getItem(){throw Error('Storage unavailable');},setItem(){throw Error('Storage unavailable');}},setInterval(){return 1;},setTimeout(){return 1;},clearTimeout(){},console:{warn(){},log(){}},innerWidth:1440});
+ const context=vm.createContext({document,location,history:{replaceState(a,b,url){location.hash=url;}},window:{addEventListener(){},scrollTo(){}},localStorage:{getItem(){throw Error('Storage unavailable');},setItem(){throw Error('Storage unavailable');}},setInterval(){return 1;},setTimeout(){return 1;},clearTimeout(){},clearInterval(){},console:{warn(){},log(){}},innerWidth:1440});
  return {context,node,listeners,location};
 }
 test('index loads a classic script and all referenced local assets exist',async()=>{
@@ -22,7 +22,10 @@ test('index loads a classic script and all referenced local assets exist',async(
 test('Classic distribution starts on file origin without modules, fetch or storage',async()=>{
  const code=await readFile(new URL('../assets/js/dist/erp-browser.js',import.meta.url),'utf8');
  assert.ok(!/^import\s/m.test(code));assert.ok(!/\bfetch\(/.test(code));
- const env=fileEnvironment();vm.runInContext(code,env.context,{timeout:3000});
+ const env=fileEnvironment();env.context.self=env.context;
+ const signalR=await readFile(new URL('../assets/js/dist/signalr.min.js',import.meta.url),'utf8');
+ vm.runInContext(signalR,env.context,{timeout:3000});assert.equal(typeof env.context.signalR.HubConnectionBuilder,'function');
+ vm.runInContext(code,env.context,{timeout:3000});
  assert.equal(env.location.hash,'#/dashboard');
  assert.match(env.node('app').innerHTML,/Đăng nhập Intelex/);
  assert.match(env.node('app').innerHTML,/autocomplete="current-password"/);

@@ -1,3 +1,4 @@
+import {notificationService} from './services/notification-service.js';
 import {bindPasswordPolicy} from './password-policy.js';
 import {exportReport} from './pages/attendance-report.js';
 import {DOCUMENT_CONTENTS} from './data/document-content.js';
@@ -50,7 +51,7 @@ export function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ct
  case 'confirm-reset':openDialog('Khôi phục bản demo?',`<p>Toàn bộ thay đổi trên trình duyệt sẽ được xóa và khôi phục dữ liệu mẫu ban đầu.</p><div class="form-actions">${button('Hủy','close')}${button('Khôi phục dữ liệu','reset','refresh','danger')}</div>`);return;
  case 'reset':reset();ctx.resetFilters();closeDialog();location.hash='/dashboard';render(true);toast('Đã khôi phục dữ liệu mẫu');return;
  case 'notifications':openDialog('Thông báo của bạn',`${notifications(5)}<div class="form-actions"><a class="btn primary" href="#/notifications" data-action="close">Xem tất cả</a></div>`);return;
- case 'read-all':s.notifications.filter(n=>n.recipientId===user().id).forEach(n=>n.readAt=NOW);save();render(true);toast('Đã đánh dấu tất cả đã đọc');return;
+ case 'read-all':if(apiSession()){await notificationService.readAll();return;}s.notifications.filter(n=>n.recipientId===user().id).forEach(n=>n.readAt=NOW);save();render(true);toast('Đã đánh dấu tất cả đã đọc');return;
  case 'employee':employeeDetail(itemId);return;
  case 'task':taskDetail(itemId);return;
  case 'request':requestDetail(itemId);return;

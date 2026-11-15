@@ -102,3 +102,11 @@ Các trang nghiệp vụ vẫn sử dụng dữ liệu demo hiện có, chưa t�
 Chạy `npm start` để dùng proxy `/api` cùng origin; cấu hình backend bằng biến `API_ORIGIN`.
 Có thể cấu hình URL API trực tiếp bằng `window.INTELEX_API_BASE` trước khi tải bundle.
 Chạy `npm run build` sau khi sửa source và `npm test` để kiểm tra.
+
+### Thông báo qua REST và SignalR
+
+- `NotificationService` tại `assets/js/services/notification-service.js` dùng JWT hiện tại, một kết nối `/hubs/notifications` cho mỗi phiên, tự reconnect và dừng khi logout/đổi token. Không lưu nội dung hoặc JWT vào log.
+- `notification.available` được khử trùng theo `eventId` và chỉ kích hoạt tải lại inbox cùng `unread-count`. Nội dung luôn lấy từ REST; REST tiếp tục hoạt động khi hub offline, có nút làm mới và đồng bộ dự phòng mỗi 30 giây.
+- Chuông Header hiển thị số chưa đọc và 8 thông báo mới nhất. Trang `#/notifications` phân trang theo `nextBeforeId`, dùng các API PATCH đánh dấu đọc thuộc JWT hiện tại; không gửi `UserId`.
+- `npm install` cài `@microsoft/signalr`; `npm run build` sao chép browser bundle của thư viện vào `assets/js/dist/signalr.min.js`. Không dùng CDN. `server.js` proxy cả HTTP negotiate/long polling và WebSocket upgrade đến `API_ORIGIN`; không cần triển khai Backend mới.
+- Kiểm tra bằng `npm test`; bài kiểm tra `notification-proxy.test.js` cần được phép mở cổng localhost tạm thời. Chưa xác minh với hub/worker của Backend thật.

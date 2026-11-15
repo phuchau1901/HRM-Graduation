@@ -21,12 +21,13 @@ async function request(path,options={}){
  const headers=new Headers(options.headers||{});
  headers.set('Accept','application/json');
  if(options.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');
- if(path!=='/api/auth/login'&&apiSession()?.accessToken)headers.set('Authorization',`Bearer ${session.accessToken}`);
+ const requestToken=path!=='/api/auth/login'?apiSession()?.accessToken:null;
+ if(requestToken)headers.set('Authorization',`Bearer ${requestToken}`);
  const transport=globalThis['fetch'];
  if(typeof transport!=='function')throw Error('Trình duyệt hiện tại không hỗ trợ kết nối API.');
  const response=await transport(apiBaseUrl()+path,{...options,headers});
  let body=null;try{body=await response.json();}catch{}
- if(!response.ok){if(response.status===401)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;throw error;}
+ if(!response.ok){if(response.status===401&&requestToken&&session?.accessToken===requestToken)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;throw error;}
  return body;
 }
 
@@ -35,6 +36,7 @@ async function login(userId,password){
  if(!result?.accessToken||!result.user||!Array.isArray(result.permissions))throw Error('Phản hồi đăng nhập không hợp lệ.');
  session={...result};
  try{localStorage.setItem(SESSION_KEY,JSON.stringify(session));}catch{}
+ globalThis.window?.dispatchEvent?.(new Event('session-change'));
  return session;
 }
 
@@ -45,7 +47,13 @@ function apiEmployeeDetail(employeeId){return request(`/api/employees/${encodeUR
 function apiUnlinkedEmployees(query=''){return request('/api/employees/unlinked'+(query?`?${query}`:''));}
 function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
 function apiPositions(query=''){return request('/api/positions'+(query?`?${query}`:''));}
-function apiNotifications(){return request('/api/notifications');}
+function apiNotifications(limit=30,beforeId=null){
+ const query=new URLSearchParams({limit});if(beforeId!==null)query.set('beforeId',beforeId);
+ return request('/api/notifications?'+query,{cache:'no-store'});
+}
+function apiNotificationUnreadCount(){return request('/api/notifications/unread-count',{cache:'no-store'});}
+function apiReadNotification(id){return request(`/api/notifications/${encodeURIComponent(id)}/read`,{method:'PATCH'});}
+function apiReadAllNotifications(){return request('/api/notifications/read-all',{method:'PATCH'});}
 
 function apiRoles(page=1,search=''){return request('/api/roles?'+new URLSearchParams({page,pageSize:30,search}));}
 function apiRoleDetail(roleId){return request(`/api/roles/${encodeURIComponent(roleId)}`);}
@@ -142,6 +150,117 @@ function apiSaveShift(id,payload,version=null){
 function apiAuditLogs(query=''){return request('/api/audit-logs'+(query?`?${query}`:''),{cache:'no-store'});}
 function apiAuditLogDetail(id){return request(`/api/audit-logs/${encodeURIComponent(id)}`,{cache:'no-store'});}
 
+// Keep connected browser tabs aligned when a login/logout replaces the stored JWT.
+globalThis.window?.addEventListener?.('storage',event=>{
+ if(event.key===SESSION_KEY||event.key===null){session=readSession();globalThis.window.dispatchEvent(new Event('auth-change'));}
+});
+
+
+const {HubConnectionBuilder,LogLevel}=globalThis.signalR||{};
+
+// Source: services/notification-service.js
+
+function notificationError(error){return error?.status===401?'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.':error?.status===403?'Bạn không có quyền thực hiện thao tác này.':error?.status===404?'Thông báo không tồn tại hoặc không thuộc tài khoản này.':'Không tải được thông báo. Kiểm tra kết nối và thử lại.';}
+function createNotificationConnection({url,accessTokenFactory,isActive}){
+ return new HubConnectionBuilder().withUrl(url,{accessTokenFactory,logMessageContent:false})
+ .withAutomaticReconnect({nextRetryDelayInMilliseconds:context=>isActive()?Math.min(30000,1000*2**Math.min(context.previousRetryCount,5)):null})
+ .configureLogging(LogLevel.None).build();
+}
+class NotificationService{
+ constructor({getSession=apiSession,baseUrl=apiBaseUrl,logout=apiLogout,rest={list:apiNotifications,count:apiNotificationUnreadCount,read:apiReadNotification,readAll:apiReadAllNotifications},createConnection=createNotificationConnection,timers={setTimeout,clearTimeout,setInterval,clearInterval}}={}){
+ this.getSession=getSession;this.baseUrl=baseUrl;this.logout=logout;this.rest=rest;this.createConnection=createConnection;this.timers=timers;
+ this.listeners=new Set();this.generation=0;this.identity='';this.connection=null;this.lifecycle=Promise.resolve();this.retryTimer=null;this.pollTimer=null;this.refreshTask=null;this.refreshAgain=false;this.seenEvents=new Set();this.state=this.emptyState();
+ }
+ emptyState(){return {generation:this.generation,items:[],nextBeforeId:null,count:null,loading:false,loaded:false,error:'',realtime:'disconnected',revision:0};}
+ snapshot(){return {...this.state,items:this.state.items.map(item=>({...item}))};}
+ subscribe(listener){this.listeners.add(listener);listener(this.snapshot());return ()=>this.listeners.delete(listener);}
+ emit(){const state=this.snapshot();for(const listener of [...this.listeners])listener(state);}
+ key(){const session=this.getSession();return session?.accessToken?JSON.stringify([session.user?.userId,session.accessToken]):'';}
+ current(generation){return generation===this.generation&&!!this.identity&&this.identity===this.key();}
+ clearTimers(){if(this.retryTimer!==null)this.timers.clearTimeout(this.retryTimer);if(this.pollTimer!==null)this.timers.clearInterval(this.pollTimer);this.retryTimer=null;this.pollTimer=null;}
+ syncAuth(){
+ const identity=this.key();if(identity===this.identity)return this.lifecycle;
+ this.identity=identity;const generation=++this.generation;this.clearTimers();this.seenEvents.clear();this.refreshAgain=false;this.refreshTask=null;
+ const old=this.connection;this.connection=null;
+ const stopped=old?Promise.resolve().then(()=>old.stop()).catch(()=>{}):Promise.resolve();
+ this.state=this.emptyState();this.emit();
+ // Stop a connection (including an in-progress start) immediately; serialize replacement starts.
+ this.lifecycle=this.lifecycle.catch(()=>{}).then(async()=>{
+ await stopped;if(!this.current(generation))return;
+ this.pollTimer=this.timers.setInterval(()=>{void this.syncAuth();if(this.current(generation))void this.refresh();},30000);
+ void this.refresh();
+ const connection=this.createConnection({url:this.baseUrl().replace(/\/$/,'')+'/hubs/notifications',accessTokenFactory:()=>this.current(generation)?this.getSession().accessToken:'',isActive:()=>this.current(generation)});
+ if(!this.current(generation)){await connection.stop().catch(()=>{});return;}
+ this.connection=connection;
+ connection.on('notification.available',event=>{
+ if(!this.current(generation))return;
+ if(typeof event?.eventId==='string'||typeof event?.eventId==='number'){
+ const key=String(event.eventId);if(this.seenEvents.has(key))return;this.seenEvents.add(key);
+ if(this.seenEvents.size>1000)this.seenEvents.delete(this.seenEvents.values().next().value);
+ }
+ void this.refresh();
+ });
+ connection.onreconnecting(()=>{if(this.current(generation)){this.state.realtime='reconnecting';this.emit();}});
+ connection.onreconnected(()=>{if(this.current(generation)){this.state.realtime='connected';this.emit();void this.refresh();}});
+ connection.onclose(()=>{if(this.current(generation)){this.state.realtime='offline';this.emit();this.scheduleRetry(connection,generation);}});
+
+ await this.startConnection(connection,generation);
+ }).catch(()=>{if(this.current(generation)){this.state.realtime='offline';this.emit();}});
+ return this.lifecycle;
+ }
+ async startConnection(connection,generation){
+ if(!this.current(generation)||connection!==this.connection)return;
+ this.state.realtime='connecting';this.emit();
+ try{await connection.start();if(this.current(generation)){this.state.realtime='connected';this.emit();void this.refresh();}}
+ catch(error){if(!this.current(generation))return;this.state.realtime='offline';this.emit();
+ if(error?.statusCode===401){this.logout();void this.syncAuth();return;}
+ this.scheduleRetry(connection,generation);
+ }
+ }
+ scheduleRetry(connection,generation){
+ if(this.retryTimer!==null||!this.current(generation))return;
+ this.retryTimer=this.timers.setTimeout(()=>{this.retryTimer=null;void this.startConnection(connection,generation);},10000);
+ }
+ async page(beforeId=null,limit=30){
+ const generation=this.generation;if(!this.current(generation))throw Object.assign(Error('Session changed'),{status:401});
+ const result=await this.rest.list(limit,beforeId);
+ if(!this.current(generation))throw Error('Session changed');
+ if(!Array.isArray(result?.items))throw Error('Invalid notifications response');
+ return result;
+ }
+ refresh(){
+ const generation=this.generation;if(!this.current(generation))return Promise.resolve();
+ if(this.refreshTask?.generation===generation){this.refreshAgain=true;return this.refreshTask.promise;}
+ this.state.loading=true;this.state.error='';this.emit();
+ const task={generation,promise:null};this.refreshTask=task;
+ task.promise=(async()=>{
+ const [inbox,count]=await Promise.allSettled([this.rest.list(30,null),this.rest.count()]);
+ if(!this.current(generation))return;
+ let error=null;
+ if(inbox.status==='fulfilled'&&Array.isArray(inbox.value?.items)){
+ this.state.items=inbox.value.items;this.state.nextBeforeId=inbox.value.nextBeforeId??null;this.state.loaded=true;this.state.revision++;
+ }else error=inbox.status==='rejected'?inbox.reason:Error('Invalid inbox');
+ if(count.status==='fulfilled'&&Number.isSafeInteger(count.value?.count)&&count.value.count>=0)this.state.count=count.value.count;
+ else error=count.status==='rejected'?count.reason:Error('Invalid count');
+ if(error?.status===401){this.logout();void this.syncAuth();return;}
+ this.state.error=error?notificationError(error):'';this.state.loading=false;this.emit();
+ })().catch(error=>{if(this.current(generation)){this.state.loading=false;this.state.error=notificationError(error);this.emit();}}).finally(()=>{
+ if(this.refreshTask!==task)return;this.refreshTask=null;
+ if(this.refreshAgain&&this.current(generation)){this.refreshAgain=false;void this.refresh();}
+ });return task.promise;
+ }
+ async read(id){
+ const generation=this.generation;if(!this.current(generation))throw Object.assign(Error(),{status:401});
+ await this.rest.read(id);if(this.current(generation))await this.refresh();
+ }
+ async readAll(){
+ const generation=this.generation;if(!this.current(generation))throw Object.assign(Error(),{status:401});
+ await this.rest.readAll();if(this.current(generation))await this.refresh();
+ }
+ async stop(){this.identity='';++this.generation;this.clearTimers();this.seenEvents.clear();this.refreshTask=null;this.refreshAgain=false;const connection=this.connection;this.connection=null;this.state=this.emptyState();this.emit();if(connection)await connection.stop().catch(()=>{});await this.lifecycle.catch(()=>{});}
+}
+const notificationService=new NotificationService();
+
 
 // Source: utils.js
 const escapeHtml=(v='')=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -202,7 +321,7 @@ function can(s,u,action,resource){if(apiSession()){
  return screenAllowed(path,flag||'canView');
 }const override=s.rolePermissions?.[u.role]?.[action];if(override===false&&!(u.role==='Admin'&&action==='admin'))return false;
  const r=u.role;switch(action){case 'admin':return r==='Admin';case 'hr':return ['Admin','HR'].includes(r);case 'team':return r!=='Dev';case 'project.create':return ['Admin','Manager'].includes(r);case 'task.create':return ['Admin','Manager','Leader'].includes(r);case 'task.edit':return tasks(s,u).some(t=>t.id===resource?.id)&&(r!=='Dev'||resource.assigneeId===u.id);case 'approve':return resource?.requesterId!==u.id&&resource?.status?.startsWith('pending_')&&(resource.currentApproverId===u.id||r==='Admin');default:return false;}}
-function routeAllowed(s,u,path){if(apiSession())return path==='/admin/users/register'?screenAllowed('/admin/users','canNew'):screenAllowed(path);if(path.startsWith('/admin'))return can(s,u,'admin');if(path.startsWith('/hr'))return u.role!=='Dev'&&(['Admin','HR'].includes(u.role)||path==='/hr/employees'||/^\/hr\/employees\/[^/]+$/.test(path));if(path.startsWith('/team'))return u.role==='HR'?['/team/overview','/team/members'].includes(path):can(s,u,'team');if(u.role==='HR'&&['/projects/tasks','/projects/workload','/projects/reports','/projects/timeline'].includes(path))return false;return true;}
+function routeAllowed(s,u,path){if(apiSession())return path==='/notifications'?true:path==='/admin/users/register'?screenAllowed('/admin/users','canNew'):screenAllowed(path);if(path.startsWith('/admin'))return can(s,u,'admin');if(path.startsWith('/hr'))return u.role!=='Dev'&&(['Admin','HR'].includes(u.role)||path==='/hr/employees'||/^\/hr\/employees\/[^/]+$/.test(path));if(path.startsWith('/team'))return u.role==='HR'?['/team/overview','/team/members'].includes(path):can(s,u,'team');if(u.role==='HR'&&['/projects/tasks','/projects/workload','/projects/reports','/projects/timeline'].includes(path))return false;return true;}
 
 // Explicit aliases for screen codes supplied by the backend. Unknown codes deny access.
 const screenRoutes={
@@ -311,7 +430,7 @@ function attendanceTable(f,dashboard=false){const rows=attendanceRows(f);if(f.so
 function projectChart(f){const ts=visibleTasks(f);const ps=scope.projects(s,user()).filter(p=>!f.team||p.teamIds.includes(f.team));return `<div class="card-body project-chart">${ps.map(p=>{const all=ts.filter(t=>t.projectId===p.id),done=all.filter(t=>t.status==='done').length;return `<a class="chart-row ${p.health==='at_risk'?'orange':p.color}" href="#/projects/${p.id}" title="${e(p.name)}: ${done}/${all.length} task, hạn ${dateLabel(p.dueDate)}"><span class="chart-name">${e(p.name)}</span><span class="chart-track"><span class="chart-fill" style="width:${pct(done,all.length)}%;display:block"></span></span><span class="chart-percent">${pct(done,all.length)}%</span></a>`;}).join('')||empty()}<div class="chart-axis"><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div><div class="chart-footer"><span>${icon('clock',10)} Cập nhật từ dữ liệu công việc</span><strong>${ts.filter(t=>t.status==='done').length}/${ts.length} task hoàn thành</strong></div></div>`;}
 function attendanceChart(f){const weekend=[0,6].includes(new Date(f.date+'T12:00:00+07:00').getDay());if(weekend)return `<div class="card-body">${empty('Không có lịch làm việc','Ngày đã chọn là ngày nghỉ cuối tuần.')}</div>`;const rows=attendanceRows({...f,search:'',status:''}),n=rows.length;const counts=['ontime','late','leave','absent'].map(st=>rows.filter(({a})=>attendanceStatus(a)===st).length),sum=counts[0]+counts[1];return `<div class="card-body"><div class="attendance-chart"><div class="donut" style="--a:${pct(counts[0],n)}%;--b:${pct(sum,n)}%;--c:${pct(sum+counts[2],n)}%" role="img" aria-label="${sum}/${n} đã check-in"><div class="donut-center"><strong>${sum}<span>/${n}</span></strong><small>Đã check-in</small></div></div><div class="attendance-legend">${['Đúng giờ','Đi trễ','Nghỉ phép','Chưa check-in'].map((name,i)=>`<li><span class="legend-key" style="--tone:${['#5296ec','#e9b667','#a58ad9','#d8dee9'][i]}">${name}</span><strong>${counts[i]}</strong></li>`).join('')}</div></div><div class="attendance-summary"><strong>${n?(sum/n*100).toLocaleString('vi-VN',{maximumFractionDigits:1}):0}%</strong> nhân sự đã có mặt · ${dateLabel(f.date)}</div></div>`;}
 function taskList(f){const tasks=visibleTasks(f).filter(t=>t.status!=='done'&&t.dueDate<='2026-10-26').sort((a,b)=>a.dueDate.localeCompare(b.dueDate));return `<div class="card-body" style="padding-top:5px">${tasks.slice(0,5).map(t=>{const u=s.users.find(u=>u.id===t.assigneeId),over=t.dueDate<'2026-10-19';return `<a class="task-item" href="#/workspace/tasks" data-open="task" data-id="${t.id}"><span class="task-check"></span><div><h3>${e(t.title)}</h3><p>${e(t.code)} <span>·</span> ${badge(t.priority)}</p><div class="due ${over?'overdue':''}">${icon('calendar',10)} ${over?'Quá hạn · ':''}${dateLabel(t.dueDate)}</div></div>${avatar(u)}</a>`;}).join('')||empty('Không có task sắp đến hạn','Bạn đã hoàn thành các công việc trong tuần.')}</div>`;}
-function notifications(limit=99,filter='all'){let ns=s.notifications.filter(n=>n.recipientId===user().id&&(filter==='all'||filter==='unread'&&!n.readAt||n.type===filter));return ns.slice(0,limit).map(n=>`<a href="#${n.targetRoute}" class="notification-row ${!n.readAt?'unread':''}" data-notification="${n.id}"><div class="icon-tile ${n.type==='leave'?'purple':n.type==='system'?'orange':'blue'}">${icon(n.type==='task'?'check':n.type==='leave'?'calendar':n.type==='system'?'file':'clock',15)}</div><div><h3>${e(n.title)}</h3><p>${e(n.body)}</p><p>${timeLabel(n.createdAt)} · ${dateLabel(n.createdAt)}</p></div></a>`).join('')||empty('Không có thông báo','Bạn đã cập nhật mọi thông tin.');}
+function notifications(limit=99,filter='all'){if(apiSession()){const current=notificationService.snapshot();return `<div data-notification-feed="${limit}">${current.items.length?notificationRows(current.items.slice(0,limit)):current.loading?'<p>Đang tải thông báo…</p>':'<p>Chưa có thông báo.</p>'}</div>`;}let ns=s.notifications.filter(n=>n.recipientId===user().id&&(filter==='all'||filter==='unread'&&!n.readAt||n.type===filter));return ns.slice(0,limit).map(n=>`<a href="#${n.targetRoute}" class="notification-row ${!n.readAt?'unread':''}" data-notification="${n.id}"><div class="icon-tile ${n.type==='leave'?'purple':n.type==='system'?'orange':'blue'}">${icon(n.type==='task'?'check':n.type==='leave'?'calendar':n.type==='system'?'file':'clock',15)}</div><div><h3>${e(n.title)}</h3><p>${e(n.body)}</p><p>${timeLabel(n.createdAt)} · ${dateLabel(n.createdAt)}</p></div></a>`).join('')||empty('Không có thông báo','Bạn đã cập nhật mọi thông tin.');}
 function activityList(f,limit=6){const us=new Set(visibleEmployees(f).map(u=>u.id));return `<div class="card-body">${s.activities.filter(a=>us.has(a.actorId)||a.actorId===user().id).slice(0,limit).map(a=>{const u=s.users.find(u=>u.id===a.actorId),p=s.projects.find(p=>p.id===a.projectId);return `<div class="timeline-row">${avatar(u)}<div><p><strong>${e(u?.name)}</strong> ${e(a.action)}</p><small>${p?e(p.name)+' · ':''}${timeLabel(a.createdAt)} · ${dateLabel(a.createdAt)}</small></div></div>`;}).join('')||empty('Chưa có hoạt động','Các cập nhật của bạn sẽ xuất hiện tại đây.')}</div>`;}
 function dashboard(f){const u=user(),us=visibleEmployees(f),ps=scope.projects(s,u).filter(p=>!f.team||p.teamIds.includes(f.team)),ts=visibleTasks(f),done=ts.filter(t=>t.status==='done').length,ars=attendanceRows({...f,search:'',status:''}),check=ars.filter(({a})=>!!a?.checkIn).length;const admin=u.role==='Admin',hr=u.role==='HR';let metrics=admin?kpi('Tài khoản hoạt động',s.users.filter(x=>x.status==='active').length,'users','Toàn bộ hệ thống','users','blue')+kpi('Nhóm quyền',5,'roles','Phân quyền theo phạm vi','shield','purple')+kpi('Nhật ký thao tác',s.auditLogs.length,'','Ghi nhận trong bản demo','file','orange')+kpi('Phòng ban',s.departments.length,'','Engineering & People','briefcase','teal'):hr?kpi('Nhân sự công ty',us.length,'người','Đang làm việc tại Intelex','users','blue')+kpi('Hợp đồng sắp hết',s.contracts.filter(c=>c.endDate<'2026-11-19').length,'','Trong 30 ngày tới','file','purple')+kpi('Yêu cầu cần xử lý',s.requests.filter(r=>r.currentApproverId===u.id).length,'','Đang chờ HR phê duyệt','approval','orange')+kpi('Chấm công hôm nay',check,`/ ${us.length}`,'Có mặt trong ngày','clock','teal'):kpi(u.role==='Dev'?'Thành viên':'Nhân sự quản lý',us.length,'người',u.role==='Dev'?'Không gian cá nhân':`${new Set(us.map(x=>x.teamId)).size} team trong phạm vi`,'users','blue')+kpi('Dự án đang chạy',ps.length,'dự án','Đang trong giai đoạn triển khai','folder','purple')+kpi('Task hoàn thành',done,`/ ${ts.length}`,`${pct(done,ts.length)}% công việc đã hoàn tất`,'check','orange')+kpi('Chấm công hôm nay',check,`/ ${us.length}`,'Nhân sự đã check-in','clock','teal');return `<div class="welcome-banner"><div class="welcome-icon">${icon('sun',21)}</div><div><strong>Một tuần mới, những ý tưởng mới.</strong><p>${u.role==='Dev'?'Sẵn sàng cùng Intelex tạo nên những điều có ý nghĩa.':`Bạn có ${scope.requests(s,u).filter(r=>r.currentApproverId===u.id).length} yêu cầu đang chờ xử lý. Cùng giữ nhịp làm việc của đội ngũ nhé!`}</p></div><a href="#/approvals" class="btn small">Xem yêu cầu ${icon('arrow',13)}</a></div><div class="kpis">${metrics}</div><div class="dashboard-grid">${hr||admin?card('Nhịp làm việc Intelex','Hoạt động mới nhất trong công ty',activityList(f,5),link('Xem nhân sự','/hr/employees')):card('Tiến độ dự án','Tổng quan tiến độ các dự án đang triển khai',projectChart(f),`<div class="chart-meta"><span class="legend-key blue">Đúng kế hoạch</span><span class="legend-key orange">Có nguy cơ</span></div>`)}${card('Chấm công hôm nay','Tình hình hiện diện của đội ngũ',attendanceChart(f),button('','refresh','refresh','text','aria-label="Làm mới chấm công"'))}</div><div class="dashboard-grid">${card('Báo cáo chấm công',`${dateLabel(f.date)} · Theo dõi check-in của đội ngũ`,`<div class="table-toolbar"><input placeholder="Tìm nhân viên…" aria-label="Tìm nhân viên chấm công" data-filter="search" value="${e(f.search)}"><select data-filter="status" aria-label="Lọc chấm công"><option value="">Tất cả trạng thái</option>${['ontime','late','leave','absent'].map(k=>`<option value="${k}" ${f.status===k?'selected':''}>${labels[k]}</option>`).join('')}</select></div>${attendanceTable(f,true)}`,link('Xem tất cả',u.role==='Dev'?'/workspace/attendance':'/reports'))}${hr||admin?card('Thông báo','Thông tin dành cho bạn',`<div class="card-body" style="padding-top:4px">${notifications(4)}</div>`,link('Tất cả','/notifications')):card('Task sắp đến hạn','Ưu tiên hôm nay và trong 7 ngày tới',taskList(f),link('Xem tất cả',u.role==='Dev'?'/workspace/tasks':'/projects/tasks'))}</div><div class="dashboard-grid">${card('Hoạt động gần đây','Những cập nhật mới nhất từ đội ngũ',activityList(f,5),`<span class="tag">Hôm nay</span>`)}${card('Bảng tin Intelex','Kết nối và cập nhật thông tin',`<div class="card-body" style="padding-top:4px">${notifications(3)}</div>`,link('Xem tất cả','/notifications'))}</div>`;}
 
@@ -320,6 +439,87 @@ function dashboard(f){const u=user(),us=visibleEmployees(f),ps=scope.projects(s,
 function reportRows(f){const from=f.period==='month'?(f.month||'2026-10')+'-01':f.from||f.date;let to=f.period==='month'?(f.month||'2026-10')+'-31':f.to||f.date;if(f.period==='month'){const [y,m]=(f.month||'2026-10').split('-').map(Number);to=`${y}-${String(m).padStart(2,'0')}-${new Date(y,m,0).getDate()}`;}if(to>'2026-10-19')to='2026-10-19';return scope.employees(s,user()).filter(u=>(!f.team||u.teamId===f.team)&&(!f.department||u.departmentId===f.department)&&(!f.employee||u.id===f.employee)&&matches(u.name+u.employeeCode,f.search)).map(u=>{const records=s.attendance.filter(a=>a.userId===u.id&&a.date>=from&&a.date<=to),valid=records.filter(a=>a.checkIn&&a.checkOut);const worked=valid.reduce((sum,a)=>sum+workMinutes(a,s.settings)/60,0),late=records.filter(a=>attendanceStatus(a)==='late').length,early=valid.filter(a=>a.checkOut.slice(11,16)<s.settings.shiftEnd).length,leave=records.filter(a=>a.leaveRequestId).length;const overtime=s.requests.filter(r=>r.requesterId===u.id&&r.type==='overtime'&&r.status==='approved'&&r.startDate>=from&&r.endDate<=to).reduce((sum,r)=>sum+(Number(r.hours)||0),0);return {u,standard:to>=from?workDays(from,to):0,actual:(worked/8).toFixed(1),late,early,overtime,leave,worked:worked.toFixed(1)};});}
 function exportReport(f){csvDownload('intelex-bao-cao-cham-cong',['Mã NV','Nhân viên','Công chuẩn','Công thực tế','Đi trễ','Về sớm','Tăng ca (giờ)','Nghỉ phép','Giờ công'],reportRows(f).map(r=>[r.u.employeeCode,r.u.name,r.standard,r.actual,r.late,r.early,r.overtime,r.leave,r.worked]));}
 function attendanceReport(f){const rows=reportRows(f);return `<div class="toolbar"><select data-filter="period" aria-label="Kỳ báo cáo"><option value="day" ${f.period!=='month'&&f.period!=='range'?'selected':''}>Theo ngày</option><option value="month" ${f.period==='month'?'selected':''}>Theo tháng</option><option value="range" ${f.period==='range'?'selected':''}>Khoảng ngày</option></select>${f.period==='month'?`<input type="month" aria-label="Tháng báo cáo" data-filter="month" value="${f.month||'2026-10'}" max="2026-10">`:f.period==='range'?`<input type="date" aria-label="Từ ngày" data-filter="from" value="${f.from||f.date}" max="2026-10-19"><input type="date" aria-label="Đến ngày" data-filter="to" value="${f.to||f.date}" max="2026-10-19">`:`<input type="date" aria-label="Ngày báo cáo" data-filter="date" value="${f.date}" max="2026-10-19">`}${teamOptions(f)}<select data-filter="department" aria-label="Phòng ban"><option value="">Tất cả phòng ban</option>${s.departments.map(d=>`<option value="${d.id}" ${f.department===d.id?'selected':''}>${e(d.name)}</option>`).join('')}</select><select data-filter="employee" aria-label="Nhân viên"><option value="">Tất cả nhân viên</option>${scope.employees(s,user()).filter(u=>!f.team||u.teamId===f.team).map(u=>`<option value="${u.id}" ${f.employee===u.id?'selected':''}>${e(u.name)}</option>`).join('')}</select>${button('Xuất CSV','export-report','download')}${button('In / PDF','print','print')}</div><div class="kpis">${kpi('Nhân sự',rows.length,'người','Theo phạm vi & bộ lọc','users','blue')}${kpi('Tổng giờ công',rows.reduce((n,r)=>n+Number(r.worked),0).toLocaleString('vi-VN'),'giờ','Chỉ tính các ca đã check-out','clock','teal')}${kpi('Lượt đi trễ',rows.reduce((n,r)=>n+r.late,0),'lượt','Theo giờ bắt đầu ca','calendar','orange')}${kpi('Ngày phép',rows.reduce((n,r)=>n+r.leave,0),'ngày','Theo lịch nghỉ đã duyệt','sun','purple')}</div>${card('Báo cáo chấm công chi tiết','Công thực tế = giờ công hợp lệ / 8 · Ngày chưa kết thúc chỉ ghi nhận giờ vào',table(['Nhân viên','Công chuẩn','Công thực tế','Đi trễ','Về sớm','Tăng ca (giờ)','Nghỉ phép','Giờ công'],rows.map(r=>[person(r.u),r.standard,r.actual,r.late,r.early,r.overtime,r.leave,r.worked]),{page:f.page,size:Number(f.size)||10}),`<select aria-label="Số dòng mỗi trang" data-filter="size">${[10,20,50].map(n=>`<option value="${n}" ${Number(f.size)===n?'selected':''}>${n} dòng</option>`).join('')}</select>`)}<p class="muted" style="font-size:11px;margin-top:14px">Số liệu đến ngày demo 19/10/2026. Ca mẫu 8 giờ/ngày, không tính ngày lễ. Ngày chưa có dữ liệu không được tính là vắng không phép.</p>`;}
+
+
+// Source: pages/notifications.js
+
+const notificationTabs=[['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['system','Hệ thống']];
+function filterNotificationItems(items,tab){
+ if(tab==='all')return items;
+ if(tab==='unread')return items.filter(item=>!item.readAt);
+ const references={task:['TASK','PROJECT_TASK'],attendance:['ATTENDANCE','WORK_SCHEDULE','SHIFT'],leave:['LEAVE','LEAVE_REQUEST'],system:['SYSTEM']};
+ return items.filter(item=>references[tab]?.includes(String(item.referenceType||'').toUpperCase())||(tab==='system'&&String(item.source||'').toUpperCase()==='SYSTEM'));
+}
+function notificationTime(value){
+ if(!value)return '—';const text=String(value),date=new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)?text:text+'Z');
+ return Number.isNaN(date.getTime())?'—':new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}).format(date);
+}
+function notificationRows(items){
+ return items.map(item=>`<button type="button" class="notification-row api-notification-row ${item.readAt?'':'unread'}" data-noti-read="${e(item.id)}"><span class="icon-tile blue">${icon('bell',16)}</span><span class="api-notification-content"><strong>${e(item.title)}</strong><span class="api-notification-text">${e(item.content)}</span><small>${e(notificationTime(item.publishedAt||item.createdAt))} · ${item.readAt?'Đã đọc':'Chưa đọc'}</small></span>${item.readAt?'':'<span class="api-notification-dot" aria-label="Chưa đọc"></span>'}</button>`).join('');
+}
+function realtimeLabel(state){return state.realtime==='connected'?'Đang cập nhật trực tiếp':state.realtime==='connecting'?'Đang kết nối thông báo trực tiếp…':state.realtime==='reconnecting'?'Đang kết nối lại · Bạn vẫn có thể tải thông báo':'Chưa kết nối trực tiếp · Bạn vẫn có thể tải thông báo';}
+function renderNotificationHeader(root,state=notificationService.snapshot(),service=notificationService){
+ if(!root)return;
+ const focused=root.contains(document.activeElement)?document.activeElement:null,focusId=focused?.id,focusRead=focused?.dataset?.notiRead;
+ if(root.notificationGeneration!==state.generation){root.notificationOpen=false;root.notificationError='';root.notificationGeneration=state.generation;}
+ const open=!!root.notificationOpen,count=state.count;
+ root.innerHTML=`<button type="button" class="icon-button" id="notification-bell" aria-label="Thông báo${count===null?'':`, ${count} chưa đọc`}" aria-expanded="${open}" aria-controls="notification-dropdown">${icon('bell',19)}${count>0?`<span class="notification-count" aria-hidden="true">${count>99?'99+':count}</span>`:''}</button><section id="notification-dropdown" class="notification-dropdown" aria-label="Thông báo mới nhất" ${open?'':'hidden'}><div class="notification-dropdown-heading"><strong>Thông báo</strong><button type="button" class="btn text small" data-noti-all ${root.notificationBusy?'disabled':''}>Đánh dấu tất cả đã đọc</button></div><p class="notification-connection muted">${realtimeLabel(state)}</p>${state.error?`<p class="form-error" role="alert">${e(state.error)}</p>`:''}${root.notificationError?`<p class="form-error" role="alert">${e(root.notificationError)}</p>`:''}<div class="notification-dropdown-list">${!state.loaded&&state.loading?'<p role="status">Đang tải thông báo…</p>':state.items.length?notificationRows(state.items.slice(0,8)):state.loaded?'<p class="notification-empty">Chưa có thông báo.</p>':''}</div><div class="notification-dropdown-footer"><button type="button" class="btn small" data-noti-refresh ${state.loading?'disabled':''}>${state.loading?'Đang tải…':'Làm mới'}</button><a class="btn primary small" href="#/notifications">Xem tất cả</a></div></section>`;
+ root.querySelector('#notification-bell').onclick=()=>{root.notificationOpen=!root.notificationOpen;renderNotificationHeader(root,service.snapshot(),service);if(root.notificationOpen)void service.refresh();};
+ root.querySelector('[data-noti-refresh]').onclick=()=>{void service.refresh();};
+ async function mutate(action){
+ if(root.notificationBusy)return;root.notificationBusy=true;root.notificationError='';
+ try{await action();}catch(error){root.notificationError=notificationError(error);}
+ finally{root.notificationBusy=false;if(root.isConnected)renderNotificationHeader(root,service.snapshot(),service);}
+ }
+ root.querySelector('[data-noti-all]').onclick=()=>mutate(()=>service.readAll());
+ root.querySelectorAll('[data-noti-read]').forEach(button=>button.onclick=()=>mutate(()=>service.read(button.dataset.notiRead)));
+ root.querySelector('a').onclick=()=>{root.notificationOpen=false;};
+ if(focusId)root.querySelectorAll('[id]').forEach(element=>{if(element.id===focusId)element.focus();});
+ else if(focusRead)root.querySelectorAll('[data-noti-read]').forEach(element=>{if(element.dataset.notiRead===focusRead)element.focus();});
+}
+function notificationEventInside(event,root){
+ return !!root&&(event.composedPath?.().includes(root)||root.contains(event.target));
+}
+function closeNotificationHeader(root,focus=false){if(root?.notificationOpen){root.notificationOpen=false;const state=notificationService.snapshot();renderNotificationHeader(root,state);if(focus)root.querySelector('#notification-bell')?.focus();}}
+function mountNotifications(root,service=notificationService){
+ if(!root)return ()=>{};
+ let selectedTab='all';
+ let state=service.snapshot(),cursor=null,history=[],items=state.items,next=state.nextBeforeId,loading=false,error='',busy=false,requestId=0,revision=state.revision,generation=state.generation;
+ function draw(){
+ if(!root.isConnected)return;
+ const visible=filterNotificationItems(items,selectedTab);
+ root.innerHTML=`<div class="tabs" role="tablist" aria-label="Danh mục thông báo">${notificationTabs.map(([key,label])=>`<button type="button" role="tab" class="tab ${selectedTab===key?'active':''}" aria-selected="${selectedTab===key}" data-noti-filter="${key}">${label}</button>`).join('')}</div><div class="toolbar"><button type="button" class="btn primary" id="notifications-read-all" ${busy?'disabled':''}>Đánh dấu tất cả đã đọc</button><button type="button" class="btn" id="notifications-refresh" ${loading||state.loading?'disabled':''}>Làm mới</button></div><p class="notification-page-status muted">${realtimeLabel(state)} · Giờ Việt Nam (Asia/Ho_Chi_Minh)</p><p id="notifications-error" class="form-error" role="alert">${e(error||state.error)}</p>${selectedTab!=='all'?'<p class="muted notification-filter-note">Lọc trên trang đang xem. Dùng Trang sau để xem các thông báo cũ hơn.</p>':''}${(loading||!state.loaded&&state.loading)?'<p role="status">Đang tải thông báo…</p>':visible.length?`<div class="notifications-inbox">${notificationRows(visible)}</div>`:state.loaded?`<div class="empty"><h3>${selectedTab==='all'?'Chưa có thông báo':'Không có thông báo phù hợp trên trang này'}</h3><p>Các thông báo của tài khoản này sẽ xuất hiện tại đây.</p></div>`:''}<div class="toolbar user-pagination"><button type="button" class="btn" id="notifications-prev" ${!history.length||loading?'disabled':''}>Trang trước</button><span>Trang ${history.length+1}</span><button type="button" class="btn" id="notifications-next" ${next===null||next===undefined||loading?'disabled':''}>Trang sau</button></div>`;
+ root.querySelectorAll('[data-noti-filter]').forEach(button=>button.onclick=()=>{selectedTab=button.dataset.notiFilter;draw();});
+ root.querySelector('#notifications-read-all').onclick=()=>mutate(()=>service.readAll());
+ root.querySelector('#notifications-refresh').onclick=()=>{if(cursor===null)void service.refresh();else void loadPage(cursor);};
+ root.querySelectorAll('[data-noti-read]').forEach(button=>button.onclick=()=>mutate(()=>service.read(button.dataset.notiRead)));
+ root.querySelector('#notifications-next').onclick=()=>{if(next!==null&&next!==undefined){history.push(cursor);cursor=next;void loadPage(cursor);}};
+ root.querySelector('#notifications-prev').onclick=()=>{if(history.length){cursor=history.pop();if(cursor===null){requestId++;loading=false;items=state.items;next=state.nextBeforeId;draw();}else void loadPage(cursor);}};
+ }
+ async function loadPage(beforeId){
+ const current=++requestId;loading=true;error='';draw();
+ try{const result=await service.page(beforeId);if(!root.isConnected||current!==requestId)return;items=result.items;next=result.nextBeforeId??null;}
+ catch(err){if(current===requestId)error=notificationError(err);}
+ finally{if(current===requestId){loading=false;draw();}}
+ }
+ async function mutate(action){
+ if(busy)return;busy=true;error='';draw();
+ try{await action();if(cursor!==null)await loadPage(cursor);}
+ catch(err){error=notificationError(err);}
+ finally{busy=false;draw();}
+ }
+ let unsubscribe=()=>{};
+ unsubscribe=service.subscribe(nextState=>{
+ if(!root.isConnected){unsubscribe();return;}
+ state=nextState;
+ if(generation!==state.generation){generation=state.generation;requestId++;cursor=null;history=[];items=[];next=null;error='';loading=false;busy=false;}
+ if(cursor===null){items=state.items;next=state.nextBeforeId;}
+ else if(revision!==state.revision&&!loading)void loadPage(cursor);
+ revision=state.revision;draw();
+ });
+ void service.syncAuth();if(!state.loaded&&!state.loading)void service.refresh();
+ return ()=>{requestId++;unsubscribe();};
+}
 
 
 // Source: pages/audit-logs.js
@@ -1125,7 +1325,7 @@ function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const
  case 'confirm-reset':openDialog('Khôi phục bản demo?',`<p>Toàn bộ thay đổi trên trình duyệt sẽ được xóa và khôi phục dữ liệu mẫu ban đầu.</p><div class="form-actions">${button('Hủy','close')}${button('Khôi phục dữ liệu','reset','refresh','danger')}</div>`);return;
  case 'reset':reset();ctx.resetFilters();closeDialog();location.hash='/dashboard';render(true);toast('Đã khôi phục dữ liệu mẫu');return;
  case 'notifications':openDialog('Thông báo của bạn',`${notifications(5)}<div class="form-actions"><a class="btn primary" href="#/notifications" data-action="close">Xem tất cả</a></div>`);return;
- case 'read-all':s.notifications.filter(n=>n.recipientId===user().id).forEach(n=>n.readAt=NOW);save();render(true);toast('Đã đánh dấu tất cả đã đọc');return;
+ case 'read-all':if(apiSession()){await notificationService.readAll();return;}s.notifications.filter(n=>n.recipientId===user().id).forEach(n=>n.readAt=NOW);save();render(true);toast('Đã đánh dấu tất cả đã đọc');return;
  case 'employee':employeeDetail(itemId);return;
  case 'task':taskDetail(itemId);return;
  case 'request':requestDetail(itemId);return;
@@ -1172,10 +1372,11 @@ function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const
 
 // Source: app.js
 const newFilters=()=>({search:'',status:'',team:'',project:'',date:'2026-10-19',page:1,size:10,view:'',tab:'',sort:''});
-let filters=newFilters(),expanded=new Set(),lastPath='',searchTimer;
+let filters=newFilters(),expanded=new Set(),lastPath='',searchTimer,disposeNotificationsPage=()=>{};
 const app=document.getElementById('app');
 function pageTitle(path){const titles={'/admin/users/register':'Đăng ký tài khoản','/dashboard':'Tổng quan quản lý','/workspace/tasks':'Công việc của tôi','/workspace/projects':'Dự án của tôi','/workspace/attendance':'Chấm công cá nhân','/workspace/leave':'Nghỉ phép của tôi','/team/overview':'Đội ngũ của bạn','/team/members':'Thành viên team','/team/tasks':'Công việc của team','/team/attendance':'Chấm công team','/team/leave':'Nghỉ phép team','/team/workload':'Phân bổ công việc','/team/reports':'Báo cáo team','/projects':'Quản lý dự án','/projects/tasks':'Tất cả công việc','/projects/milestones':'Milestones','/projects/members':'Thành viên dự án','/projects/workload':'Workload','/projects/timeline':'Timeline dự án','/projects/reports':'Báo cáo dự án','/hr/employees':'Quản lý nhân sự','/hr/organization':'Cơ cấu tổ chức','/hr/contracts':'Hợp đồng nhân sự','/hr/attendance':'Quản lý chấm công','/hr/attendance-reports':'Báo cáo chấm công','/hr/leave':'Quản lý nghỉ phép','/hr/reports':'Báo cáo nhân sự','/approvals':'Trung tâm phê duyệt','/reports':'Báo cáo & Phân tích','/documents':'Thư viện tài liệu','/notifications':'Thông báo','/admin/users':'Quản lý tài khoản','/admin/roles':'Vai trò hệ thống','/admin/permissions':'Phân quyền','/admin/audit-logs':'Nhật ký hệ thống','/admin/settings':'Cấu hình hệ thống','/admin/master-data':'Dữ liệu danh mục'};return path==='/dashboard'&&user().role!=='Manager'?`Tổng quan ${user().role==='Dev'?'cá nhân':user().role==='HR'?'nhân sự':user().role==='Admin'?'hệ thống':'team'}`:titles[path]||(path.startsWith('/projects/')?'Chi tiết dự án':path.startsWith('/hr/employees/')?'Hồ sơ nhân viên':'Không tìm thấy trang');}
 function loginScreen(){
+ disposeNotificationsPage();disposeNotificationsPage=()=>{};
  document.title='Đăng nhập · Intelex';
  app.innerHTML=`<main class="login-page"><form id="login-form" class="login-card"><img src="assets/images/logo.svg" alt="Intelex" width="48"><h1>Đăng nhập Intelex</h1><p>Đăng nhập bằng tài khoản được cấp để vào không gian làm việc.</p><label>User ID<input name="userId" autocomplete="username" required autofocus></label><label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required></label><p id="login-error" role="alert"></p><button class="btn primary" type="submit">Đăng nhập</button></form></main>`;
  document.getElementById('login-form').addEventListener('submit',async ev=>{
@@ -1185,27 +1386,39 @@ function loginScreen(){
  });
 }
 function shell(){if(!apiSession()){loginScreen();return;}
-const path=getPath(),u=user();let unread=s.notifications.filter(n=>n.recipientId===u.id&&!n.readAt).length,pending=scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count">${unread}</span>`:n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search">${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><button class="icon-button" data-action="notifications" aria-label="Thông báo">${icon('bell',19)}${unread?'<span class="notification-dot"></span>':''}</button><span class="top-divider"></span><div class="account-menu-wrap"><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Menu tài khoản" aria-expanded="false" aria-controls="top-account-menu">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role}</small></div>${icon('down',12)}</button><div class="account-dropdown" id="top-account-menu" hidden><button type="button" class="btn" data-action="self-password">Đổi mật khẩu</button><button type="button" class="btn" data-action="logout">Đăng xuất</button></div></div></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderContent();}
+const path=getPath(),u=user();let unread=notificationService.snapshot().count||0,pending=scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count" data-notification-nav-count>${unread}</span>`:n.name==='Notifications'?'<span class="badge count" data-notification-nav-count hidden></span>':n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search">${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><div id="notification-header" class="notification-header"></div><span class="top-divider"></span><div class="account-menu-wrap"><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Menu tài khoản" aria-expanded="false" aria-controls="top-account-menu">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role}</small></div>${icon('down',12)}</button><div class="account-dropdown" id="top-account-menu" hidden><button type="button" class="btn" data-action="self-password">Đổi mật khẩu</button><button type="button" class="btn" data-action="logout">Đăng xuất</button></div></div></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderNotificationHeader(document.getElementById('notification-header'));renderContent();}
 function header(path){const u=user(),home=path==='/dashboard';const primary=(path.includes('tasks')&&scope.can(s,u,'task.create'))?button('Tạo công việc','new-task','plus','primary'):path==='/projects'&&scope.can(s,u,'project.create')?button('Tạo dự án','new-project','plus','primary'):path==='/hr/employees'&&scope.can(s,u,'hr')?button('Thêm nhân viên','new-employee','plus','primary'):path==='/workspace/leave'?button('Tạo đơn nghỉ','new-request','plus','primary'):'';return `<div class="page-heading"><div><div class="eyebrow">${home?'YOUR WORK, CONNECTED':'INTELEX WORKSPACE'}</div><h1>${pageTitle(path)}${home?'<span style="color:#d7aa64;font-weight:400;margin-left:9px">✦</span>':''}</h1><p>${home?`Chào ${e(u.name.split(' ').pop())}, cùng xem đội ngũ đang làm việc thế nào hôm nay.`:'Một không gian chung để kết nối con người và công việc.'}</p></div><div class="heading-actions">${home?`${teamOptions(filters)}<input type="date" aria-label="Ngày dashboard" data-filter="date" value="${filters.date}" max="2026-10-19">${button('','refresh','refresh','','aria-label="Làm mới dashboard"')}`:primary}</div></div>`;}
 function routeTabs(path){const group=groupFor(path);if(!group?.children||path.startsWith('/projects/prj-')||/^\/hr\/employees\/.+/.test(path))return '';return `<div class="tabs route-tabs">${group.children.filter(([,p])=>scope.routeAllowed(s,user(),p)).map(([name,p])=>`<a class="tab ${p===path?'active':''}" href="#${p}">${name}</a>`).join('')}</div>`;}
-function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn một mục trong menu hoặc chuyển tài khoản demo.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return approvalPage(filters);if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return `${tabs([['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['system','Hệ thống']],filters.tab||'all')}<div class="toolbar">${button('Đánh dấu tất cả đã đọc','read-all','check')}</div>${card('Hộp thư thông báo','Thông tin dành riêng cho bạn',`<div class="card-body">${notifications(99,filters.tab||'all')}</div>`)}`;if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
-function renderContent(){const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">${path==='/admin/audit-logs'?'Nhật ký từ API · Giờ Việt Nam (UTC+7)':'Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt'}</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/admin/audit-logs'&&scope.routeAllowed(s,user(),path))mountAuditLogs(document.getElementById('audit-logs-api-root'));if(path==='/admin/settings'&&scope.routeAllowed(s,user(),path))mountSystemSettings(document.getElementById('system-settings-api-root'),filters);if(path==='/admin/master-data'&&scope.routeAllowed(s,user(),path))mountMasterData(document.getElementById('master-data-api-root'),filters);if(path==='/admin/roles'&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
+function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn một mục trong menu hoặc chuyển tài khoản demo.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return approvalPage(filters);if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return '<section class="card user-admin" id="notifications-api-root"></section>';if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
+function renderContent(){disposeNotificationsPage();disposeNotificationsPage=()=>{};const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">${path==='/notifications'?'Thông báo từ API · Giờ Việt Nam (UTC+7)':path==='/admin/audit-logs'?'Nhật ký từ API · Giờ Việt Nam (UTC+7)':'Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt'}</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/notifications')disposeNotificationsPage=mountNotifications(document.getElementById('notifications-api-root'));if(path==='/admin/audit-logs'&&scope.routeAllowed(s,user(),path))mountAuditLogs(document.getElementById('audit-logs-api-root'));if(path==='/admin/settings'&&scope.routeAllowed(s,user(),path))mountSystemSettings(document.getElementById('system-settings-api-root'),filters);if(path==='/admin/master-data'&&scope.routeAllowed(s,user(),path))mountMasterData(document.getElementById('master-data-api-root'),filters);if(path==='/admin/roles'&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
 function render(full=false){if(!apiSession()){loginScreen();return;}if(full)shell();else renderContent();}
 function navigate(){if(lastPath!==getPath()){filters=newFilters();document.body.classList.remove('mobile-open');lastPath=getPath();const g=groupFor(lastPath);if(g?.children)expanded.add(g.name);if(document.getElementById('modal').open)closeDialog();}shell();window.scrollTo(0,0);}
 window.addEventListener('hashchange',navigate);
-window.addEventListener('auth-change',()=>{closeDialog();navigate();});
+window.addEventListener('auth-change',()=>{void notificationService.syncAuth();closeDialog();navigate();});
+window.addEventListener('session-change',()=>{void notificationService.syncAuth();});
+window.addEventListener('pagehide',()=>{void notificationService.stop();});
+window.addEventListener('pageshow',()=>{void notificationService.syncAuth();});
+window.addEventListener('online',()=>{void notificationService.syncAuth();void notificationService.refresh();});
 setInterval(()=>{if(!apiSession()&&!document.getElementById('login-form'))loginScreen();},30000);
 app.addEventListener('click',ev=>{if(ev.target.closest('[data-action="logout"]')){apiLogout();return;}const exp=ev.target.closest('[data-expand]');if(exp){const n=exp.dataset.expand;expanded.has(n)?expanded.delete(n):expanded.add(n);shell();return;}const p=ev.target.closest('[data-page]');if(p){filters.page=Number(p.dataset.page);render();}const tab=ev.target.closest('[data-tab]');if(tab){filters.tab=tab.dataset.tab;filters.page=1;render();}const sort=ev.target.closest('[data-sort]');if(sort){filters.sort=sort.dataset.sort;render();}const nf=ev.target.closest('[data-notification]');if(nf){const n=s.notifications.find(x=>x.id===nf.dataset.notification&&x.recipientId===user().id);if(n){n.readAt='2026-10-19T10:00:00+07:00';save();}}});
 document.addEventListener('change',ev=>{const el=ev.target;if(el.matches('[data-filter]')){filters[el.dataset.filter]=el.value;filters.page=1;render();}if(el.id==='demo-user'){switchUser(el.value);filters=newFilters();closeDialog();if(getPath()==='/dashboard')shell();else location.hash='/dashboard';toast('Đã chuyển tài khoản demo');}});
 document.addEventListener('input',ev=>{const el=ev.target;if(el.matches('[data-filter="search"]')){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const cursor=el.selectionStart;filters.search=el.value;filters.page=1;render();const input=document.querySelector('[data-filter="search"]');input?.focus();input?.setSelectionRange(cursor,cursor);},220);}if(el.id==='global-search'){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const q=el.value.trim().toLowerCase();const entries=[...scope.projects(s,user()).map(p=>({name:p.name,type:'Dự án',route:'/projects/'+p.id})),...scope.tasks(s,user()).map(t=>({name:t.code+' · '+t.title,type:'Công việc',route:'/workspace/tasks',open:'task',id:t.id})),...scope.employees(s,user()).map(u=>({name:u.name,type:'Nhân viên',route:'/hr/employees/'+u.id,open:'employee',id:u.id}))].filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);document.getElementById('search-results').innerHTML=q?entries.map(x=>`<a href="#${x.route}" ${x.open?`data-open="${x.open}" data-id="${x.id}"`:''}>${e(x.name)}<small>${x.type}</small></a>`).join('')||'<div class="empty">Không tìm thấy kết quả</div>':'';},250);}});
-document.addEventListener('click',ev=>{if(!ev.target.closest('.global-search'))(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();});
-document.addEventListener('keydown',ev=>{if(ev.key==='Escape')(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();if((ev.ctrlKey||ev.metaKey)&&ev.key==='k'){ev.preventDefault();document.getElementById('global-search')?.focus();}if(ev.key==='Enter'&&ev.target.matches('.kanban-card'))ev.target.click();});
+document.addEventListener('click',ev=>{if(!notificationEventInside(ev,document.getElementById('notification-header')))closeNotificationHeader(document.getElementById('notification-header'));if(!ev.target.closest('.global-search'))(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();});
+document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){closeNotificationHeader(document.getElementById('notification-header'),true);}if(ev.key==='Escape')(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();if((ev.ctrlKey||ev.metaKey)&&ev.key==='k'){ev.preventDefault();document.getElementById('global-search')?.focus();}if(ev.key==='Enter'&&ev.target.matches('.kanban-card'))ev.target.click();});
 document.addEventListener('click',ev=>{
  const trigger=ev.target.closest('.top-user[data-action="account"]'),menu=document.getElementById('top-account-menu');
  if(trigger&&menu){ev.preventDefault();ev.stopImmediatePropagation();menu.hidden=!menu.hidden;trigger.setAttribute('aria-expanded',String(!menu.hidden));}
  else if(menu&&!ev.target.closest('.account-menu-wrap')){menu.hidden=true;document.querySelector('.top-user')?.setAttribute('aria-expanded','false');}
 },true);
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){const menu=document.getElementById('top-account-menu');if(menu&&!menu.hidden){menu.hidden=true;const trigger=document.querySelector('.top-user');trigger?.setAttribute('aria-expanded','false');trigger?.focus();}}});
+notificationService.subscribe(state=>{
+ if(!apiSession())return;
+ renderNotificationHeader(document.getElementById('notification-header'),state);
+ document.querySelectorAll('[data-notification-nav-count]').forEach(badge=>{badge.textContent=state.count>99?'99+':String(state.count||0);badge.hidden=!state.count;});
+ document.querySelectorAll('[data-notification-feed]').forEach(feed=>{feed.innerHTML=state.items.length?notificationRows(state.items.slice(0,Number(feed.dataset.notificationFeed)||4)):state.loading?'<p role="status">Đang tải thông báo…</p>':state.error?`<p role="alert">${e(state.error)}</p>`:'<p>Chưa có thông báo.</p>';});
+});
+app.addEventListener('click',ev=>{const button=ev.target.closest('[data-noti-read]');if(button?.closest('[data-notification-feed]'))void notificationService.read(button.dataset.notiRead).catch(error=>toast(notificationError(error)));});
+void notificationService.syncAuth();
 setupActions({render,filters:()=>filters,setFilters:patch=>Object.assign(filters,patch),resetFilters:()=>{filters=newFilters();},openDialog,closeDialog,toast});
 if(!location.hash)history.replaceState(null,'','#/dashboard');navigate();
 

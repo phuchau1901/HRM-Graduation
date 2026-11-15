@@ -17,12 +17,13 @@ async function request(path,options={}){
  const headers=new Headers(options.headers||{});
  headers.set('Accept','application/json');
  if(options.body&&!headers.has('Content-Type'))headers.set('Content-Type','application/json');
- if(path!=='/api/auth/login'&&apiSession()?.accessToken)headers.set('Authorization',`Bearer ${session.accessToken}`);
+ const requestToken=path!=='/api/auth/login'?apiSession()?.accessToken:null;
+ if(requestToken)headers.set('Authorization',`Bearer ${requestToken}`);
  const transport=globalThis['fetch'];
  if(typeof transport!=='function')throw Error('Trình duyệt hiện tại không hỗ trợ kết nối API.');
  const response=await transport(apiBaseUrl()+path,{...options,headers});
  let body=null;try{body=await response.json();}catch{}
- if(!response.ok){if(response.status===401)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;throw error;}
+ if(!response.ok){if(response.status===401&&requestToken&&session?.accessToken===requestToken)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;throw error;}
  return body;
 }
 
@@ -31,6 +32,7 @@ export async function login(userId,password){
  if(!result?.accessToken||!result.user||!Array.isArray(result.permissions))throw Error('Phản hồi đăng nhập không hợp lệ.');
  session={...result};
  try{localStorage.setItem(SESSION_KEY,JSON.stringify(session));}catch{}
+ globalThis.window?.dispatchEvent?.(new Event('session-change'));
  return session;
 }
 
@@ -41,7 +43,13 @@ export function apiEmployeeDetail(employeeId){return request(`/api/employees/${e
 export function apiUnlinkedEmployees(query=''){return request('/api/employees/unlinked'+(query?`?${query}`:''));}
 export function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
 export function apiPositions(query=''){return request('/api/positions'+(query?`?${query}`:''));}
-export function apiNotifications(){return request('/api/notifications');}
+export function apiNotifications(limit=30,beforeId=null){
+ const query=new URLSearchParams({limit});if(beforeId!==null)query.set('beforeId',beforeId);
+ return request('/api/notifications?'+query,{cache:'no-store'});
+}
+export function apiNotificationUnreadCount(){return request('/api/notifications/unread-count',{cache:'no-store'});}
+export function apiReadNotification(id){return request(`/api/notifications/${encodeURIComponent(id)}/read`,{method:'PATCH'});}
+export function apiReadAllNotifications(){return request('/api/notifications/read-all',{method:'PATCH'});}
 
 export function apiRoles(page=1,search=''){return request('/api/roles?'+new URLSearchParams({page,pageSize:30,search}));}
 export function apiRoleDetail(roleId){return request(`/api/roles/${encodeURIComponent(roleId)}`);}
@@ -137,3 +145,8 @@ export function apiSaveShift(id,payload,version=null){
 
 export function apiAuditLogs(query=''){return request('/api/audit-logs'+(query?`?${query}`:''),{cache:'no-store'});}
 export function apiAuditLogDetail(id){return request(`/api/audit-logs/${encodeURIComponent(id)}`,{cache:'no-store'});}
+
+// Keep connected browser tabs aligned when a login/logout replaces the stored JWT.
+globalThis.window?.addEventListener?.('storage',event=>{
+ if(event.key===SESSION_KEY||event.key===null){session=readSession();globalThis.window.dispatchEvent(new Event('auth-change'));}
+});

@@ -1,4 +1,4 @@
-// Build the project's dependency-free classic-script distribution for file://.
+// Build the classic-script application and local SignalR browser dependency for file://.
 // Source modules stay separate for development and Node tests.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
@@ -7,9 +7,9 @@ import vm from 'node:vm';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const modules=[
- 'api/client.js','utils.js','data/seed.js','data/document-content.js','permissions.js',
+ 'api/client.js','services/notification-service.js','utils.js','data/seed.js','data/document-content.js','permissions.js',
  'store.js','components/ui.js','components/dialog.js','pages/dashboard.js',
- 'pages/attendance-report.js','pages/audit-logs.js','pages/system-settings.js','password-policy.js','pages/master-data.js','pages/employees.js','pages/roles.js','pages/users.js','pages/work.js','pages/operations.js','router.js',
+ 'pages/attendance-report.js','pages/notifications.js','pages/audit-logs.js','pages/system-settings.js','password-policy.js','pages/master-data.js','pages/employees.js','pages/roles.js','pages/users.js','pages/work.js','pages/operations.js','router.js',
  'actions.js','app.js'
 ];
 const handbook=await readFile(path.join(root,'assets/documents/intelex-handbook.md'),'utf8');
@@ -29,6 +29,7 @@ for(const file of modules){
  }
  source=source.replace(/^import\s+.+?\s+from\s+['"][^'"]+['"];?\r?\n/gm,'')
   .replace(/^export\s+(?=(?:const|let|function|async function|class)\b)/gm,'');
+ if(file==='services/notification-service.js')chunks.push('const {HubConnectionBuilder,LogLevel}=globalThis.signalR||{};');
  chunks.push('// Source: '+file+'\n'+source);
  if(file==='permissions.js')chunks.push('const scope=Object.freeze({scopedTeams,employees,projects,tasks,documents,requests,can,routeAllowed});');
  if(file==='store.js')chunks.push('const s=state;');
@@ -39,3 +40,6 @@ new vm.Script(bundle,{filename:'erp-browser.js'});
 await mkdir(path.join(root,'assets/js/dist'),{recursive:true});
 await writeFile(path.join(root,'assets/js/dist/erp-browser.js'),bundle);
 console.log('Built assets/js/dist/erp-browser.js ('+Buffer.byteLength(bundle)+' bytes)');
+
+const signalRSource=await readFile(path.join(root,'node_modules/@microsoft/signalr/dist/browser/signalr.min.js'),'utf8');
+await writeFile(path.join(root,'assets/js/dist/signalr.min.js'),signalRSource.replace(/^\/\/# sourceMappingURL=.*$/gm,''));

@@ -3,6 +3,7 @@ import http from 'node:http';
 import https from 'node:https';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import {fileURLToPath} from 'node:url';
 
 const root = process.cwd();
 
@@ -34,6 +35,7 @@ const types = {
 
 function proxyApi(req, res) {
   const target = new URL(req.url, apiOrigin);
+  if(target.origin!==new URL(apiOrigin).origin){res.writeHead(400);res.end('Invalid proxy target');return;}
 
   const headers = {
     ...req.headers,
@@ -81,7 +83,7 @@ const server = http.createServer(async (req, res) => {
       new URL(req.url, 'http://localhost').pathname
     );
 
-    if (pathname.startsWith('/api/')) {
+    if (pathname.startsWith('/api/') || pathname === '/hubs/notifications' || pathname.startsWith('/hubs/notifications/')) {
       return proxyApi(req, res);
     }
 
@@ -114,7 +116,33 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+// SignalR uses the same frontend origin for negotiate, long polling and WebSocket upgrades.
+server.on('upgrade',(req,socket,head)=>{
+ let target;
+ try{target=new URL(req.url,apiOrigin);}catch{socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');return;}
+ if(target.origin!==new URL(apiOrigin).origin||target.pathname!=='/hubs/notifications'){socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');return;}
+ const headers={...req.headers,host:target.host};delete headers.origin;delete headers.referer;
+ const transport=target.protocol==='https:'?https:http;
+ const upstream=transport.request(target,{method:'GET',headers});
+ socket.on('error',()=>upstream.destroy());
+ upstream.on('upgrade',(response,peer,peerHead)=>{
+ if(socket.destroyed){peer.destroy();return;}
+ socket.write(`HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\n`+response.rawHeaders.reduce((text,value,index)=>text+(index%2?value+'\r\n':value+': '),'')+'\r\n');
+ if(head.length)peer.write(head);if(peerHead.length)socket.write(peerHead);
+ peer.on('error',()=>socket.destroy());socket.on('close',()=>peer.destroy());peer.on('close',()=>socket.destroy());
+ socket.pipe(peer);peer.pipe(socket);
+ });
+ upstream.on('response',response=>{if(!socket.destroyed){socket.write(`HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\nConnection: close\r\n\r\n`);response.pipe(socket);}else response.resume();});
+ upstream.on('error',()=>{if(!socket.destroyed)socket.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n');});
+ upstream.end();
+});
+
+export {server};
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+
 server.listen(PORT, HOST, () => {
   console.log(`Intelex ERP running at http://${HOST}:${PORT}`);
   console.log(`API Proxy: ${webOrigin}`);
 });
+
+}
