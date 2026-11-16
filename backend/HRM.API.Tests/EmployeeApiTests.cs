@@ -252,7 +252,7 @@ public sealed class EmployeeApiTests
         Assert.Empty((await h.Client.GetFromJsonAsync<PageResult<EmployeeDto>>("/api/employees"))!.Data);
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.PostAsJsonAsync("/api/employees", Create(h.Department))).StatusCode);
     }
-    private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
+    private static DateOnly Today => VietnamBusinessDate.Today(TimeProvider.System);
     private static EmployeeProfileRequest Profile() => new() { FullName = "Updated", Email = "updated@example.invalid", EmploymentStatus = "ACTIVE" };
     private static EmployeeCreateRequest Create(int department) => new() { FullName = "New Employee", Email = "new@example.invalid", HireDate = new(2020, 1, 1), DepartmentId = department };
     private static ContractRequest Contract(string no) => new() { ContractNo = no, ContractType = "FIXED_TERM", StartDate = Today.AddDays(-1), EndDate = Today.AddDays(30) };
@@ -261,9 +261,9 @@ public sealed class EmployeeApiTests
         public AuthApiFactory App { get; private set; } = null!;
         public HttpClient Client { get; private set; } = null!;
         public int Self, Peer, Other, Department, OtherDepartment;
-        public static async Task<Harness> Create(string? scope, bool failNotification = false, DbCommandInterceptor? queries = null)
+        public static async Task<Harness> Create(string? scope, bool failNotification = false, DbCommandInterceptor? queries = null, TimeProvider? clock = null)
         {
-            var h = new Harness { App = new AuthApiFactory { EmployeeScope = scope, FailNotificationWrites = failNotification, CreationInterceptor = queries } };
+            var h = new Harness { App = new AuthApiFactory { EmployeeScope = scope, FailNotificationWrites = failNotification, CreationInterceptor = queries, TestClock = clock } };
             h.Client = h.App.CreateClient(new() { BaseAddress = new Uri("https://localhost") }); await h.App.PrepareAsync();
             await OrganizationApiTests.Grant(h.App, "WEB_EMPLOYEES"); await OrganizationApiTests.Grant(h.App, "WEB_CONTRACTS");
             using var services = h.App.Services.CreateScope(); var db = services.ServiceProvider.GetRequiredService<AppDbContext>();

@@ -24,3 +24,9 @@ Source: src/Employees.jsx, EmployeeEditor.jsx, api.js, main.jsx. Tests src/Emplo
 Navigation mới dùng quyền WEB_SYSTEM_SETTINGS/VIEW; hai tab Password Policy/Attendance Settings nạp cấu hình DB, readonly nếu thiếu UPDATE. PUT gửi If-Match theo version, stale hiển thị lỗi để admin tải lại chứ không tự ghi đè. Không có password hoặc QR secret input/log trong màn Settings.
 
 Ca & lịch làm việc dùng WEB_SHIFTS/WEB_WORK_SCHEDULES và API System tái sử dụng model Attendance có sẵn, không mock. Tạo/sửa ca có giờ/break/grace, ngừng hoạt động qua IsActive; phân ca chọn nhân viên/ca/ngày, lưu snapshot server. Forms catalog cần quyền Employee/Shift VIEW tương ứng, backend vẫn kiểm tra scope/authority. Current schedule UI hiển thị timezone/ShiftCode từ snapshot, không tính lịch sử bằng giờ ca mới. Không tự apply migration/deploy; chưa QA trình duyệt với backend live. Xem docs/modules/System/API.md và IMPLEMENTATION.md.
+
+## Contracts
+
+Route `/#/hr/contracts` dùng WEB_CONTRACTS/VIEW; thống kê từ `/api/contracts/statistics` với window mặc định 30 ngày. Không dùng mock/fallback counts. Có skeleton, lỗi và retry; successful create/update/gia hạn/chấm dứt refetch cả stats và list. Từ Employees có thể mở “Hợp đồng” của nhân viên; cũng có thể nhập employee ID trên trang Contracts. List/POST/PUT dùng các API nested hiện có. Contract Type dropdown cần WEB_CONTRACT_TYPES/VIEW; nếu không có quyền danh mục có thể nhập mã loại đã cấu hình. Backend vẫn quyết định phạm vi nhân viên, lifecycle và quyền ghi.
+
+Checkout ban đầu chưa có trang Contracts; đây là trang được thêm vào workspace hiện có. Tests `Contracts.test.jsx` kiểm tra loading/error/zero/RBAC/refetch; chưa QA với database production và không deploy.

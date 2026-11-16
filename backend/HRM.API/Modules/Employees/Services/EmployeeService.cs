@@ -14,9 +14,9 @@ using HRM.API.Modules.System.Entities;
 using Microsoft.EntityFrameworkCore;
 namespace HRM.API.Modules.Employees.Services;
 
-public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, NotificationService notifications, EmployeeCodeGenerator codes, IPermissionService permissions)
+public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, NotificationService notifications, EmployeeCodeGenerator codes, IPermissionService permissions, TimeProvider clock)
 {
-    private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly Today => VietnamBusinessDate.Today(clock);
     private IQueryable<EmployeeDto> ProjectEmployees(IQueryable<Employee> employees) =>
         from employee in employees
         join department in db.Set<Department>().AsNoTracking() on employee.DepartmentId equals department.Id into departments
@@ -95,7 +95,7 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
             AfterJSON = JsonSerializer.Serialize(new { teamId = employee.TeamId, departmentId = employee.DepartmentId, traceId = trace })
         });
     }
-    private static void ValidateProfile(EmployeeProfileRequest request, DateOnly hireDate)
+    private void ValidateProfile(EmployeeProfileRequest request, DateOnly hireDate)
     {
         if (request.DateOfBirth.HasValue && (request.DateOfBirth > Today || request.DateOfBirth > hireDate))
             throw BusinessException.Invalid("Date of birth must not be after hire date or today.");

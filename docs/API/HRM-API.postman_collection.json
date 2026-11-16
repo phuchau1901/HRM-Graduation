@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "87 source-backed REST endpoints; 94 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
+    "description": "88 source-backed REST endpoints; 95 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
   },
   "auth": {
     "type": "bearer",
@@ -187,6 +187,11 @@
     {
       "key": "contractTypeCode",
       "value": "FIXED_TERM",
+      "type": "string"
+    },
+    {
+      "key": "expiringWithinDays",
+      "value": "30",
       "type": "string"
     }
   ],
@@ -2427,6 +2432,19 @@
             "method": "DELETE",
             "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
             "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contract statistics",
+      "item": [
+        {
+          "name": "Get contract statistics",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/contracts/statistics?expiringWithinDays={{expiringWithinDays}}",
+            "description": "WEB_CONTRACTS/VIEW and live SELF/DEPARTMENT/ALL scope required. expiringWithinDays defaults to 30, range 1..365. Uses Asia/Ho_Chi_Minh. Returns success/data with active, expiringSoon, expired, expiringWithinDays, asOfDate. No DRAFT/CANCELLED/TERMINATED, future starts or overlapping buckets. See docs/modules/Employees/CONTRACT_STATISTICS_API.md."
           }
         }
       ]

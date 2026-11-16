@@ -2,14 +2,14 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **87 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **88 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
 | Auth | 3 | IMPLEMENTED |
 | Authorization / Administration | 21 | IMPLEMENTED |
 | Organization (Departments / Positions / Teams / Tree) | 18 | IMPLEMENTED |
-| Employees / Contracts / Contract Types / History | 17 | IMPLEMENTED |
+| Employees / Contracts / Contract Types / History | 18 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
 | Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow chưa có API |
 | System Settings | 4 | IMPLEMENTED |
@@ -85,6 +85,7 @@ Có **87 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | POST | `/api/contract-types` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACT_TYPES / NEW; global catalog |
 | PUT | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACT_TYPES / UPDATE; global catalog |
 | DELETE | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACT_TYPES / DELETE; global catalog |
+| GET | `/api/contracts/statistics` | [Contract statistics](../modules/Employees/CONTRACT_STATISTICS_API.md) | WEB_CONTRACTS / VIEW + data scope |
 | GET | `/api/employees/{employeeId}/contracts` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / VIEW + data scope |
 | GET | `/api/employees/{employeeId}/contracts/{contractId}` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / VIEW + data scope |
 | POST | `/api/employees/{employeeId}/contracts` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / NEW + data scope |

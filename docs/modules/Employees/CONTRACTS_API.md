@@ -8,6 +8,7 @@ Phạm vi `dataScopes`: xem [giá trị hỗ trợ, bảng scope theo endpoint v
 
 | Method | URL | Quyền |
 | --- | --- | --- |
+| GET | `/api/contracts/statistics` | WEB_CONTRACTS / VIEW + data scope; [đặc tả](CONTRACT_STATISTICS_API.md) |
 | GET | `/api/employees/{employeeId}/contracts` | WEB_CONTRACTS / VIEW + data scope |
 | GET | `/api/employees/{employeeId}/contracts/{contractId}` | WEB_CONTRACTS / VIEW + data scope |
 | POST | `/api/employees/{employeeId}/contracts` | WEB_CONTRACTS / NEW + data scope |
@@ -172,3 +173,7 @@ JSON Response thành công — HTTP 200:
 Không JWT401; thiếu action403; SELF chỉ đọc chính mình; DEPARTMENT giới hạn phòng ban; ALL vẫn phải có action; kiểm tra ngày/trạng thái/FK; mutation và audit/notification phải cùng transaction.
 
 Loại đã ngừng hoạt động được giữ trên hợp đồng cũ khi bảo trì các field/trạng thái khác; không chọn cho hợp đồng mới hoặc đổi từ loại khác. Loại không tồn tại trả 400. Xóa loại đang tham chiếu trả 409; xem [đặc tả danh mục và migration](CONTRACT_TYPES_API.md).
+
+## Thống kê hợp đồng
+
+[GET /api/contracts/statistics](CONTRACT_STATISTICS_API.md) trả active/expiringSoon/expired theo ngày Asia/Ho_Chi_Minh và WEB_CONTRACTS/VIEW Data Scope. Không cần đọc toàn bộ danh sách hoặc quyền Employee riêng.

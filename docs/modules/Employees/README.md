@@ -44,3 +44,5 @@ EmployeeCode mới tự sinh `NV` + Id AUTO_INCREMENT, tối thiểu 6 chữ s�
 List/detail/unlinked trả departmentName, teamName, positionName cùng ID qua projection LEFT JOIN AsNoTracking, giữ pagination và scope. Không N+1 hoặc ghép danh mục tại client; dropdown vẫn dùng API catalog riêng. Xem [audit và kiểm chứng](EMPLOYEE_READ.md).
 
 - [Contract types — danh mục cấu hình loại hợp đồng](CONTRACT_TYPES_API.md)
+
+- [Contract statistics — thống kê hợp đồng có scope](CONTRACT_STATISTICS_API.md)

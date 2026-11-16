@@ -12,3 +12,9 @@ nav{display:grid;gap:8px}nav button{background:transparent;color:#bdcfb6;text-al
 .org-skeleton div { height: 35px; margin: 10px 0; border-radius: 8px; background: #e8edf3; animation: org-pulse 1.4s ease-in-out infinite alternate; }
 @keyframes org-pulse { to { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .org-skeleton div { animation: none; } }
+
+.contract-statistics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding: 0 24px 24px; }
+.contract-statistics > div { border: 1px solid #e1e8db; border-radius: 8px; padding: 20px; }
+.contract-statistics output { display: block; font-size: 32px; font-weight: 600; margin-top: 12px; font-variant-numeric: tabular-nums; }
+.contract-list { margin-top: 24px; }
+@media (max-width: 650px) { .contract-statistics { grid-template-columns: 1fr; } }

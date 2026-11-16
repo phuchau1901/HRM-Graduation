@@ -1,15 +1,20 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createApi, can } from './api';
 import { SystemSettings } from './SystemSettings';
 import { AttendanceSetup } from './AttendanceSetup';
 import { Employees } from './Employees';
 import { Organization } from './Organization';
+import { Contracts } from './Contracts';
 import './styles.css';
+const pageRoutes = { employees: '/hr/employees', organization: '/hr/organization', contracts: '/hr/contracts', settings: '/system/settings', attendance: '/hr/attendance' };
+function pageFromHash() { return Object.keys(pageRoutes).find(key => `#${pageRoutes[key]}` === window.location.hash.split('?')[0]) || 'employees'; }
 function App() {
   const [session, setSession] = useState(null), [error, setError] = useState(''), [pending, setPending] = useState(false);
-  const [page, setPage] = useState('employees');
-  const [employeeId, setEmployeeId] = useState(null);
+  const [page, setPage] = useState(pageFromHash);
+  const [employeeId, setEmployeeId] = useState(null), [contractEmployeeId, setContractEmployeeId] = useState(null);
+  useEffect(() => { const changed = () => setPage(pageFromHash()); window.addEventListener('hashchange', changed); return () => window.removeEventListener('hashchange', changed); }, []);
+  function navigate(next) { setPage(next); window.location.hash = pageRoutes[next]; }
   const api = useMemo(() => createApi(session?.accessToken, () => setSession(null)), [session?.accessToken]);
   async function login(event) {
     event.preventDefault(); const fields = new FormData(event.currentTarget); setPending(true); setError('');
@@ -17,6 +22,6 @@ function App() {
     catch (err) { setError(err.message); } finally { setPending(false); }
   }
   if (!session) return <main className="login"><form className="card editor" onSubmit={login}><span className="eyebrow">HRM / PEOPLE</span><h1>Kết nối con người.</h1><p>Đăng nhập để xem và quản lý hồ sơ nhân viên.</p><label>Tài khoản<input name="userId" autoComplete="username" required /></label><label>Mật khẩu<input name="password" type="password" autoComplete="current-password" required /></label>{error && <p className="error" role="alert">{error}</p>}<button disabled={pending}>{pending ? 'Đang đăng nhập…' : 'Đăng nhập'}</button></form></main>;
-  return <div className="app"><aside><a className="brand" href="#">H<span>HRM / PEOPLE</span></a><span className="eyebrow">KHÔNG GIAN NHÂN SỰ</span><nav><button className={page === 'organization' ? 'active' : ''} onClick={() => setPage('organization')}>Organization ↗</button><button className={page === 'employees' ? 'active' : ''} onClick={() => setPage('employees')}>Nhân viên ↗</button>{can(session.permissions, 'WEB_SYSTEM_SETTINGS', 'VIEW') && <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')}>Cấu hình hệ thống ↗</button>}{(can(session.permissions, 'WEB_SHIFTS', 'VIEW') || can(session.permissions, 'WEB_WORK_SCHEDULES', 'VIEW')) && <button className={page === 'attendance' ? 'active' : ''} onClick={() => setPage('attendance')}>Ca & lịch làm việc ↗</button>}</nav><div className="account"><strong>{session.user.userId}</strong><small>{session.user.email}</small><button className="subtle" onClick={() => setSession(null)}>Đăng xuất</button></div></aside><main className="workspace"><header>HRM Workspace / {page === 'organization' ? 'Organization' : page === 'settings' ? 'System Settings' : page === 'attendance' ? 'Attendance' : 'Employees'}</header>{page === 'organization' ? <Organization api={api} permissions={session.permissions} onEmployee={id => { setEmployeeId(id); setPage('employees'); }} /> : page === 'settings' ? <SystemSettings api={api} permissions={session.permissions} /> : page === 'attendance' ? <AttendanceSetup api={api} permissions={session.permissions} /> : <Employees api={api} permissions={session.permissions} initialEmployeeId={employeeId} />}</main></div>;
+  return <div className="app"><aside><a className="brand" href="#">H<span>HRM / PEOPLE</span></a><span className="eyebrow">KHÔNG GIAN NHÂN SỰ</span><nav><button className={page === 'organization' ? 'active' : ''} onClick={() => navigate('organization')}>Organization ↗</button><button className={page === 'employees' ? 'active' : ''} onClick={() => navigate('employees')}>Nhân viên ↗</button>{can(session.permissions, 'WEB_CONTRACTS', 'VIEW') && <button className={page === 'contracts' ? 'active' : ''} onClick={() => navigate('contracts')}>Hợp đồng ↗</button>}{can(session.permissions, 'WEB_SYSTEM_SETTINGS', 'VIEW') && <button className={page === 'settings' ? 'active' : ''} onClick={() => navigate('settings')}>Cấu hình hệ thống ↗</button>}{(can(session.permissions, 'WEB_SHIFTS', 'VIEW') || can(session.permissions, 'WEB_WORK_SCHEDULES', 'VIEW')) && <button className={page === 'attendance' ? 'active' : ''} onClick={() => navigate('attendance')}>Ca & lịch làm việc ↗</button>}</nav><div className="account"><strong>{session.user.userId}</strong><small>{session.user.email}</small><button className="subtle" onClick={() => setSession(null)}>Đăng xuất</button></div></aside><main className="workspace"><header>HRM Workspace / {page === 'contracts' ? 'Contracts' : page === 'organization' ? 'Organization' : page === 'settings' ? 'System Settings' : page === 'attendance' ? 'Attendance' : 'Employees'}</header>{page === 'contracts' ? <Contracts api={api} permissions={session.permissions} initialEmployeeId={contractEmployeeId} /> : page === 'organization' ? <Organization api={api} permissions={session.permissions} onEmployee={id => { setEmployeeId(id); navigate('employees'); }} /> : page === 'settings' ? <SystemSettings api={api} permissions={session.permissions} /> : page === 'attendance' ? <AttendanceSetup api={api} permissions={session.permissions} /> : <Employees api={api} permissions={session.permissions} initialEmployeeId={employeeId} onContracts={id => { setContractEmployeeId(id); navigate('contracts'); }} />}</main></div>;
 }
 createRoot(document.getElementById('root')).render(<App />);
