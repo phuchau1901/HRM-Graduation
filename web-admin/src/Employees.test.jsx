@@ -67,4 +67,39 @@ describe('Employee names from response', () => {
     const body = JSON.parse(api.mock.calls.find(([, options]) => options.method === 'PUT')[1].body);
     expect(body.positionId).toBeNull(); expect(body).not.toHaveProperty('positionName'); expect(body).not.toHaveProperty('departmentName'); expect(body).not.toHaveProperty('employeeCode');
   });
+  it('assigns department manager and team lead through employee PUT', async () => {
+    const api = mockApi(), user = userEvent.setup();
+    const editorPermissions = [...permissions, ...['WEB_DEPARTMENTS', 'WEB_TEAMS'].map(code => ({ code, canView: 'Y', canUpdate: 'Y' }))];
+    render(<EmployeeEditor api={api} permissions={editorPermissions} employee={employee} onClose={() => {}} onSaved={() => {}} />);
+    await screen.findByRole('option', { name: 'Dropdown Team' });
+    await user.click(screen.getByRole('checkbox', { name: 'Trưởng phòng của phòng ban hiện tại' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Team Lead của Team đang chọn' }));
+    await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+    await waitFor(() => expect(api.mock.calls.some(([, options]) => options.method === 'PUT')).toBe(true));
+    const body = JSON.parse(api.mock.calls.find(([, options]) => options.method === 'PUT')[1].body);
+    expect(body.isDepartmentManager).toBe(true); expect(body.isTeamLead).toBe(true);
+  });
+  it('clears leadership flags explicitly while leaving omitted flags out of ordinary saves', async () => {
+    const api = mockApi(), user = userEvent.setup();
+    const editorPermissions = [...permissions, ...['WEB_DEPARTMENTS', 'WEB_TEAMS'].map(code => ({ code, canView: 'Y', canUpdate: 'Y' }))];
+    render(<EmployeeEditor api={api} permissions={editorPermissions} employee={{ ...employee, isDepartmentManager: true, isTeamLead: true }} onClose={() => {}} onSaved={() => {}} />);
+    await screen.findByRole('option', { name: 'Dropdown Team' });
+    await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+    await waitFor(() => expect(api.mock.calls.some(([, options]) => options.method === 'PUT')).toBe(true));
+    let body = JSON.parse(api.mock.calls.find(([, options]) => options.method === 'PUT')[1].body);
+    expect(body).not.toHaveProperty('isDepartmentManager'); expect(body).not.toHaveProperty('isTeamLead');
+    api.mockClear();
+    await user.click(screen.getByRole('checkbox', { name: 'Trưởng phòng của phòng ban hiện tại' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Team Lead của Team đang chọn' }));
+    await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+    await waitFor(() => expect(api.mock.calls.some(([, options]) => options.method === 'PUT')).toBe(true));
+    body = JSON.parse(api.mock.calls.find(([, options]) => options.method === 'PUT')[1].body);
+    expect(body.isDepartmentManager).toBe(false); expect(body.isTeamLead).toBe(false);
+  });
+  it('disables leadership controls without organization UPDATE permissions', () => {
+    render(<EmployeeEditor api={mockApi()} permissions={permissions} employee={employee} onClose={() => {}} onSaved={() => {}} />);
+    expect(screen.getByRole('checkbox', { name: 'Trưởng phòng của phòng ban hiện tại' }).disabled).toBe(true);
+    expect(screen.getByRole('checkbox', { name: 'Team Lead của Team đang chọn' }).disabled).toBe(true);
+  });
+
 });

@@ -2276,6 +2276,57 @@
           }
         }
       ]
+    },
+    {
+      "name": "Employee leadership",
+      "item": [
+        {
+          "name": "Assign department manager and team lead",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyen Van A\",\n  \"email\": \"employee@example.invalid\",\n  \"employmentStatus\": \"ACTIVE\",\n  \"isDepartmentManager\": true,\n  \"isTeamLead\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Manual example: use the actual current employee fullName/email/positionId. Requires WEB_EMPLOYEES/UPDATE + write scope; role changes also require WEB_DEPARTMENTS/UPDATE and/or WEB_TEAMS/UPDATE. Occupied roles return 409. Omitted/null flags preserve roles. See docs/modules/Employees/PROFILES_API.md."
+          }
+        },
+        {
+          "name": "Remove department manager and team lead",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees/{{employeeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyen Van A\",\n  \"email\": \"employee@example.invalid\",\n  \"employmentStatus\": \"ACTIVE\",\n  \"isDepartmentManager\": false,\n  \"isTeamLead\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Manual example: use the actual current employee fullName/email/positionId. Requires WEB_EMPLOYEES/UPDATE + write scope; role changes also require WEB_DEPARTMENTS/UPDATE and/or WEB_TEAMS/UPDATE. Occupied roles return 409. Omitted/null flags preserve roles. See docs/modules/Employees/PROFILES_API.md."
+          }
+        }
+      ]
     }
   ]
 }

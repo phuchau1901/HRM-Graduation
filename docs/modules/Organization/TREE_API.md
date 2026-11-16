@@ -71,3 +71,5 @@ These show the structural selection only; the actual projections also include sc
 Count regression: Tree employeeCount matches Members total under SELF/DEPARTMENT/ALL even when Organization DataScope is absent. Department employeeCount equals the sum of Team employeeCounts plus unassignedCount.
 
 Manager and lead objects include nullable `positionName`, resolved from employees.PositionId → positions.id/name in the existing SQL projection (no extra query per node). No position returns null. Out-of-scope employees still return a null manager/lead object.
+
+Employee PUT can appoint/remove managers and leads via isDepartmentManager/isTeamLead; see [Employee profile specification](../Employees/PROFILES_API.md#put-bổ-nhiệmgỡ-trưởng-phòng-và-team-lead).

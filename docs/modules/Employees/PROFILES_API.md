@@ -414,3 +414,27 @@ JSON Response thành công — HTTP 200:
 ### Kiểm thử endpoint
 
 Không JWT401; thiếu action403; SELF chỉ đọc chính mình; DEPARTMENT giới hạn phòng ban; ALL vẫn phải có action; kiểm tra ngày/trạng thái/FK; mutation và audit/notification phải cùng transaction.
+
+## PUT: bổ nhiệm/gỡ trưởng phòng và Team Lead
+
+Hai field tùy chọn: `isDepartmentManager` và `isTeamLead` (boolean/null). `true` bổ nhiệm nhân viên đang sửa cho phòng ban/Team hiện tại; `false` gỡ chỉ định nếu chính nhân viên đó đang giữ vai trò; bỏ qua hoặc null giữ nguyên. Không phải các cột boolean trên employees: cập nhật departments.ManagerEmployeeId / teams.LeadEmployeeId hiện có, không cần migration mới.
+
+```json
+{
+  "fullName": "Nguyen Van A",
+  "email": "employee@example.invalid",
+  "employmentStatus": "ACTIVE",
+  "positionId": null,
+  "isDepartmentManager": true,
+  "isTeamLead": true
+}
+```
+
+- Giữ các trường hồ sơ và quy tắc PUT hiện có; TeamId bỏ qua giữ nguyên, null gỡ Team. TeamId (nếu gửi) phải thuộc phòng ban của nhân viên.
+- Employee UPDATE scope vẫn phải là ALL hoặc DEPARTMENT với nhân viên thuộc phạm vi. Thay đổi trưởng phòng cần thêm WEB_DEPARTMENTS/UPDATE; thay đổi Team Lead cần WEB_TEAMS/UPDATE (kiểm tra live grant). Các cờ không thay đổi thực tế không yêu cầu thêm quyền tổ chức.
+- Phòng ban/Team đã có người quản lý khác: 409, không thay thế ngầm. Cần gỡ vai trò của người hiện tại trước. Gửi false cho nhân viên không giữ vai trò không xóa vai trò của người khác.
+- Bổ nhiệm mới yêu cầu phòng ban/Team hoạt động. isTeamLead=true yêu cầu có Team hợp lệ; không có Team hoặc khác phòng ban: 400.
+- Khi chuyển Team của người đang là Lead: bỏ qua/null isTeamLead trả 409; false gỡ Lead cũ; true gỡ Lead cũ và bổ nhiệm ở Team đích nếu chưa có Lead. Tất cả diễn ra trong một transaction Serializable, bao gồm audit và notification.
+- GET/list/unlinked/PUT EmployeeDto bổ sung boolean `isDepartmentManager`, `isTeamLead`. Chỉ tiết lộ vai trò của các nhân viên đã qua Employee Data Scope, không trả danh tính quản lý của người khác.
+- Thay đổi được ghi AuditLog DEPARTMENT_MANAGER_CHANGED / TEAM_LEAD_CHANGED (trước/sau). Lỗi bất kỳ rollback toàn bộ cập nhật hồ sơ, vai trò và audit.
+- Hai cờ chỉ hỗ trợ PUT: POST tạo nhân viên có cờ khác null trả 400. Không tự apply migration, sửa database trực tiếp hoặc deploy.

@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.Text.Json;
 using HRM.API.Common;
+using HRM.API.Modules.Authorization.Services;
 using HRM.API.Data;
 using HRM.API.Modules.Authorization.Entities;
 using HRM.API.Modules.Employees.DTOs;
@@ -13,7 +14,7 @@ using HRM.API.Modules.System.Entities;
 using Microsoft.EntityFrameworkCore;
 namespace HRM.API.Modules.Employees.Services;
 
-public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, NotificationService notifications, EmployeeCodeGenerator codes)
+public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, NotificationService notifications, EmployeeCodeGenerator codes, IPermissionService permissions)
 {
     private static DateOnly Today => DateOnly.FromDateTime(DateTime.UtcNow);
     private IQueryable<EmployeeDto> ProjectEmployees(IQueryable<Employee> employees) =>
@@ -29,7 +30,9 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
             employee.PhoneNumber, employee.HireDate, employee.DepartmentId, employee.PositionId, employee.EmploymentStatus,
             DateTime.SpecifyKind(employee.CreatedAt, DateTimeKind.Utc), employee.TeamId,
             team == null ? null : team.TeamName, department == null ? null : department.DepartmentName,
-            position == null ? null : position.Name);
+            position == null ? null : position.Name,
+            department != null && department.ManagerEmployeeId == employee.Id,
+            team != null && team.LeadEmployeeId == employee.Id);
 
     // Used only after a write has already passed its own action/scope checks. No VIEW grant is required to return that write's result.
     private Task<EmployeeDto> WriteResultAsync(int id, CancellationToken ct) =>
@@ -114,6 +117,8 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
             new global::System.ComponentModel.DataAnnotations.ValidationContext(request), validation, true))
             throw BusinessException.Invalid("Invalid employee request.");
         var access = await scopes.GetAsync(actor, "WEB_EMPLOYEES", "NEW", ct); access.DemandDepartment(request.DepartmentId);
+        if (request.IsDepartmentManager.HasValue || request.IsTeamLead.HasValue)
+            throw BusinessException.Invalid("Manager/lead assignments are supported by employee PUT only.");
         await ValidateDepartmentAsync(request.DepartmentId, ct);
         await ValidatePositionAsync(request.PositionId, ct);
         var team = await ValidateTeamAsync(request.TeamId, request.DepartmentId, ct);
@@ -136,14 +141,13 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         var targetTeam = targetTeamId == entity.TeamId ? entity.Team : await ValidateTeamAsync(targetTeamId, entity.DepartmentId, ct);
         if (entity.PositionId != request.PositionId) await ValidatePositionAsync(request.PositionId, ct);
         await CheckEmailAsync(request.Email.Trim(), id, ct);
-        if (entity.FullName == request.FullName.Trim() && entity.Email == request.Email.Trim() &&
+        var leadershipChanged = await UpdateLeadershipAsync(actor, entity, targetTeam, targetTeamId, request, trace, ct);
+        if (!leadershipChanged && entity.FullName == request.FullName.Trim() && entity.Email == request.Email.Trim() &&
             entity.TeamId == targetTeamId && entity.PositionId == request.PositionId && entity.PhoneNumber == request.PhoneNumber && entity.DateOfBirth == request.DateOfBirth && entity.EmploymentStatus == request.EmploymentStatus)
         {
             var unchanged = await WriteResultAsync(entity.Id, ct);
             await tx.CommitAsync(ct); return unchanged;
         }
-        if (entity.TeamId != targetTeamId && await db.Set<Team>().AnyAsync(x => x.LeadEmployeeId == id, ct))
-            throw BusinessException.Conflict("Remove the team lead assignment before reassigning this employee.");
         entity.TeamId = targetTeamId; entity.Team = targetTeam;
         AuditTeam(actor, entity, oldTeamId, entity.DepartmentId, trace);
         entity.PositionId = request.PositionId;
@@ -154,6 +158,69 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         var result = await WriteResultAsync(entity.Id, ct);
         await tx.CommitAsync(ct); return result;
     }
+    private async Task<bool> UpdateLeadershipAsync(string actor, Employee employee, Team? targetTeam, int? targetTeamId,
+        EmployeeProfileRequest request, string trace, CancellationToken ct)
+    {
+        var changed = false;
+        if (request.IsDepartmentManager.HasValue)
+        {
+            var department = await db.Departments.SingleAsync(d => d.Id == employee.DepartmentId, ct);
+            if (request.IsDepartmentManager.Value && department.ManagerEmployeeId != employee.Id)
+            {
+                await DemandLeadershipPermissionAsync(actor, "WEB_DEPARTMENTS", ct);
+                if (!department.IsActive) throw BusinessException.Invalid("An active department is required.");
+                if (department.ManagerEmployeeId.HasValue) throw BusinessException.Conflict("Department already has a manager; remove the current assignment first.");
+                AuditLeadership(actor, "Department", department.Id, department.ManagerEmployeeId, employee.Id, trace);
+                department.ManagerEmployeeId = employee.Id; changed = true;
+            }
+            else if (!request.IsDepartmentManager.Value && department.ManagerEmployeeId == employee.Id)
+            {
+                await DemandLeadershipPermissionAsync(actor, "WEB_DEPARTMENTS", ct);
+                AuditLeadership(actor, "Department", department.Id, employee.Id, null, trace);
+                department.ManagerEmployeeId = null; changed = true;
+            }
+        }
+        var oldTeam = employee.Team;
+        if (employee.TeamId != targetTeamId && oldTeam?.LeadEmployeeId == employee.Id && !request.IsTeamLead.HasValue)
+            throw BusinessException.Conflict("Remove the team lead assignment before reassigning this employee.");
+        if (request.IsTeamLead.HasValue)
+        {
+            if (request.IsTeamLead.Value && targetTeamId is null)
+                throw BusinessException.Invalid("Assign the employee to a team before making them its lead.");
+            var removeOld = oldTeam?.LeadEmployeeId == employee.Id && (!request.IsTeamLead.Value || employee.TeamId != targetTeamId);
+            var assignNew = request.IsTeamLead.Value && targetTeam?.LeadEmployeeId != employee.Id;
+            if (removeOld || assignNew) await DemandLeadershipPermissionAsync(actor, "WEB_TEAMS", ct);
+            if (assignNew)
+            {
+                if (targetTeam is null || targetTeam.DepartmentId != employee.DepartmentId || !targetTeam.IsActive ||
+                    !await db.Departments.AnyAsync(d => d.Id == employee.DepartmentId && d.IsActive, ct))
+                    throw BusinessException.Invalid("Lead must belong to an active team in their active department.");
+                if (targetTeam.LeadEmployeeId.HasValue) throw BusinessException.Conflict("Team already has a lead; remove the current assignment first.");
+            }
+            if (removeOld)
+            {
+                AuditLeadership(actor, "Team", oldTeam!.Id, employee.Id, null, trace);
+                oldTeam.LeadEmployeeId = null; changed = true;
+            }
+            if (assignNew)
+            {
+                AuditLeadership(actor, "Team", targetTeam!.Id, null, employee.Id, trace);
+                targetTeam.LeadEmployeeId = employee.Id; changed = true;
+            }
+        }
+        return changed;
+    }
+    private async Task DemandLeadershipPermissionAsync(string actor, string screen, CancellationToken ct)
+    {
+        if (!await permissions.HasPermissionAsync(actor, screen, "UPDATE", ct)) throw BusinessException.Scope();
+    }
+    private void AuditLeadership(string actor, string type, int id, int? before, int? after, string trace) => db.Add(new AuditLog
+    {
+        ActorUserID = actor, Action = type == "Department" ? "DEPARTMENT_MANAGER_CHANGED" : "TEAM_LEAD_CHANGED",
+        EntityType = type, EntityID = id.ToString(CultureInfo.InvariantCulture), CreatedAt = DateTime.UtcNow,
+        BeforeJSON = JsonSerializer.Serialize(new { employeeId = before }),
+        AfterJSON = JsonSerializer.Serialize(new { employeeId = after, traceId = trace })
+    });
     public async Task DeactivateAsync(string actor, int id, string trace, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
