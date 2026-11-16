@@ -54,7 +54,7 @@ public sealed class OrganizationTreeTests
         Assert.Equal(HttpStatusCode.NotFound, (await h.Client.GetAsync("/api/teams/2147483647/members")).StatusCode);
     }
     [Fact]
-    public async Task OrganizationViewAloneAllowsTreeAndBothMemberEndpoints()
+    public async Task OrganizationViewAloneAllowsTreeButTeamMembersRequireEmployeeView()
     {
         await using var h = await EmployeeApiTests.Harness.Create("DEPARTMENT"); var teamId = await Setup(h);
         using (var scope = h.App.Services.CreateScope())
@@ -66,9 +66,36 @@ public sealed class OrganizationTreeTests
         }
         await OrganizationApiTests.Login(h.Client, h.App);
         (await h.Client.GetAsync("/api/organization/tree")).EnsureSuccessStatusCode();
-        (await h.Client.GetAsync($"/api/teams/{teamId}/members")).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/teams/{teamId}/members")).StatusCode);
         (await h.Client.GetAsync($"/api/departments/{h.Department}/unassigned-members")).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/employees/{h.Self}")).StatusCode);
+    }
+    [Theory]
+    [InlineData("SELF", 1)]
+    [InlineData("DEPARTMENT", 2)]
+    [InlineData("ALL", 2)]
+    public async Task TeamMembersUseEmployeeScopeWithoutOrganizationOrTeamScope(string employeeScope, int expectedTotal)
+    {
+        await using var h = await EmployeeApiTests.Harness.Create(employeeScope); var teamId = await Setup(h);
+        using (var scope = h.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var organizationId = await db.Screens.Where(s => s.Code == "WEB_ORGANIZATION").Select(s => s.ID).SingleAsync();
+            await db.Set<RoleScreenAction>().Where(g => g.ScreenID == organizationId).ExecuteDeleteAsync();
+            await db.Employees.Where(e => e.Id == h.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.TeamId, teamId));
+        }
+        var result = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/teams/{teamId}/members?pageSize=1"))!;
+        Assert.Equal(expectedTotal, result.Total); Assert.Equal(h.Self, Assert.Single(result.Data).Id);
+        var second = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/teams/{teamId}/members?pageSize=1&page=2"))!;
+        if (expectedTotal == 1) Assert.Empty(second.Data); else Assert.Equal(h.Peer, Assert.Single(second.Data).Id);
+        Assert.DoesNotContain(result.Data, e => e.Id == h.Other);
+        using (var scope = h.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var employeeId = await db.Screens.Where(s => s.Code == "WEB_EMPLOYEES").Select(s => s.ID).SingleAsync();
+            await db.Set<RoleScreenAction>().Where(g => g.ScreenID == employeeId && g.ActionCode == "VIEW").ExecuteDeleteAsync();
+        }
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/teams/{teamId}/members")).StatusCode);
     }
     [Fact]
     public async Task TreeRequiresViewButMissingScopeDefaultsToSelf()
@@ -88,6 +115,26 @@ public sealed class OrganizationTreeTests
         Assert.All((await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!, d => { Assert.Equal(0, d.EmployeeCount); Assert.Null(d.Manager); Assert.All(d.Teams, t => { Assert.Equal(0, t.EmployeeCount); Assert.Null(t.Lead); }); });
         h.Client.DefaultRequestHeaders.Authorization = null;
         Assert.Equal(HttpStatusCode.Unauthorized, (await h.Client.GetAsync("/api/organization/tree")).StatusCode);
+    }
+    [Fact]
+    public async Task DepartmentAndTeamStructureDoesNotRequireScopeOrLinkedEmployee()
+    {
+        await using var h = await EmployeeApiTests.Harness.Create("SELF"); var teamId = await Setup(h);
+        using (var scope = h.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Set<RoleScreenAction>().ExecuteDeleteAsync();
+            await db.Set<User>().Where(u => u.UserId == "api-user").ExecuteUpdateAsync(s => s.SetProperty(u => u.EmployeeId, (int?)null));
+        }
+        var tree = (await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!;
+        Assert.Equal(3, tree.Count);
+        Assert.Contains(tree, d => d.DepartmentName == "Empty");
+        Assert.Contains(Assert.Single(tree, d => d.Id == h.Department).Teams, t => t.Id == teamId);
+        Assert.All(tree, d =>
+        {
+            Assert.Equal(0, d.EmployeeCount); Assert.Equal(0, d.UnassignedCount); Assert.Null(d.Manager);
+            Assert.All(d.Teams, t => { Assert.Equal(0, t.EmployeeCount); Assert.Null(t.Lead); });
+        });
     }
     [Fact]
     public async Task ManagerAndLeadMustBelongToTheirGroupAndLeadCannotBeReassigned()

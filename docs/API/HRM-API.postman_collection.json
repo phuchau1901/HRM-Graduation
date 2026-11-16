@@ -2264,7 +2264,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/teams/{{teamId}}/members?page=1&pageSize=20",
-            "description": "Requires only WEB_ORGANIZATION / VIEW; configure its SELF/DEPARTMENT/ALL DataScope. See docs/modules/Organization/TREE_API.md."
+            "description": "Requires WEB_ORGANIZATION/VIEW and WEB_EMPLOYEES/VIEW. Team lookup has no scope; employee rows and total use WEB_EMPLOYEES/VIEW SELF/DEPARTMENT/ALL. No Organization or Team DataScope required."
           }
         },
         {

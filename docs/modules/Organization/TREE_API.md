@@ -9,7 +9,7 @@
 
 ## Authorization and visibility
 
-Tree, Team members and unassigned members require only `WEB_ORGANIZATION / VIEW` plus JWT. Employee visibility uses SELF/DEPARTMENT/ALL from the live `WEB_ORGANIZATION / VIEW` action scope through EmployeeDataScope; no WEB_EMPLOYEES, WEB_DEPARTMENTS or WEB_TEAMS grant is required for these three endpoints. For GET /api/organization/tree, VIEW alone is sufficient: missing DataScope defaults to SELF, returning structural nodes with zero visible employees if the user has no linked employee. Explicit SELF/DEPARTMENT/ALL scopes remain effective. Member endpoints still require configured DataScope. Existing catalog tabs, CRUD and full employee profiles retain their own permissions.
+Tree and unassigned members require `WEB_ORGANIZATION / VIEW` plus JWT. Team members require `WEB_ORGANIZATION / VIEW` and `WEB_EMPLOYEES / VIEW`; their employee rows and total use the live WEB_EMPLOYEES/VIEW DataScope, not an Organization or Team scope. Employee visibility uses SELF/DEPARTMENT/ALL from the live `WEB_ORGANIZATION / VIEW` action scope through EmployeeDataScope; WEB_DEPARTMENTS and WEB_TEAMS grants are not required for these endpoints. For GET /api/organization/tree, VIEW alone is sufficient: missing DataScope defaults to SELF, returning structural nodes with zero visible employees if the user has no linked employee. Explicit SELF/DEPARTMENT/ALL scopes remain effective. Team members require configured WEB_EMPLOYEES/VIEW DataScope. Unassigned members retain WEB_ORGANIZATION/VIEW DataScope. Existing catalog tabs, CRUD and full employee profiles retain their own permissions.
 
 Department and Team metadata is visible with WEB_ORGANIZATION/VIEW, regardless of employee membership. Departments with no teams and teams with no employees remain in the tree. Employee Data Scope applies to identities and employee counts:
 
@@ -54,3 +54,14 @@ Tests: OrganizationTreeTests (scope, no identity/count leakage, pagination, miss
 Validation run: frontend production build succeeded; React 15/15 tests passed. Full backend run: 262 passed, 9 failed (271 total). The nine existing EmployeeCreationTests expect NV-prefixed codes whereas the unchanged HEAD EmployeeCodeGenerator.Format produces TX-prefixed codes; the legacy occupied-code test also uses NV. This Organization change does not alter that policy. No database migration was applied.
 
 Final focused backend run after the additional hidden-team/omitted-assignment regression test: 44/44 passed (Organization, Teams, Employee read/API, inventory and migration tests).
+
+## Department and Team SQL (no Data Scope)
+
+The structure is loaded without employee scope predicates, including for an account without a linked employee or configured DataScope. Only employee projections (counts, manager/lead identities, member lists) use scope.
+
+```sql
+SELECT Id, DepartmentName FROM departments ORDER BY DepartmentName, Id;
+SELECT Id, TeamName, DepartmentId FROM teams ORDER BY TeamName, Id;
+```
+
+These show the structural selection only; the actual projections also include scoped employee counts and nullable manager/lead information.

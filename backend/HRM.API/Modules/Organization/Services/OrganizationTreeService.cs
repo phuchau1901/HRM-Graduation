@@ -40,7 +40,9 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
 
     public async Task<PageResult<OrganizationMember>> MembersAsync(string actor, int? teamId, int? departmentId, PageQuery q, CancellationToken ct)
     {
-        var access = await scopes.GetAsync(actor, "WEB_ORGANIZATION", "VIEW", ct);
+        // Team metadata has no Data Scope. Employee rows use the employee permission scope.
+        var employeeScreen = teamId.HasValue ? "WEB_EMPLOYEES" : "WEB_ORGANIZATION";
+        var access = await scopes.GetAsync(actor, employeeScreen, "VIEW", ct);
         var employees = access.Apply(db.Employees.AsNoTracking());
         if (teamId.HasValue)
         {
