@@ -27,7 +27,7 @@ Department and Team metadata is visible with WEB_ORGANIZATION/VIEW, regardless o
 200 JSON array, no employee member collections:
 
 ```json
-[{"id":1,"departmentName":"Engineering","manager":{"id":10,"employeeCode":"E10","fullName":"Manager"},"employeeCount":21,"teamCount":1,"unassignedCount":1,"teams":[{"id":2,"teamName":"Backend","lead":null,"employeeCount":20}]}]
+[{"id":1,"departmentName":"Engineering","manager":{"id":10,"employeeCode":"E10","fullName":"Manager","positionName":"Engineering Manager"},"employeeCount":21,"teamCount":1,"unassignedCount":1,"teams":[{"id":2,"teamName":"Backend","lead":null,"employeeCount":20}]}]
 ```
 
 Manager and lead are nullable. Counts describe visible employees, not organization-wide totals. TeamCount excludes the virtual unassigned group. Two SQL projections fetch all structural departments and teams independently of employee membership, with scoped SQL count/manager subqueries; query count does not grow with node count. No employee lists, email or personal detail fields are loaded.
@@ -69,3 +69,5 @@ SELECT Id, TeamName, DepartmentId FROM teams ORDER BY TeamName, Id;
 These show the structural selection only; the actual projections also include scoped employee counts and nullable manager/lead information.
 
 Count regression: Tree employeeCount matches Members total under SELF/DEPARTMENT/ALL even when Organization DataScope is absent. Department employeeCount equals the sum of Team employeeCounts plus unassignedCount.
+
+Manager and lead objects include nullable `positionName`, resolved from employees.PositionId → positions.id/name in the existing SQL projection (no extra query per node). No position returns null. Out-of-scope employees still return a null manager/lead object.

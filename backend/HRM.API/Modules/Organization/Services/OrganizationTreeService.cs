@@ -22,7 +22,7 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
             .Select(d => new {
                 d.Id, d.DepartmentName,
                 Manager = employees.Where(e => e.Id == d.ManagerEmployeeId && e.DepartmentId == d.Id)
-                    .Select(e => new OrganizationPerson(e.Id, e.EmployeeCode, e.FullName)).FirstOrDefault(),
+                    .Select(e => new OrganizationPerson(e.Id, e.EmployeeCode, e.FullName, e.Position == null ? null : e.Position.Name)).FirstOrDefault(),
                 Count = employees.Count(e => e.DepartmentId == d.Id),
                 Unassigned = employees.Count(e => e.DepartmentId == d.Id && e.TeamId == null)
             }).ToListAsync(ct);
@@ -31,7 +31,7 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
             .Select(t => new {
                 t.DepartmentId, t.Id, t.TeamName,
                 Lead = employees.Where(e => e.Id == t.LeadEmployeeId && e.TeamId == t.Id && e.DepartmentId == t.DepartmentId)
-                    .Select(e => new OrganizationPerson(e.Id, e.EmployeeCode, e.FullName)).FirstOrDefault(),
+                    .Select(e => new OrganizationPerson(e.Id, e.EmployeeCode, e.FullName, e.Position == null ? null : e.Position.Name)).FirstOrDefault(),
                 Count = employees.Count(e => e.TeamId == t.Id && e.DepartmentId == t.DepartmentId)
             }).ToListAsync(ct);
         var byDepartment = teams.ToLookup(t => t.DepartmentId);

@@ -53,6 +53,26 @@ public sealed class OrganizationTreeTests
         Assert.Equal(HttpStatusCode.BadRequest, (await h.Client.GetAsync($"/api/teams/{teamId}/members?pageSize=101")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await h.Client.GetAsync("/api/teams/2147483647/members")).StatusCode);
     }
+    [Theory]
+    [InlineData("SELF")]
+    [InlineData("DEPARTMENT")]
+    [InlineData("ALL")]
+    public async Task ManagerIncludesPositionNameWithoutExposingOutOfScopeManager(string employeeScope)
+    {
+        await using var h = await EmployeeApiTests.Harness.Create(employeeScope); await Setup(h);
+        using (var scope = h.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var position = new Position { Code = "MANAGER", Name = "Engineering Manager", IsActive = true };
+            db.Add(position); await db.SaveChangesAsync();
+            await db.Employees.Where(e => e.Id == h.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.PositionId, position.ID));
+        }
+        var tree = (await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!;
+        var department = Assert.Single(tree, d => d.Id == h.Department);
+        if (employeeScope == "SELF") Assert.Null(department.Manager);
+        else Assert.Equal("Engineering Manager", department.Manager!.PositionName);
+        Assert.Null(Assert.Single(department.Teams).Lead!.PositionName); // Employee with no assigned position.
+    }
     [Fact]
     public async Task OrganizationViewAloneAllowsTreeButTeamMembersRequireEmployeeView()
     {

@@ -2256,7 +2256,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/organization/tree",
-            "description": "Requires WEB_ORGANIZATION/VIEW. Department and Team nodes have no DataScope filter. Employee counts and manager/lead identities use WEB_EMPLOYEES/VIEW scope; absent Employee access returns zero counts and null identities."
+            "description": "Requires WEB_ORGANIZATION/VIEW. Department and Team nodes have no DataScope filter. Employee counts and manager/lead identities use WEB_EMPLOYEES/VIEW scope; absent Employee access returns zero counts and null identities. Manager and lead objects include nullable positionName."
           }
         },
         {

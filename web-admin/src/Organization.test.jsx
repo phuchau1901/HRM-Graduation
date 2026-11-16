@@ -38,6 +38,16 @@ describe('Organization', () => {
     fireEvent.click(screen.getByRole('button', { name: /Empty team/ }));
     expect(await screen.findByText('Chưa có nhân viên trong phạm vi được xem.')).toBeTruthy();
   });
+  it('displays manager and lead position names when provided', async () => {
+    const api = vi.fn(async () => [{ ...department,
+      manager: { id: 10, fullName: 'Alice', positionName: 'Engineering Manager' },
+      teams: [{ ...department.teams[0], lead: { id: 11, fullName: 'Bob', positionName: 'Technical Lead' } }]
+    }]);
+    render(<Organization api={api} permissions={permissions} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Engineering/ }));
+    expect(screen.getByText('Trưởng phòng: Alice · Engineering Manager')).toBeTruthy();
+    expect(screen.getByText('Team Lead: Bob · Technical Lead')).toBeTruthy();
+  });
   it('retries errors and displays an empty tree', async () => {
     const api = vi.fn().mockRejectedValueOnce(new Error('Lỗi tải cây')).mockResolvedValue([]);
     render(<Organization api={api} permissions={permissions} />);
