@@ -12,10 +12,11 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
         // VIEW is sufficient to open the tree; absent scope defaults to the linked employee only.
         var access = await scopes.GetAsync(actor, "WEB_ORGANIZATION", "VIEW", ct, fallbackToSelf: true);
         var employees = access.Apply(db.Employees.AsNoTracking());
+        // Organization VIEW exposes structural nodes even when no scoped employees belong to them.
+        // Employee identities and counts remain scoped.
         // Fixed number of SQL queries. Counts and manager names are projected from the scoped query;
         // no member list is materialized until a group is opened.
         var departments = await db.Departments.AsNoTracking()
-            .Where(d => access.Scope == "ALL" || employees.Any(e => e.DepartmentId == d.Id))
             .OrderBy(d => d.DepartmentName).ThenBy(d => d.Id)
             .Select(d => new {
                 d.Id, d.DepartmentName,
@@ -25,7 +26,6 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
                 Unassigned = employees.Count(e => e.DepartmentId == d.Id && e.TeamId == null)
             }).ToListAsync(ct);
         var teams = await db.Teams.AsNoTracking()
-            .Where(t => access.Scope == "ALL" || (access.Scope == "DEPARTMENT" && t.DepartmentId == access.DepartmentId) || employees.Any(e => e.TeamId == t.Id && e.DepartmentId == t.DepartmentId))
             .OrderBy(t => t.TeamName).ThenBy(t => t.Id)
             .Select(t => new {
                 t.DepartmentId, t.Id, t.TeamName,
@@ -44,15 +44,13 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
         var employees = access.Apply(db.Employees.AsNoTracking());
         if (teamId.HasValue)
         {
-            var team = await db.Teams.AsNoTracking().Where(t => t.Id == teamId &&
-                (access.Scope == "ALL" || (access.Scope == "DEPARTMENT" && t.DepartmentId == access.DepartmentId) || employees.Any(e => e.TeamId == t.Id)))
+            var team = await db.Teams.AsNoTracking().Where(t => t.Id == teamId)
                 .Select(t => new { t.Id, t.DepartmentId }).SingleOrDefaultAsync(ct) ?? throw BusinessException.Missing();
             employees = employees.Where(e => e.TeamId == team.Id && e.DepartmentId == team.DepartmentId);
         }
         else
         {
-            if (!await db.Departments.AnyAsync(d => d.Id == departmentId &&
-                (access.Scope == "ALL" || employees.Any(e => e.DepartmentId == d.Id)), ct)) throw BusinessException.Missing();
+            if (!await db.Departments.AnyAsync(d => d.Id == departmentId, ct)) throw BusinessException.Missing();
             employees = employees.Where(e => e.DepartmentId == departmentId && e.TeamId == null);
         }
         var total = await employees.CountAsync(ct);

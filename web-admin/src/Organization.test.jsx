@@ -23,6 +23,21 @@ describe('Organization', () => {
     fireEvent.click(screen.getByRole('button', { name: /Chưa phân nhóm/ }));
     await waitFor(() => expect(api).toHaveBeenCalledWith('/departments/1/unassigned-members?page=1&pageSize=20', expect.anything()));
   });
+  it('shows empty departments and teams with blank manager and lead names', async () => {
+    const api = vi.fn(async path => path === '/organization/tree' ? [
+      { id: 1, departmentName: 'Empty department', manager: null, employeeCount: 0, teamCount: 0, unassignedCount: 0, teams: [] },
+      { id: 2, departmentName: 'Operations', manager: null, employeeCount: 0, teamCount: 1, unassignedCount: 0, teams: [{ id: 3, teamName: 'Empty team', lead: null, employeeCount: 0 }] }
+    ] : { total: 0, data: [] });
+    render(<Organization api={api} permissions={permissions} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Empty department/ }));
+    expect(screen.getByText('Chưa có Team hoặc nhân viên trong phạm vi được xem.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Operations/ }));
+    expect(screen.getAllByText('Trưởng phòng:').every(node => node.textContent.trim() === 'Trưởng phòng:')).toBe(true);
+    expect(screen.getByText('Team Lead:').textContent.trim()).toBe('Team Lead:');
+    expect(screen.queryByText(/Chưa có \/ ngoài phạm vi/)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Empty team/ }));
+    expect(await screen.findByText('Chưa có nhân viên trong phạm vi được xem.')).toBeTruthy();
+  });
   it('retries errors and displays an empty tree', async () => {
     const api = vi.fn().mockRejectedValueOnce(new Error('Lỗi tải cây')).mockResolvedValue([]);
     render(<Organization api={api} permissions={permissions} />);

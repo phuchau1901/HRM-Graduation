@@ -9,13 +9,16 @@
 
 ## Authorization and visibility
 
-Tree, Team members and unassigned members require only `WEB_ORGANIZATION / VIEW` plus JWT. Employee visibility uses SELF/DEPARTMENT/ALL from the live `WEB_ORGANIZATION / VIEW` action scope through EmployeeDataScope; no WEB_EMPLOYEES, WEB_DEPARTMENTS or WEB_TEAMS grant is required for these three endpoints. For GET /api/organization/tree, VIEW alone is sufficient: missing DataScope defaults to SELF, returning an empty tree if the user has no linked employee. Explicit SELF/DEPARTMENT/ALL scopes remain effective. Member endpoints still require configured DataScope. Existing catalog tabs, CRUD and full employee profiles retain their own permissions.
+Tree, Team members and unassigned members require only `WEB_ORGANIZATION / VIEW` plus JWT. Employee visibility uses SELF/DEPARTMENT/ALL from the live `WEB_ORGANIZATION / VIEW` action scope through EmployeeDataScope; no WEB_EMPLOYEES, WEB_DEPARTMENTS or WEB_TEAMS grant is required for these three endpoints. For GET /api/organization/tree, VIEW alone is sufficient: missing DataScope defaults to SELF, returning structural nodes with zero visible employees if the user has no linked employee. Explicit SELF/DEPARTMENT/ALL scopes remain effective. Member endpoints still require configured DataScope. Existing catalog tabs, CRUD and full employee profiles retain their own permissions.
 
-- ALL: all departments and teams, including empty nodes.
-- DEPARTMENT: employee's department and its teams (including empty teams).
-- SELF: only the department and team containing the linked employee. Counts contain only that employee. Other employees, manager/lead identity and other team metadata are omitted.
-- Managers/leads outside employee scope return null, even within a visible department. All counts, including unassigned counts, are scoped. Catalog DTOs do not expose manager/lead employee IDs.
-- Unknown/out-of-scope member groups return 404. Invalid paging returns 400. Responses use Cache-Control no-store. Profile links use the existing scoped employee detail endpoint.
+Department and Team metadata is visible with WEB_ORGANIZATION/VIEW, regardless of employee membership. Departments with no teams and teams with no employees remain in the tree. Employee Data Scope applies to identities and employee counts:
+
+- ALL: all employees.
+- DEPARTMENT: employees in the linked employee's department.
+- SELF: only the linked employee; without a linked employee, visible employee counts are zero.
+- Managers/leads outside employee scope or without an assignment return null; the frontend leaves their names blank.
+- TeamCount includes all real teams under a department; it excludes the virtual unassigned group. EmployeeCount and UnassignedCount count only scoped employees.
+- Existing member groups return 200 with an empty page when no employees are visible. Unknown group IDs return 404. Invalid paging returns 400. Responses use Cache-Control no-store. Profile links use the existing scoped employee detail endpoint.
 
 ## GET /api/organization/tree
 
@@ -25,7 +28,7 @@ Tree, Team members and unassigned members require only `WEB_ORGANIZATION / VIEW`
 [{"id":1,"departmentName":"Engineering","manager":{"id":10,"employeeCode":"E10","fullName":"Manager"},"employeeCount":21,"teamCount":1,"unassignedCount":1,"teams":[{"id":2,"teamName":"Backend","lead":null,"employeeCount":20}]}]
 ```
 
-Manager and lead are nullable. Counts describe visible employees, not organization-wide totals. TeamCount excludes the virtual unassigned group. Two SQL projections fetch departments and teams, with scoped SQL count/manager subqueries; query count does not grow with node count. No employee lists, email or personal detail fields are loaded.
+Manager and lead are nullable. Counts describe visible employees, not organization-wide totals. TeamCount excludes the virtual unassigned group. Two SQL projections fetch all structural departments and teams independently of employee membership, with scoped SQL count/manager subqueries; query count does not grow with node count. No employee lists, email or personal detail fields are loaded.
 
 ## GET /api/teams/{teamId}/members?page=1&pageSize=20
 ## GET /api/departments/{departmentId}/unassigned-members?page=1&pageSize=20

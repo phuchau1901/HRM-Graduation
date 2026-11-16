@@ -31,8 +31,8 @@ public sealed class OrganizationTreeTests
         await db.SaveChangesAsync(); await OrganizationApiTests.Login(h.Client, h.App); return team.Id;
     }
     [Theory]
-    [InlineData("SELF", 1, 1, 0)]
-    [InlineData("DEPARTMENT", 1, 2, 1)]
+    [InlineData("SELF", 3, 1, 0)]
+    [InlineData("DEPARTMENT", 3, 2, 1)]
     [InlineData("ALL", 3, 2, 1)]
     public async Task TreeAndMembersRespectScope(string scope, int departments, int count, int unassigned)
     {
@@ -48,7 +48,7 @@ public sealed class OrganizationTreeTests
         Assert.Empty((await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/teams/{teamId}/members?pageSize=1&page=2"))!.Data);
         var loose = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/departments/{h.Department}/unassigned-members"))!;
         Assert.Equal(unassigned, loose.Total);
-        Assert.Equal(scope == "ALL" ? HttpStatusCode.OK : HttpStatusCode.NotFound,
+        Assert.Equal(HttpStatusCode.OK,
             (await h.Client.GetAsync($"/api/departments/{h.OtherDepartment}/unassigned-members")).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await h.Client.GetAsync($"/api/teams/{teamId}/members?pageSize=101")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await h.Client.GetAsync("/api/teams/2147483647/members")).StatusCode);
@@ -79,13 +79,13 @@ public sealed class OrganizationTreeTests
         using var scope = h.App.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Set<HRM.API.Modules.Authorization.Entities.RoleScreenAction>().ExecuteDeleteAsync();
         var tree = (await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!;
-        var department = Assert.Single(tree);
+        var department = Assert.Single(tree, d => d.Id == h.Department);
         Assert.Equal(h.Department, department.Id); Assert.Equal(1, department.EmployeeCount);
         Assert.Null(department.Manager); Assert.Equal(h.Self, Assert.Single(department.Teams).Lead!.Id);
         // Other endpoints retain their existing explicit scope requirement.
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/teams/{department.Teams[0].Id}/members")).StatusCode);
         await db.Set<User>().Where(x => x.UserId == "api-user").ExecuteUpdateAsync(s => s.SetProperty(x => x.EmployeeId, (int?)null));
-        Assert.Empty((await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!);
+        Assert.All((await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!, d => { Assert.Equal(0, d.EmployeeCount); Assert.Null(d.Manager); Assert.All(d.Teams, t => { Assert.Equal(0, t.EmployeeCount); Assert.Null(t.Lead); }); });
         h.Client.DefaultRequestHeaders.Authorization = null;
         Assert.Equal(HttpStatusCode.Unauthorized, (await h.Client.GetAsync("/api/organization/tree")).StatusCode);
     }
@@ -101,7 +101,7 @@ public sealed class OrganizationTreeTests
             new { fullName = "Employee 1", email = "employee-1@example.invalid", teamId = (int?)null, employmentStatus = "ACTIVE" })).StatusCode);
     }
     [Fact]
-    public async Task InvisibleTeamsReturn404AndOmittedAssignmentsArePreserved()
+    public async Task StructuralTeamsRemainVisibleWithoutExposingMembersAndOmittedAssignmentsArePreserved()
     {
         await using var h = await EmployeeApiTests.Harness.Create("SELF"); var teamId = await Setup(h);
         int hiddenId;
@@ -111,9 +111,10 @@ public sealed class OrganizationTreeTests
             var hidden = new Team { TeamCode = "HIDDEN", TeamName = "Hidden team", DepartmentId = h.OtherDepartment };
             db.Add(hidden); await db.SaveChangesAsync(); hiddenId = hidden.Id;
         }
-        Assert.Equal(HttpStatusCode.NotFound, (await h.Client.GetAsync($"/api/teams/{hiddenId}/members")).StatusCode);
+        var hiddenMembers = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/teams/{hiddenId}/members"))!;
+        Assert.Equal(0, hiddenMembers.Total); Assert.Empty(hiddenMembers.Data);
         var treeJson = await h.Client.GetStringAsync("/api/organization/tree");
-        Assert.DoesNotContain("Hidden team", treeJson); Assert.DoesNotContain("Employee 2", treeJson); Assert.DoesNotContain("E2", treeJson);
+        Assert.Contains("Hidden team", treeJson); Assert.DoesNotContain("Employee 2", treeJson); Assert.DoesNotContain("E2", treeJson);
         var members = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/teams/{teamId}/members"))!;
         Assert.Equal(20, members.PageSize);
         var payload = new { teamCode = "TREE", teamName = "Renamed", departmentId = h.Department };
@@ -129,6 +130,30 @@ public sealed class OrganizationTreeTests
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); Assert.Null((await db.Teams.FindAsync(teamId))!.LeadEmployeeId);
         }
+    }
+    [Theory]
+    [InlineData("SELF")]
+    [InlineData("DEPARTMENT")]
+    [InlineData("ALL")]
+    public async Task EmptyDepartmentsAndTeamsRemainVisibleWithNullManagers(string dataScope)
+    {
+        await using var h = await EmployeeApiTests.Harness.Create(dataScope); await Setup(h);
+        int emptyDepartmentId, emptyTeamId;
+        using (var scope = h.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            emptyDepartmentId = await db.Departments.Where(d => d.DepartmentCode == "EMPTY").Select(d => d.Id).SingleAsync();
+            var team = new Team { TeamCode = "EMPTYTEAM", TeamName = "Empty Team", DepartmentId = h.OtherDepartment };
+            db.Add(team); await db.SaveChangesAsync(); emptyTeamId = team.Id;
+        }
+        var tree = (await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!;
+        var emptyDepartment = Assert.Single(tree, d => d.Id == emptyDepartmentId);
+        Assert.Equal(0, emptyDepartment.EmployeeCount); Assert.Equal(0, emptyDepartment.TeamCount);
+        Assert.Empty(emptyDepartment.Teams); Assert.Null(emptyDepartment.Manager);
+        var emptyTeam = Assert.Single(Assert.Single(tree, d => d.Id == h.OtherDepartment).Teams, t => t.Id == emptyTeamId);
+        Assert.Equal(0, emptyTeam.EmployeeCount); Assert.Null(emptyTeam.Lead);
+        var members = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/teams/{emptyTeamId}/members"))!;
+        Assert.Equal(0, members.Total); Assert.Empty(members.Data);
     }
     [Fact]
     public async Task TreeQueryCountDoesNotGrowWithDepartmentsAndDoesNotSelectEmployeeDetails()
