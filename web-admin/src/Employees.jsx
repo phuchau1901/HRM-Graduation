@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { can } from './api';
 import { EmployeeEditor } from './EmployeeEditor';
 
-export function Employees({ api, permissions }) {
+export function Employees({ api, permissions, initialEmployeeId }) {
   const [data, setData] = useState({ data: [], total: 0 }), [page, setPage] = useState(1), [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false), [error, setError] = useState(''), [revision, setRevision] = useState(0), [editor, setEditor] = useState(null), [detail, setDetail] = useState(null);
   useEffect(() => {
@@ -12,6 +12,12 @@ export function Employees({ api, permissions }) {
     api(`/employees?${query}`, { signal: controller.signal }).then(setData).catch(err => { if (!controller.signal.aborted) setError(err.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [api, permissions, page, search, revision]);
+  useEffect(() => {
+    if (!initialEmployeeId || !can(permissions, 'WEB_EMPLOYEES', 'VIEW')) return;
+    const controller = new AbortController();
+    api(`/employees/${initialEmployeeId}`, { signal: controller.signal }).then(data => { if (!controller.signal.aborted) setDetail(data); }).catch(err => { if (!controller.signal.aborted) setError(err.message); });
+    return () => controller.abort();
+  }, [api, permissions, initialEmployeeId]);
   async function open(row, edit) {
     setError('');
     try { const employee = await api(`/employees/${row.id}`); if (edit) setEditor({ employee }); else setDetail(employee); }

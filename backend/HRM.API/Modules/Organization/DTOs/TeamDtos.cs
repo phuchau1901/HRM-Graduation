@@ -9,6 +9,13 @@ public sealed class TeamQuery : PageQuery
 }
 public sealed class TeamRequest
 {
+    private int? leadEmployeeId;
+    [global::System.Text.Json.Serialization.JsonIgnore] public bool LeadEmployeeIdSpecified { get; private set; }
+    [Range(1, int.MaxValue)] public int? LeadEmployeeId
+    {
+        get => leadEmployeeId;
+        set { leadEmployeeId = value; LeadEmployeeIdSpecified = true; }
+    }
     [Required, MaxLength(30), RegularExpression(@"^[A-Za-z0-9][A-Za-z0-9_-]*$")]
     public string TeamCode { get; set; } = "";
     [Required, MaxLength(150)] public string TeamName { get; set; } = "";

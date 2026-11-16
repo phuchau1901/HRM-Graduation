@@ -87,3 +87,7 @@ Lỗi nghiệp vụ theo envelope `success=false`, `code`, `error`, `message`, `
 - PATCH `/api/employees/{id}/department`: thêm teamId thuộc Department đích; null/bỏ qua = gỡ Team cũ. Chuyển Department vẫn cần scope ALL.
 - GET danh sách, chi tiết, unlinked và response mutation nhân viên trả `teamId`, `teamName`; chưa gán thì cả hai null. GET danh sách/unlinked có filter teamId>0, chỉ thu hẹp scope.
 - Giữ nguyên Team hiện tại đã inactive khi sửa trường khác được phép; không gán mới/đổi sang Team inactive. Sai Team/Department hoặc Team không tồn tại trả 400. Ngoài employee data scope vẫn 403/404 theo API cũ.
+
+## Organization Tree extension
+
+POST/PUT hỗ trợ `leadEmployeeId` nullable; bỏ qua giữ nguyên, gửi null để xóa chỉ định. Kiểm tra employee thuộc đúng nhóm. Xem [Tree API và quy tắc scope](TREE_API.md).

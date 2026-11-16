@@ -1,3 +1,4 @@
+using System.Data;
 using HRM.API.Common;
 using HRM.API.Data;
 using HRM.API.Modules.Employees.Entities;
@@ -22,12 +23,16 @@ public sealed class OrganizationService(AppDbContext db)
             .Select(x => new DepartmentDto(x.Id, x.DepartmentCode, x.DepartmentName, x.Description, x.IsActive)).SingleOrDefaultAsync(ct) ?? throw BusinessException.Missing();
     public async Task<DepartmentDto> SaveDepartmentAsync(int? id, DepartmentRequest request, CancellationToken ct)
     {
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var code = request.DepartmentCode.Trim();
         if (await db.Set<Department>().AnyAsync(x => x.DepartmentCode == code && x.Id != id, ct)) throw BusinessException.Conflict("Department code already exists.");
         var entity = id.HasValue ? await db.Set<Department>().FindAsync([id.Value], ct) ?? throw BusinessException.Missing() : new Department();
+        if (request.ManagerEmployeeId.HasValue && (!id.HasValue || !await db.Set<Employee>().AnyAsync(x => x.Id == request.ManagerEmployeeId && x.DepartmentId == id, ct)))
+            throw BusinessException.Invalid("Manager must belong to this department.");
+        if (request.ManagerEmployeeIdSpecified) entity.ManagerEmployeeId = request.ManagerEmployeeId;
         entity.DepartmentCode = code; entity.DepartmentName = request.DepartmentName.Trim(); entity.Description = request.Description; entity.IsActive = request.IsActive;
         if (!id.HasValue) db.Add(entity);
-        await db.SaveChangesAsync(ct); return new(entity.Id, entity.DepartmentCode, entity.DepartmentName, entity.Description, entity.IsActive);
+        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return new(entity.Id, entity.DepartmentCode, entity.DepartmentName, entity.Description, entity.IsActive);
     }
     public async Task DeleteDepartmentAsync(int id, CancellationToken ct)
     {

@@ -4,6 +4,7 @@ namespace HRM.API.Modules.Organization.Entities;
 public class Department
 {
     public int Id { get; set; }
+    public int? ManagerEmployeeId { get; set; }
     public string DepartmentCode { get; set; } = string.Empty;
     public string DepartmentName { get; set; } = string.Empty;
     public string? Description { get; set; }

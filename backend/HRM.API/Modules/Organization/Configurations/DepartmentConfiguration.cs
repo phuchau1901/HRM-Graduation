@@ -12,6 +12,8 @@ public class DepartmentConfiguration
         builder.ToTable("departments");
 
         builder.HasKey(x => x.Id);
+        builder.HasOne<HRM.API.Modules.Employees.Entities.Employee>().WithMany()
+            .HasForeignKey(x => x.ManagerEmployeeId).OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(x => x.DepartmentCode).HasColumnName("DepartmentCode").HasColumnType("varchar(20)").HasMaxLength(20).IsRequired();
 

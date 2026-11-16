@@ -1272,10 +1272,15 @@ namespace HRM.API.Migrations
                         .HasColumnType("tinyint(1)")
                         .HasColumnName("IsActive");
 
+                    b.Property<int?>("ManagerEmployeeId")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DepartmentCode")
                         .IsUnique();
+
+                    b.HasIndex("ManagerEmployeeId");
 
                     b.ToTable("departments", (string)null);
                 });
@@ -1342,6 +1347,9 @@ namespace HRM.API.Migrations
                         .HasColumnType("tinyint(1)")
                         .HasColumnName("IsActive");
 
+                    b.Property<int?>("LeadEmployeeId")
+                        .HasColumnType("int");
+
                     b.Property<string>("TeamCode")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -1355,6 +1363,8 @@ namespace HRM.API.Migrations
                         .HasColumnName("TeamName");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LeadEmployeeId");
 
                     b.HasIndex("TeamCode")
                         .IsUnique();
@@ -2393,6 +2403,14 @@ namespace HRM.API.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("HRM.API.Modules.Organization.Entities.Department", b =>
+                {
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ManagerEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("HRM.API.Modules.Organization.Entities.Team", b =>
                 {
                     b.HasOne("HRM.API.Modules.Organization.Entities.Department", "Department")
@@ -2400,6 +2418,11 @@ namespace HRM.API.Migrations
                         .HasForeignKey("DepartmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("LeadEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Department");
                 });

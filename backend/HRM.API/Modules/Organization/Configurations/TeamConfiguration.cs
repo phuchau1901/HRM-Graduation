@@ -9,6 +9,8 @@ public sealed class TeamConfiguration : IEntityTypeConfiguration<Team>
     {
         builder.ToTable("teams");
         builder.HasKey(x => x.Id);
+        builder.HasOne<HRM.API.Modules.Employees.Entities.Employee>().WithMany()
+            .HasForeignKey(x => x.LeadEmployeeId).OnDelete(DeleteBehavior.Restrict);
         builder.Property(x => x.Id).HasColumnName("Id").HasColumnType("int").ValueGeneratedOnAdd();
         builder.Property(x => x.TeamCode).HasColumnName("TeamCode").HasColumnType("varchar(30)").HasMaxLength(30).IsRequired();
         builder.Property(x => x.TeamName).HasColumnName("TeamName").HasColumnType("varchar(150)").HasMaxLength(150).IsRequired();

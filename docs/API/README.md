@@ -2,13 +2,13 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **79 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **82 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
 | Auth | 3 | IMPLEMENTED |
 | Authorization / Administration | 21 | IMPLEMENTED |
-| Organization (Departments / Positions / Teams) | 15 | IMPLEMENTED |
+| Organization (Departments / Positions / Teams / Tree) | 18 | IMPLEMENTED |
 | Employees / Contracts / History | 12 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
 | Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow chưa có API |
@@ -54,6 +54,9 @@ Có **79 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | POST | `/api/notifications/announcements` | [Notifications](../modules/Notifications/API.md) | WEB_NOTIFICATIONS / action theo target; CANCEL cho hủy |
 | POST | `/api/notifications/{notificationId}/publish` | [Notifications](../modules/Notifications/API.md) | WEB_NOTIFICATIONS / action theo target; CANCEL cho hủy |
 | POST | `/api/notifications/{notificationId}/cancel` | [Notifications](../modules/Notifications/API.md) | WEB_NOTIFICATIONS / action theo target; CANCEL cho hủy |
+| GET | `/api/organization/tree` | [Organization Tree](../modules/Organization/TREE_API.md) | WEB_ORGANIZATION / VIEW + scope |
+| GET | `/api/teams/{teamId}/members` | [Organization Tree](../modules/Organization/TREE_API.md) | WEB_ORGANIZATION / VIEW + scope |
+| GET | `/api/departments/{departmentId}/unassigned-members` | [Organization Tree](../modules/Organization/TREE_API.md) | WEB_ORGANIZATION / VIEW + scope |
 | GET | `/api/departments` | [Organization](../modules/Organization/DEPARTMENTS_API.md) | WEB_DEPARTMENTS / VIEW |
 | GET | `/api/departments/{departmentId}` | [Organization](../modules/Organization/DEPARTMENTS_API.md) | WEB_DEPARTMENTS / VIEW |
 | POST | `/api/departments` | [Organization](../modules/Organization/DEPARTMENTS_API.md) | WEB_DEPARTMENTS / NEW |
@@ -114,3 +117,7 @@ Không có public registration/forgot-password API, refresh-token HTTP endpoint,
 Data Scope API extension: [specification and conversion rules](../modules/Employees/DATA_SCOPE.md), [audit](DATA_SCOPE_AUDIT.md), [review SQL](role-action-data-scope.review.sql), [JSON example](role-permissions-data-scope.sample.json).
 
 Employee GET list/detail giữ routes, quyền và pagination; EmployeeDto thêm departmentName/positionName nullable cùng teamName hiện có. [Contract và audit schema](../modules/Employees/EMPLOYEE_READ.md). Không thêm endpoint hoặc migration.
+
+## Organization Tree
+
+[API specification and audit](../modules/Organization/TREE_API.md): scoped tree, lazy paginated Team members and unassigned members.

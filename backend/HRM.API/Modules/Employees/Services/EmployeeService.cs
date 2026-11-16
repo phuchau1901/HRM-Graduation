@@ -142,6 +142,8 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
             var unchanged = await WriteResultAsync(entity.Id, ct);
             await tx.CommitAsync(ct); return unchanged;
         }
+        if (entity.TeamId != targetTeamId && await db.Set<Team>().AnyAsync(x => x.LeadEmployeeId == id, ct))
+            throw BusinessException.Conflict("Remove the team lead assignment before reassigning this employee.");
         entity.TeamId = targetTeamId; entity.Team = targetTeam;
         AuditTeam(actor, entity, oldTeamId, entity.DepartmentId, trace);
         entity.PositionId = request.PositionId;
@@ -178,6 +180,8 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
             EffectiveDate = request.EffectiveDate, Reason = request.Reason.Trim(), ChangedByUserID = actor });
         var oldTeamId = entity.TeamId; var oldDepartmentId = entity.DepartmentId;
         var targetTeam = await ValidateTeamAsync(request.TeamId, request.DepartmentId, ct);
+        if (await db.Set<Department>().AnyAsync(x => x.ManagerEmployeeId == id, ct) || await db.Set<Team>().AnyAsync(x => x.LeadEmployeeId == id, ct))
+            throw BusinessException.Conflict("Remove manager/lead assignments before transferring this employee.");
         entity.TeamId = request.TeamId; entity.Team = targetTeam;
         entity.DepartmentId = request.DepartmentId;
         AuditTeam(actor, entity, oldTeamId, oldDepartmentId, trace);

@@ -172,3 +172,7 @@ Không JWT401; thiếu action403; dữ liệu hợp lệ thành công; mã trùn
 ## Quan hệ Teams
 
 Department có nhiều [Teams](TEAMS_API.md). `DELETE /api/departments/{departmentId}` trả `409` nếu còn Team (kể cả inactive), ngoài các kiểm tra Employee/History hiện có. Ngừng hoạt động Department không tự xóa/gỡ Team hoặc Employee; không cho gán mới nhân viên vào Team của Department inactive.
+
+## Organization Tree extension
+
+POST/PUT hỗ trợ `managerEmployeeId` nullable; bỏ qua giữ nguyên, gửi null để xóa chỉ định. Kiểm tra employee thuộc đúng nhóm. Xem [Tree API và quy tắc scope](TREE_API.md).

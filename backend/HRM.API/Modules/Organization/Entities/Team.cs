@@ -5,6 +5,7 @@ namespace HRM.API.Modules.Organization.Entities;
 public class Team
 {
     public int Id { get; set; }
+    public int? LeadEmployeeId { get; set; }
     public string TeamCode { get; set; } = string.Empty;
     public string TeamName { get; set; } = string.Empty;
     public int DepartmentId { get; set; }

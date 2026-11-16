@@ -39,6 +39,9 @@ public sealed class TeamService(AppDbContext db)
         var code = request.TeamCode.Trim().ToUpperInvariant();
         if (await db.Set<Team>().AnyAsync(x => x.TeamCode == code && x.Id != id, ct)) throw BusinessException.Conflict("Team code already exists.");
         var before = id.HasValue ? Dto(entity) : null;
+        if (request.LeadEmployeeId.HasValue && (!id.HasValue || !await db.Set<Employee>().AnyAsync(x => x.Id == request.LeadEmployeeId && x.TeamId == id && x.DepartmentId == request.DepartmentId, ct)))
+            throw BusinessException.Invalid("Lead must belong to this team.");
+        if (request.LeadEmployeeIdSpecified) entity.LeadEmployeeId = request.LeadEmployeeId;
         entity.TeamCode = code; entity.TeamName = request.TeamName.Trim(); entity.DepartmentId = department.Id;
         entity.Department = department; entity.Description = request.Description?.Trim(); entity.IsActive = request.IsActive;
         if (!id.HasValue) db.Add(entity);

@@ -29,3 +29,5 @@ Tên bảng `departments` giữ lowercase; các tên cột thực tế theo Conf
 Quy ước chung: [HTTP và phân quyền](../../guides/CONVENTIONS.md). Cấu trúc dữ liệu: [database và migrations](../../guides/DATABASE.md).
 
 Teams nằm trong cùng module Organization; xem [thiết kế và audit Teams](TEAMS.md), [Teams API](TEAMS_API.md), [Teams tests](TEAMS_TESTS.md). Route `/api/teams` và quyền `WEB_TEAMS` giữ nguyên; việc chuyển namespace không đổi schema.
+
+- [Organization Tree — audit, RBAC/Data Scope, API specification](TREE_API.md)

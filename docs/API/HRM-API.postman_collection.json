@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "77 source-backed REST endpoints in 81 request examples. System Settings, Shifts, Schedules and Attendance use reviewed explicit grants. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
+    "description": "82 source-backed REST endpoints; 86 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
   },
   "auth": {
     "type": "bearer",
@@ -2245,6 +2245,35 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Organization Tree",
+      "item": [
+        {
+          "name": "Tree",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/organization/tree",
+            "description": "Requires only WEB_ORGANIZATION / VIEW; configure its SELF/DEPARTMENT/ALL DataScope. See docs/modules/Organization/TREE_API.md."
+          }
+        },
+        {
+          "name": "Team members",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/teams/{{teamId}}/members?page=1&pageSize=20",
+            "description": "Requires only WEB_ORGANIZATION / VIEW; configure its SELF/DEPARTMENT/ALL DataScope. See docs/modules/Organization/TREE_API.md."
+          }
+        },
+        {
+          "name": "Unassigned members",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/departments/{{departmentId}}/unassigned-members?page=1&pageSize=20",
+            "description": "Requires only WEB_ORGANIZATION / VIEW; configure its SELF/DEPARTMENT/ALL DataScope. See docs/modules/Organization/TREE_API.md."
+          }
         }
       ]
     }

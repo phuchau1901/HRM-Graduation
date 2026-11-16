@@ -4,6 +4,13 @@ namespace HRM.API.Modules.Organization.DTOs;
 public sealed class OrganizationQuery : PageQuery { public bool? IsActive { get; set; } }
 public sealed class DepartmentRequest
 {
+    private int? managerEmployeeId;
+    [global::System.Text.Json.Serialization.JsonIgnore] public bool ManagerEmployeeIdSpecified { get; private set; }
+    [Range(1, int.MaxValue)] public int? ManagerEmployeeId
+    {
+        get => managerEmployeeId;
+        set { managerEmployeeId = value; ManagerEmployeeIdSpecified = true; }
+    }
     [Required, MaxLength(20)] public string DepartmentCode { get; set; } = "";
     [Required, MaxLength(150)] public string DepartmentName { get; set; } = "";
     [MaxLength(500)] public string? Description { get; set; }

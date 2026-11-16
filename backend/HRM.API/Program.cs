@@ -131,6 +131,7 @@ builder.Services.AddHostedService<NotificationWorker>();
 builder.Services.AddScoped<HRM.API.Common.BusinessExceptionFilter>();
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationService>();
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.TeamService>();
+builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationTreeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeDataScope>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeCodeGenerator>();
