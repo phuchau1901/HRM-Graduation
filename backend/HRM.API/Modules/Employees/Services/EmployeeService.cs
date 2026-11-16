@@ -117,8 +117,6 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
             new global::System.ComponentModel.DataAnnotations.ValidationContext(request), validation, true))
             throw BusinessException.Invalid("Invalid employee request.");
         var access = await scopes.GetAsync(actor, "WEB_EMPLOYEES", "NEW", ct); access.DemandDepartment(request.DepartmentId);
-        if (request.IsDepartmentManager.HasValue || request.IsTeamLead.HasValue)
-            throw BusinessException.Invalid("Manager/lead assignments are supported by employee PUT only.");
         await ValidateDepartmentAsync(request.DepartmentId, ct);
         await ValidatePositionAsync(request.PositionId, ct);
         var team = await ValidateTeamAsync(request.TeamId, request.DepartmentId, ct);
@@ -129,7 +127,9 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         var entity = new Employee { FullName = request.FullName.Trim(), Email = email,
             DateOfBirth = request.DateOfBirth, PhoneNumber = request.PhoneNumber, HireDate = request.HireDate,
             DepartmentId = request.DepartmentId, TeamId = request.TeamId, Team = team, PositionId = request.PositionId, EmploymentStatus = request.EmploymentStatus, CreatedAt = DateTime.UtcNow };
-        await codes.AddAsync(entity, ct); Audit(actor, entity.Id, "EMPLOYEE_CREATED", trace);
+        await codes.AddAsync(entity, ct);
+        await UpdateLeadershipAsync(actor, entity, team, entity.TeamId, request, trace, ct);
+        Audit(actor, entity.Id, "EMPLOYEE_CREATED", trace);
         await db.SaveChangesAsync(ct); return await WriteResultAsync(entity.Id, ct);
     }
     public async Task<EmployeeDto> UpdateAsync(string actor, int id, EmployeeProfileRequest request, string trace, CancellationToken ct)

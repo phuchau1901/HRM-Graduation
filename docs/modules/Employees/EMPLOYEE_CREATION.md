@@ -50,3 +50,7 @@ Các đường dẫn Modules/Program tính từ `backend/HRM.API`; test files t�
 - Concurrency: 10 request bắt đầu đồng thời, scoped contexts/connection riêng tới file SQLite/WAL; tất cả 201, mã/Id duy nhất và đúng format. Không gọi chung một SQLite connection cho bài test này.
 - Database fault injection: lỗi bước update code và lỗi insert User sau khi Employee đã save đều rollback, không row provisional/orphan/role/audit tạo dở. Guard phục hồi quản trị lỗi cũng rollback cả hai.
 - Kiểm thử không apply migration hoặc kết nối MySQL live. Source schema không đổi nên không cần migration mới. Không sửa dữ liệu legacy và không deploy Production/Railway.
+
+## Tạo nhân viên giữ vai trò quản lý
+
+POST /api/employees và core tạo Employee dùng chung nhận isDepartmentManager/isTeamLead. Sau khi có Employee.Id, bổ nhiệm trong transaction hiện có; quyền, ràng buộc và rollback xem [Profiles API](PROFILES_API.md#post-tạo-nhân-viên-kèm-vai-trò-quản-lý). Không có migration mới.

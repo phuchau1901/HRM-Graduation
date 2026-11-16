@@ -102,4 +102,28 @@ describe('Employee names from response', () => {
     expect(screen.getByRole('checkbox', { name: 'Team Lead của Team đang chọn' }).disabled).toBe(true);
   });
 
+  it('can create an employee as department manager and team lead', async () => {
+    const user = userEvent.setup(), catalogs = mockApi();
+    const api = vi.fn(async (path, options = {}) => path === '/employees' && options.method === 'POST' ? { ...employee, isDepartmentManager: true, isTeamLead: true } : catalogs(path, options));
+    const editorPermissions = [...permissions, ...['WEB_DEPARTMENTS', 'WEB_TEAMS'].map(code => ({ code, canView: 'Y', canUpdate: 'Y' }))];
+    render(<EmployeeEditor api={api} permissions={editorPermissions} employee={null} onClose={() => {}} onSaved={() => {}} />);
+    await user.type(screen.getByLabelText('Họ và tên'), 'New leader');
+    await user.type(screen.getByLabelText('Email'), 'new-leader@example.invalid');
+    await user.type(screen.getByLabelText('Ngày vào làm'), '2020-01-01');
+    await screen.findByRole('option', { name: 'Dropdown Department' });
+    await user.selectOptions(screen.getByLabelText('Phòng ban nhân viên'), '3');
+    await screen.findByRole('option', { name: 'Dropdown Team' });
+    expect(screen.getByRole('checkbox', { name: 'Team Lead của Team đang chọn' }).disabled).toBe(true);
+    await user.selectOptions(screen.getByLabelText('Team nhân viên'), '9');
+    await user.click(screen.getByRole('checkbox', { name: 'Trưởng phòng của phòng ban hiện tại' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Team Lead của Team đang chọn' }));
+    await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+    await waitFor(() => expect(api.mock.calls.some(([, options]) => options.method === 'POST')).toBe(true));
+    const body = JSON.parse(api.mock.calls.find(([, options]) => options.method === 'POST')[1].body);
+    expect(body.isDepartmentManager).toBe(true); expect(body.isTeamLead).toBe(true);
+    expect(body.departmentId).toBe(3); expect(body.teamId).toBe(9); expect(body.hireDate).toBe('2020-01-01');
+    await user.selectOptions(screen.getByLabelText('Phòng ban nhân viên'), '');
+    expect(screen.getByRole('checkbox', { name: 'Team Lead của Team đang chọn' }).checked).toBe(false);
+  });
+
 });

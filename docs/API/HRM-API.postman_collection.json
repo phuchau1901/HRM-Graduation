@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "82 source-backed REST endpoints; 86 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
+    "description": "82 source-backed REST endpoints; 89 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
   },
   "auth": {
     "type": "bearer",
@@ -2324,6 +2324,29 @@
               }
             },
             "description": "Manual example: use the actual current employee fullName/email/positionId. Requires WEB_EMPLOYEES/UPDATE + write scope; role changes also require WEB_DEPARTMENTS/UPDATE and/or WEB_TEAMS/UPDATE. Occupied roles return 409. Omitted/null flags preserve roles. See docs/modules/Employees/PROFILES_API.md."
+          }
+        },
+        {
+          "name": "Create employee as department manager and team lead",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nguyen Van A\",\n  \"email\": \"new-leader@example.invalid\",\n  \"hireDate\": \"2020-01-01\",\n  \"departmentId\": {{departmentId}},\n  \"teamId\": {{teamId}},\n  \"positionId\": null,\n  \"employmentStatus\": \"ACTIVE\",\n  \"isDepartmentManager\": true,\n  \"isTeamLead\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Manual example. Requires WEB_EMPLOYEES/NEW with ALL/DEPARTMENT write scope, WEB_DEPARTMENTS/UPDATE for manager=true and WEB_TEAMS/UPDATE for lead=true. Team must belong to department and roles must be vacant. Failure rolls back new employee, assignments and audit. false/null/omitted flags create without those roles. See docs/modules/Employees/PROFILES_API.md."
           }
         }
       ]

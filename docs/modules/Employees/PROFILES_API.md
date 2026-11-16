@@ -437,4 +437,29 @@ Hai field tùy chọn: `isDepartmentManager` và `isTeamLead` (boolean/null). `t
 - Khi chuyển Team của người đang là Lead: bỏ qua/null isTeamLead trả 409; false gỡ Lead cũ; true gỡ Lead cũ và bổ nhiệm ở Team đích nếu chưa có Lead. Tất cả diễn ra trong một transaction Serializable, bao gồm audit và notification.
 - GET/list/unlinked/PUT EmployeeDto bổ sung boolean `isDepartmentManager`, `isTeamLead`. Chỉ tiết lộ vai trò của các nhân viên đã qua Employee Data Scope, không trả danh tính quản lý của người khác.
 - Thay đổi được ghi AuditLog DEPARTMENT_MANAGER_CHANGED / TEAM_LEAD_CHANGED (trước/sau). Lỗi bất kỳ rollback toàn bộ cập nhật hồ sơ, vai trò và audit.
-- Hai cờ chỉ hỗ trợ PUT: POST tạo nhân viên có cờ khác null trả 400. Không tự apply migration, sửa database trực tiếp hoặc deploy.
+- Hai cờ hỗ trợ cả POST tạo mới và PUT cập nhật. Không cần migration mới, không sửa database trực tiếp hoặc deploy.
+
+## POST: tạo nhân viên kèm vai trò quản lý
+
+`POST /api/employees` nhận hai cờ `isDepartmentManager`, `isTeamLead` cùng các field tạo nhân viên hiện có:
+
+```json
+{
+  "fullName": "Nguyen Van A",
+  "email": "new-leader@example.invalid",
+  "hireDate": "2020-01-01",
+  "departmentId": 1,
+  "teamId": 2,
+  "positionId": null,
+  "employmentStatus": "ACTIVE",
+  "isDepartmentManager": true,
+  "isTeamLead": true
+}
+```
+
+- `true`: bổ nhiệm nhân viên vừa tạo làm trưởng phòng/Team Lead. `false`, null hoặc bỏ qua: không bổ nhiệm và không xóa vai trò của người khác.
+- Cần WEB_EMPLOYEES/NEW với DataScope ALL hoặc DEPARTMENT phù hợp. Bổ nhiệm trưởng phòng cần thêm WEB_DEPARTMENTS/UPDATE; bổ nhiệm Lead cần thêm WEB_TEAMS/UPDATE. Không yêu cầu WEB_EMPLOYEES/UPDATE cho thao tác tạo.
+- TeamId phải thuộc DepartmentId; Lead=true khi chưa có Team trả 400. Phòng ban/Team phải hoạt động. Đã có quản lý khác trả 409, không thay thế.
+- Employee.Id và mã nhân viên được tạo trước, sau đó gán ManagerEmployeeId/LeadEmployeeId trong cùng transaction Serializable. Nếu bổ nhiệm thất bại, rollback cả nhân viên mới và audit; không để lại nhân viên tạo dở hoặc thay đổi quản lý một phần.
+- HTTP 201 trả EmployeeDto có `isDepartmentManager` / `isTeamLead` theo trạng thái đã lưu. Core tạo dùng chung cũng hỗ trợ hai cờ khi tạo User kèm Employee, vẫn kiểm tra các quyền trên và dùng một transaction chung.
+- Form thêm nhân viên có hai checkbox; Team Lead chỉ bật sau khi chọn Team, đổi phòng ban sẽ xóa lựa chọn Team/Lead cũ.
