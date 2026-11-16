@@ -48,3 +48,7 @@
 .org-department[hidden],.org-team[hidden]{display:none}
 
 a.org-employee{color:var(--text);text-decoration:none;border-radius:6px}a.org-employee:hover{background:var(--bg,#f5f7fb)}a.org-employee:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+.employee-assignment-field{display:flex;align-items:flex-end;gap:12px;min-width:0}.employee-assignment-field>label:first-child{flex:1;min-width:0}.employee-assignment-field .employee-inline-role{display:flex;flex-direction:row;align-items:center;gap:7px;flex-shrink:0;min-height:40px;cursor:pointer;font-size:12px}.employee-inline-role:has(input:disabled){cursor:default;opacity:.6}@media(max-width:480px){.employee-assignment-field{flex-wrap:wrap;gap:6px}.employee-assignment-field>label:first-child{flex-basis:100%}}
+
+.org-direct-members{margin:10px 0 16px}.org-direct-members[hidden]{display:none}.org-direct-members .org-employees{display:grid;gap:10px}.org-direct-members .org-employee{padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface,#fff)}

@@ -30,7 +30,8 @@ export function mountOrganization(root){
    const result=await apiOrganizationMembers(kind,id,page,controller.signal);
    if(!alive()||controller.signal.aborted||requests.get(panel)!==controller)return;
    if(!Array.isArray(result?.data))throw Error('Danh sách nhân viên không hợp lệ.');
-   panel.innerHTML=result.data.length?`<ul class="org-employees">${result.data.map(employeeMarkup).join('')}</ul><div class="org-pagination"><button type="button" class="btn" data-prev ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} nhân viên</span><button type="button" class="btn" data-next ${page*20>=result.total?'disabled':''}>Trang sau</button></div>`:'<p class="muted">Chưa có nhân viên trong nhóm này.</p>';
+   panel.dataset.loaded='true';
+   panel.innerHTML=result.data.length?`<ul class="org-employees">${result.data.map(employeeMarkup).join('')}</ul>${kind==='unassigned'&&result.total<=20?'':`<div class="org-pagination"><button type="button" class="btn" data-prev ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} nhân viên</span><button type="button" class="btn" data-next ${page*20>=result.total?'disabled':''}>Trang sau</button></div>`}`:'<p class="muted">Chưa có nhân viên trong nhóm này.</p>';
    panel.querySelector('[data-prev]')?.addEventListener('click',()=>members(panel,kind,id,page-1));
    panel.querySelector('[data-next]')?.addEventListener('click',()=>members(panel,kind,id,page+1));
   }catch(err){if(alive()&&!controller.signal.aborted){panel.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn">Thử lại</button>`;panel.querySelector('button').onclick=()=>members(panel,kind,id,page);}}
@@ -47,9 +48,9 @@ export function mountOrganization(root){
    root.innerHTML=`<form id="organization-search" class="toolbar"><input type="search" name="search" maxlength="150" placeholder="Tìm tên phòng ban hoặc team" aria-label="Tìm phòng ban hoặc team"><select name="kind" aria-label="Loại tìm kiếm"><option value="all">Phòng ban và team</option><option value="department">Phòng ban</option><option value="team">Team</option></select><button class="btn">Tìm kiếm</button></form><p id="organization-search-result" role="status" hidden></p><p class="org-intro muted">Chọn phòng ban để xem team, chọn team để xem nhân viên.</p><div class="org-grid">${departments.map((dep,i)=>`<article class="card org-department"><h2><button type="button" class="org-toggle org-department-toggle" aria-expanded="false" aria-controls="org-dep-${i}"><span class="org-department-icon" aria-hidden="true">▦</span><span><strong>${e(dep.departmentName)}</strong><small>${e(dep.teamCount)} team · ${e(dep.employeeCount)} nhân viên<br>${organizationManagerLabel(dep.manager)}</small></span><span class="org-chevron" aria-hidden="true">›</span></button></h2><div class="org-teams" id="org-dep-${i}" hidden></div></article>`).join('')}</div>${departments.length?'':'<p>Chưa có phòng ban trong phạm vi của bạn.</p>'}`;
    departments.forEach((dep,i)=>{
     const panel=root.querySelector(`#org-dep-${i}`),button=panel.previousElementSibling.querySelector('button');
-    const groups=[...(dep.teams||[]).map(team=>({...team,kind:'team'})),...(dep.unassignedCount>0?[{id:dep.id,teamName:'Chưa phân nhóm',employeeCount:dep.unassignedCount,kind:'unassigned'}]:[])];
-    panel.innerHTML=groups.map((team,j)=>`<section class="org-team"><h3><button type="button" class="org-toggle" aria-expanded="false" aria-controls="org-members-${i}-${j}"><span><strong>${e(team.teamName)}</strong><small>${e(team.employeeCount)} nhân viên${team.kind==='team'?`<br>${organizationManagerLabel(team.lead)}`:''}</small></span><span class="org-chevron" aria-hidden="true">›</span></button></h3><div class="org-members" id="org-members-${i}-${j}" hidden></div></section>`).join('')||'<p class="muted">Phòng ban chưa có team.</p>';
-    bindToggle(button,panel);
+    const groups=(dep.teams||[]).map(team=>({...team,kind:'team'}));
+    panel.innerHTML=(dep.unassignedCount>0?`<div class="org-direct-members" id="org-direct-${i}" aria-label="Nhân viên trực thuộc phòng ban"></div>`:'')+groups.map((team,j)=>`<section class="org-team"><h3><button type="button" class="org-toggle" aria-expanded="false" aria-controls="org-members-${i}-${j}"><span><strong>${e(team.teamName)}</strong><small>${e(team.employeeCount)} nhân viên${team.kind==='team'?`<br>${organizationManagerLabel(team.lead)}`:''}</small></span><span class="org-chevron" aria-hidden="true">›</span></button></h3><div class="org-members" id="org-members-${i}-${j}" hidden></div></section>`).join('')||'<p class="muted">Phòng ban chưa có team.</p>';
+    bindToggle(button,panel,()=>{const direct=panel.querySelector('.org-direct-members');if(direct&&!direct.hidden)members(direct,'unassigned',dep.id);});
     groups.forEach((team,j)=>{const target=panel.querySelector(`#org-members-${i}-${j}`);bindToggle(target.previousElementSibling.querySelector('button'),target,()=>members(target,team.kind,team.id));});
    });
    const searchForm=root.querySelector('#organization-search');
@@ -61,8 +62,11 @@ export function mountOrganization(root){
      card.hidden=!match.visible;
      if(!match.visible){abortWithin(panel);return;}
      count++;
+     const direct=panel.querySelector('.org-direct-members');
+     if(direct){direct.hidden=!!query&&!match.departmentMatch;if(direct.hidden)abortWithin(direct);}
      panel.querySelectorAll('.org-team').forEach((team,j)=>{team.hidden=!!query&&!match.departmentMatch&&!match.teams[j];if(team.hidden)abortWithin(team);});
      if(query){const open=match.departmentMatch||match.teams.some(Boolean);panel.hidden=!open;panel.previousElementSibling.querySelector('button').setAttribute('aria-expanded',String(open));}
+     if(direct&&!direct.hidden&&!panel.hidden&&!requests.has(direct)&&direct.dataset.loaded!=='true')members(direct,'unassigned',dep.id);
     });
     const result=root.querySelector('#organization-search-result');
     result.hidden=!query;

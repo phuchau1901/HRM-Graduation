@@ -157,3 +157,7 @@ export function apiOrganizationMembers(kind,id,page=1,signal){
  const path=kind==='team'?`/api/teams/${encodeURIComponent(id)}/members`:`/api/departments/${encodeURIComponent(id)}/unassigned-members`;
  return request(path+'?'+new URLSearchParams({page,pageSize:20}),{signal,cache:'no-store'});
 }
+
+export function apiUpdateEmployee(employeeId,payload){return request(`/api/employees/${encodeURIComponent(employeeId)}`,{method:"PUT",body:JSON.stringify(payload)});}
+
+export function apiTransferEmployeeDepartment(employeeId,payload){return request(`/api/employees/${encodeURIComponent(employeeId)}/department`,{method:'PATCH',body:JSON.stringify(payload)});}

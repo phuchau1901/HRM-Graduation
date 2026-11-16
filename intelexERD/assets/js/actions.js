@@ -1,3 +1,4 @@
+import {openEmployeeCreation} from './pages/employees.js';
 import {notificationService} from './services/notification-service.js';
 import {bindPasswordPolicy} from './password-policy.js';
 import {exportReport} from './pages/attendance-report.js';
@@ -59,7 +60,7 @@ export function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ct
  case 'edit-task':{const t=scope.tasks(s,user()).find(t=>t.id===itemId);if(!t||!scope.can(s,user(),'task.create'))throw Error('Không có quyền sửa.');taskForm(t);return;}
  case 'new-project':projectForm();return;
  case 'edit-project':{const p=scope.projects(s,user()).find(p=>p.id===itemId);if(!p)throw Error('Không tìm thấy dự án.');projectForm(p);return;}
- case 'new-employee':employeeForm();return;
+ case 'new-employee':if(apiSession())openEmployeeCreation({openDialog,closeDialog,toast,render});else employeeForm();return;
  case 'new-user':employeeForm(null,true);return;
  case 'edit-employee':case 'edit-user':{const u=scope.employees(s,user()).find(u=>u.id===itemId);if(!u)throw Error('Không tìm thấy nhân viên.');employeeForm(u,action==='edit-user');return;}
  case 'new-contract':case 'edit-contract':{if(!scope.can(s,user(),'hr'))throw Error('Không có quyền.');const c=s.contracts.find(c=>c.id===itemId);form(c?'Sửa hợp đồng':'Thêm hợp đồng','contract',selectField('Nhân viên','employeeId',scope.employees(s,user()).map(u=>[u.id,u.name]),c?.employeeId)+selectField('Loại hợp đồng','type',[['Hợp đồng lao động','Hợp đồng lao động'],['Thử việc','Thử việc'],['Cộng tác viên','Cộng tác viên']],c?.type)+field('Bắt đầu','startDate','date',c?.startDate||DEMO_DATE,'required')+field('Kết thúc','endDate','date',c?.endDate||'2027-10-19','required'),c?.id||'');return;}
