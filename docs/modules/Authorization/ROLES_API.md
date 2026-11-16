@@ -44,7 +44,7 @@ Luồng cho form thêm/sửa role có chọn quyền:
 
 Ví dụ cho xem tất cả nhân viên, sửa hồ sơ trong cùng phòng ban; không cho chuyển phòng ban vì thao tác này cần `UPDATE` với scope `ALL`. Các giá trị scope là `SELF`, `DEPARTMENT`, `ALL` hoặc `null` để xóa scope. `SELF` chỉ dùng để đọc trong bộ Nhân viên.
 
-Hai bước lưu thông tin role và lưu permissions là hai request riêng, không có transaction chung. Sau mỗi mutation, lấy `ETag` mới trước lần cập nhật tiếp theo; dùng version cũ có thể trả `412`. Cập nhật permissions không cho sửa role đang gán cho chính actor hoặc cấp quyền/phạm vi vượt actor.
+Role metadata and permissions are separate requests; reload ETag between mutations (stale versions return 412). Own-role permission edits require live WEB_PERMISSIONS/UPDATE+APPROVE and retain action-authority/recovery checks. Affected sessions, including the actor, are revoked after success. See PERMISSIONS_API.md for Contract scope configuration.
 
 Xem [chi tiết body, quy tắc patch và lỗi API permissions](PERMISSIONS_API.md#datascopes-và-role_screen_actions) và [scope theo từng API nhân viên/hợp đồng](../Employees/DATA_SCOPE.md#cấu-hình-datascopes-cho-api-nhân-viên).
 

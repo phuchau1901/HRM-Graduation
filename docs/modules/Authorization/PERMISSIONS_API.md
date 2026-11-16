@@ -66,7 +66,7 @@ If-Match: "<ETag lấy từ GET>"
 
 Để chỉ đổi phạm vi xem, gửi `screens: [{ "screenCode": "WEB_EMPLOYEES", "dataScopes": { "VIEW": "DEPARTMENT" } }]`; grant và scope khác giữ nguyên. Muốn xóa scope xem, thay giá trị bằng `null`. Thay đổi chỉ áp dụng trong role đang sửa; user vẫn có thể nhận scope từ role khác.
 
-Thiếu `If-Match` trả `428`; version cũ trả `412`; thiếu quyền quản trị, sửa role đang gán cho actor hoặc cấp scope vượt actor (ngoại trừ cấu hình VIEW/NEW/UPDATE của WEB_CONTRACTS bằng quyền quản trị nêu dưới) trả `403`; action/scope không hợp lệ trả `400`. Toàn bộ request permissions chạy trong một transaction. Response `200` trả ma trận cùng `version` và header `ETag` mới; scope tham gia tính version. User bị ảnh hưởng cần đăng nhập lại sau thay đổi quyền.
+Missing If-Match returns 428; stale version returns 412. Missing live administrative authority or invalid delegation returns 403. Invalid action/scope returns 400. Own-role permission edits are allowed, subject to authority and recovery checks. Scope changes are transactional and revoke affected sessions.
 
 ## GET /api/roles/{roleId}/permissions
 
@@ -113,7 +113,7 @@ Patch các quyền đã được phê duyệt.
 
 - ScreenPermission: `WEB_PERMISSIONS/UPDATE AND WEB_PERMISSIONS/APPROVE`. Role: tài khoản có grant tương ứng; không có bypass theo tên Role.
 - Parameters: roleId; If-Match.
-- Validation/nghiệp vụ: Chỉ 6 standard action chính xác uppercase. Omit flag giữ giá trị cũ. Omit extendedActions giữ nguyên, [] gỡ các extended đã đăng ký cho screen đó; cung cấp array thay các extended đã đăng ký; action lạ đã lưu giữ nguyên/read-only. Screen không có trong request không đổi. Không sửa Role đang gán cho actor. Quyền cũ/mới không vượt actor; toàn bộ transaction; audit before/after; phiên user ảnh hưởng hết hiệu lực.
+- Validation: live WEB_PERMISSIONS/UPDATE+APPROVE, If-Match, action authority and recovery protection. Own-role permission edits are allowed. Writes are atomic, audited and revoke affected sessions.
 - Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
 - Test cases: 401/403; Screen/action sai400; request có screen trùng400; stale412; lỗi một mục rollback toàn bộ; không mất extended.
 
@@ -192,26 +192,25 @@ Response thành công:
     "SEND_ALL",
     "SEND_GROUP",
     "SEND_USER"
+  ],
+  "dataScopes": [
+    "SELF",
+    "DEPARTMENT",
+    "ALL"
   ]
 }
 ```
 
-## Cấu hình scope WEB_CONTRACTS bằng quyền quản trị
+## Generic data scopes for every screen/action
 
-PUT role permissions kiểm tra live `WEB_PERMISSIONS/UPDATE` và `WEB_PERMISSIONS/APPROVE`. Với `WEB_CONTRACTS`, hai quyền quản trị này cho phép cấu hình SELF/DEPARTMENT/ALL cho các action VIEW/NEW/UPDATE mà không phụ thuộc scope Contracts hiện có của người thao tác. Vì vậy user quản trị chưa được gán Contract scope vẫn cấp được `dataScopes.VIEW=ALL` cho role khác.
+Live WEB_PERMISSIONS/UPDATE+APPROVE authorizes configuration of SELF/DEPARTMENT/ALL for any existing active screen and registered action, independently of the administrator's personal data scope. No Contract/Employee screen names are hardcoded in scope validation. Action authority, role authority, If-Match and recovery protection still apply. Standard or extended action grants remain distinct from scope metadata; setting a scope does not grant an action.
 
-Các kiểm tra cấp action và authority của role vẫn áp dụng; người thao tác cần có action sẽ cấp, không được sửa role đang gán cho chính mình, phải gửi If-Match hợp lệ và không được làm mất tài khoản phục hồi cuối cùng. Screen ngừng hoạt động hoặc scope ngoài SELF/DEPARTMENT/ALL vẫn bị từ chối. Các screen/action khác giữ quy tắc không cấp scope rộng hơn scope của người thao tác.
+The dataScopes dictionary is optional. Omitted dictionaries or keys preserve current values; explicit null clears a scope. Unknown scope/action returns 400. A non-null scope on an inactive screen is denied. Extended scope metadata requires an existing or simultaneously granted extended action. New modules can use the same storage, matrix and permission resolver without adding special cases here.
 
-```json
-{
-  "screens": [{
-    "screenCode": "WEB_CONTRACTS",
-    "standard": { "VIEW": true },
-    "dataScopes": { "VIEW": "ALL" }
-  }]
-}
-```
+GET /api/authorization/actions now also returns dataScopes: ["SELF", "DEPARTMENT", "ALL"]. Frontends can obtain the choices from this shared discovery API, and send an optional dataScopes dictionary for a screen that needs row filtering. It does not automatically impose employee filtering on global configuration screens; each business API must explicitly apply its appropriate scope filter.
 
-Quyền cấu hình không tự mở dữ liệu cho người thao tác. Các API hợp đồng nhân viên và `/api/contracts/statistics` tiếp tục dùng live WEB_CONTRACTS/VIEW scope: SELF theo users.employee_id, DEPARTMENT theo phòng ban của employee liên kết, ALL cho toàn bộ. Scope NULL/thiếu vẫn trả 403 khi đọc dữ liệu. NEW/UPDATE với SELF vẫn không được phép ghi, giống Employee. User của role được cập nhật phải đăng nhập lại sau thay đổi quyền.
+Permission administrators may update permissions of a role assigned to themselves. Removing the last recovery administrator returns 409 and rolls back. Changing one's own role membership through /api/users/{userId}/roles remains separate with its existing rules. Successful permission edits return 200/new ETag and revoke affected sessions, including the actor's session when their role changed; sign in again.
 
-Validation: 97 tests quản trị/quyền, Contract scope/statistics và Employee liên quan đều đạt; gồm cấp scope khi actor thiếu/SELF/DEPARTMENT/ALL, đủ ba giá trị cho VIEW/NEW/UPDATE, và kiểm tra live UPDATE+APPROVE. Không sửa database hoặc deploy.
+Runtime data access remains unchanged. For Employee-related APIs, SELF uses users.employee_id, DEPARTMENT uses the linked employee's department, and ALL covers all permitted records. Missing scope still denies data access where required. Configuring another role does not change the actor's own data visibility.
+
+Validation: 105 related administration, permission, contract-statistics, Employee and Team tests passed, including generic Web/Mobile screen codes, standard/extended scopes, invalid and inactive configuration, null clearing, recovery and session invalidation. No migration or deployment was performed.

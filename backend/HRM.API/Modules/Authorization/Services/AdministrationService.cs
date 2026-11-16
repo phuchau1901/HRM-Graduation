@@ -316,7 +316,8 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
         {
             await Demand(actor, Permissions, "APPROVE", ct);
             var before = await Matrix(id, ct); Match(etag, before.Version);
-            if (await db.Set<UserRole>().AnyAsync(x => x.UserID == actor && x.RoleID == id, ct)) throw Denied();
+            // Permission administrators may edit an assigned role. Live authority,
+            // action delegation, token revocation and the recovery guard still apply.
             await Dominates(actor, [id], ct);
             if (request.Screens.Select(x => x.ScreenCode).Distinct(StringComparer.Ordinal).Count() != request.Screens.Length) throw BusinessException.Invalid("Duplicate screens.");
             var own = await permissions.GetSnapshotAsync(actor, ct);
@@ -332,22 +333,13 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
                 {
                     foreach (var pair in patch.DataScopes)
                     {
-                        if (PermissionActions.Normalize(pair.Key) != pair.Key || (pair.Value != null && pair.Value is not ("SELF" or "DEPARTMENT" or "ALL")))
+                        if (PermissionActions.Normalize(pair.Key) != pair.Key || (pair.Value != null && !PermissionDataScopes.IsValid(pair.Value)))
                             throw BusinessException.Invalid("Invalid action or data scope.");
                         if (pair.Value != null)
                         {
                             if (!screen.IsActive) throw Denied($"Cannot configure data scope for inactive screen {screen.Code}.");
-                            // UPDATE + APPROVE were checked live above. They authorize Contract scope
-                            // configuration independently of the administrator's personal Contract scope.
-                            // Action delegation, role ownership and recovery checks still apply.
-                            var managesContractScope = screen.Code == "WEB_CONTRACTS" && pair.Key is "VIEW" or "NEW" or "UPDATE";
-                            if (!managesContractScope)
-                            {
-                                var ownScope = await permissions.GetDataScopeAsync(actor, screen.Code, pair.Key, ct);
-                                static int Rank(string? scope) => scope switch { "SELF" => 1, "DEPARTMENT" => 2, "ALL" => 3, _ => 0 };
-                                if (Rank(ownScope) < Rank(pair.Value))
-                                    throw Denied($"Cannot grant {screen.Code}/{pair.Key} scope {pair.Value}. Your effective scope is {ownScope ?? "not configured"}.");
-                            }
+                            // Live UPDATE + APPROVE authorize scope configuration for every screen.
+                            // Personal data access remains governed by each business API's scope filter.
                         }
                     }
                 }
@@ -390,5 +382,5 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
             case "UPDATE": d.CanUpdate = flag; break; case "DELETE": d.CanDelete = flag; break;
             case "APPROVE": d.CanApprove = flag; break; case "EXPORT": d.CanExport = flag; break; }
     }
-    public static object Actions() => new { standard = PermissionActions.Columns.Keys.OrderBy(x => x).ToArray(), extended = PermissionActions.Extended.OrderBy(x => x).ToArray() };
+    public static object Actions() => new { standard = PermissionActions.Columns.Keys.OrderBy(x => x).ToArray(), extended = PermissionActions.Extended.OrderBy(x => x).ToArray(), dataScopes = PermissionDataScopes.Values };
 }

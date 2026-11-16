@@ -23,3 +23,10 @@ internal static class PermissionActions
         return code is not null && (Columns.ContainsKey(code) || Extended.Contains(code)) ? code : null;
     }
 }
+
+internal static class PermissionDataScopes
+{
+    // Smallest to widest; shared by configuration, discovery and live scope resolution.
+    internal static readonly IReadOnlyList<string> Values = Array.AsReadOnly(new[] { "SELF", "DEPARTMENT", "ALL" });
+    internal static bool IsValid(string value) => Values.Contains(value, StringComparer.Ordinal);
+}

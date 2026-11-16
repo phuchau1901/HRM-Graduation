@@ -124,6 +124,52 @@ public sealed class AdministrationApiTests
         var after = (await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!;
         Assert.Equal(dataScope, Assert.Single(after.Screens, s => s.ScreenCode == "WEB_CONTRACTS").DataScopes[action]);
     }
+    [Fact]
+    public async Task OwnRoleAcceptsExactSixActionContractPayloadAndRevokesActorsOldToken()
+    {
+        using var f = new Fixture(); await f.Start(); long roleId;
+        using (var services = f.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            roleId = (await db.Set<Role>().SingleAsync(r => r.Code == "HR")).ID;
+            var contracts = new Screen { Code = "WEB_CONTRACTS", Name = "Contracts", IsActive = true };
+            db.Add(contracts); await db.SaveChangesAsync();
+            db.Add(new RoleDetail { RoleID = roleId, ScreenID = contracts.ID, CanView = "Y", CanNew = "Y", CanUpdate = "Y", CanDelete = "Y", CanApprove = "Y", CanExport = "Y" });
+            await db.SaveChangesAsync();
+        }
+        await OrganizationApiTests.Login(f.Client, f.App);
+        var before = (await f.Client.GetFromJsonAsync<RoleMatrixDto>($"/api/roles/{roleId}/permissions"))!;
+        var actions = new[] { "VIEW", "NEW", "UPDATE", "DELETE", "APPROVE", "EXPORT" };
+        var response = await f.Send(HttpMethod.Put, $"/api/roles/{roleId}/permissions", new { screens = new[] { new
+        {
+            screenCode = "WEB_CONTRACTS", standard = actions.ToDictionary(a => a, _ => true),
+            dataScopes = actions.ToDictionary(a => a, _ => "ALL")
+        } } }, before.Version);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var after = (await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!;
+        Assert.All(Assert.Single(after.Screens, s => s.ScreenCode == "WEB_CONTRACTS").DataScopes, scope => Assert.Equal("ALL", scope.Value));
+        Assert.Equal(HttpStatusCode.Unauthorized, (await f.Client.GetAsync("/api/auth/me")).StatusCode);
+        await OrganizationApiTests.Login(f.Client, f.App);
+        Assert.Equal(HttpStatusCode.OK, (await f.Client.GetAsync("/api/auth/me")).StatusCode);
+    }
+    [Fact]
+    public async Task OwnRoleCannotRemoveLastRecoveryAdministratorAndFailedEditKeepsSessionValid()
+    {
+        using var f = new Fixture(); await f.Start(); long roleId;
+        using (var services = f.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            roleId = (await db.Set<Role>().SingleAsync(r => r.Code == "HR")).ID;
+        }
+        var before = (await f.Client.GetFromJsonAsync<RoleMatrixDto>($"/api/roles/{roleId}/permissions"))!;
+        var response = await f.Send(HttpMethod.Put, $"/api/roles/{roleId}/permissions", new { screens = new[] { new
+        {
+            screenCode = "WEB_PERMISSIONS", standard = new { APPROVE = false }
+        } } }, before.Version);
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await f.Client.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(before.Version, (await f.Client.GetFromJsonAsync<RoleMatrixDto>($"/api/roles/{roleId}/permissions"))!.Version);
+    }
     [Theory]
     [InlineData("UPDATE")]
     [InlineData("APPROVE")]
@@ -155,6 +201,80 @@ public sealed class AdministrationApiTests
         } } }, before.Version);
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal(before.Version, (await f.Matrix()).Version);
+    }
+    [Theory]
+    [InlineData("TEST_WEB", "SELF")]
+    [InlineData("TEST_WEB", "DEPARTMENT")]
+    [InlineData("TEST_WEB", "ALL")]
+    [InlineData("TEST_MOBILE", "SELF")]
+    [InlineData("TEST_MOBILE", "DEPARTMENT")]
+    [InlineData("TEST_MOBILE", "ALL")]
+    public async Task AnyScreenCanConfigureAllScopeValuesWithoutScreenSpecificCode(string screenCode, string dataScope)
+    {
+        using var f = new Fixture(); await f.Start();
+        var before = await f.Matrix();
+        var response = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode, standard = new { VIEW = true }, dataScopes = new { VIEW = dataScope }
+        } } }, before.Version);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var matrix = (await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!;
+        var screen = Assert.Single(matrix.Screens, s => s.ScreenCode == screenCode);
+        Assert.True(screen.Standard["VIEW"]); Assert.Equal(dataScope, screen.DataScopes["VIEW"]);
+        using var services = f.App.Services.CreateScope();
+        var permissions = services.ServiceProvider.GetRequiredService<HRM.API.Modules.Authorization.Services.IPermissionService>();
+        Assert.Equal(dataScope, await permissions.GetDataScopeAsync("target", screenCode, "VIEW"));
+        Assert.Null(await permissions.GetDataScopeAsync("api-user", screenCode, "VIEW"));
+    }
+    [Fact]
+    public async Task GenericScopePatchPreservesUnmentionedScopesClearsNullAndRejectsInvalidOrInactiveConfiguration()
+    {
+        using var f = new Fixture(); await f.Start();
+        var before = await f.Matrix();
+        var response = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode = "TEST_WEB", standard = new { VIEW = true, UPDATE = true }, dataScopes = new { VIEW = "ALL", UPDATE = "DEPARTMENT" }
+        } } }, before.Version); response.EnsureSuccessStatusCode();
+        var current = await f.Matrix();
+        response = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode = "TEST_WEB", dataScopes = new Dictionary<string, string?> { ["VIEW"] = null }
+        } } }, current.Version); response.EnsureSuccessStatusCode();
+        var screen = Assert.Single((await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!.Screens, s => s.ScreenCode == "TEST_WEB");
+        Assert.Null(screen.DataScopes["VIEW"]); Assert.Equal("DEPARTMENT", screen.DataScopes["UPDATE"]);
+        current = await f.Matrix();
+        Assert.Equal(HttpStatusCode.BadRequest, (await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode = "TEST_WEB", dataScopes = new { VIEW = "GLOBAL" }
+        } } }, current.Version)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode = "TEST_OFF", dataScopes = new { VIEW = "ALL" }
+        } } }, current.Version)).StatusCode);
+        Assert.Equal(current.Version, (await f.Matrix()).Version);
+    }
+    [Fact]
+    public async Task ScopeConfigurationAlsoSupportsExplicitExtendedActionsOnAnyScreen()
+    {
+        using var f = new Fixture(); await f.Start(); var before = await f.Matrix();
+        var response = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode = "TEST_MOBILE", extendedActions = new[] { "SEND_USER" }, dataScopes = new { SEND_USER = "ALL" }
+        } } }, before.Version); response.EnsureSuccessStatusCode();
+        var screen = Assert.Single((await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!.Screens, s => s.ScreenCode == "TEST_MOBILE");
+        Assert.Equal("ALL", screen.DataScopes["SEND_USER"]);
+        var current = await f.Matrix();
+        Assert.Equal(HttpStatusCode.BadRequest, (await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode = "TEST_MOBILE", dataScopes = new { SEND_GROUP = "ALL" }
+        } } }, current.Version)).StatusCode);
+    }
+    [Fact]
+    public async Task ActionCatalogExposesScopeChoicesWithoutAnyScreenName()
+    {
+        using var f = new Fixture(); await f.Start();
+        using var json = JsonDocument.Parse(await f.Client.GetStringAsync("/api/authorization/actions"));
+        Assert.Equal(new[] { "SELF", "DEPARTMENT", "ALL" }, json.RootElement.GetProperty("dataScopes").EnumerateArray().Select(v => v.GetString()).ToArray());
     }
     [Fact]
     public async Task ScopePatchPreservesNotificationsAndInvalidatesOldToken()
@@ -257,7 +377,7 @@ public sealed class AdministrationApiTests
         Assert.DoesNotContain("passwordHash", log.AfterJSON!, StringComparison.OrdinalIgnoreCase);
     }
     [Fact]
-    public async Task LastAdministratorCannotBeLockedAndSelfRoleEditsAreDenied()
+    public async Task LastAdministratorCannotBeLockedButOwnRolePermissionEditsAreAllowed()
     {
         using var f = new Fixture(); await f.Start(); var root = await f.User("api-user");
         Assert.Equal(HttpStatusCode.Conflict, (await f.Send(HttpMethod.Patch, "/api/users/api-user/status", new { status = "LOCKED" }, root.Version)).StatusCode);
@@ -265,7 +385,7 @@ public sealed class AdministrationApiTests
         Assert.Equal(HttpStatusCode.Forbidden, (await f.Send(HttpMethod.Put, "/api/users/api-user/roles", new { roleIds = new[] { f.TargetRole } }, root.Version)).StatusCode);
         var roleId = root.Roles.First().Id;
         var matrix = (await f.Client.GetFromJsonAsync<RoleMatrixDto>($"/api/roles/{roleId}/permissions"))!;
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.Send(HttpMethod.Put, $"/api/roles/{roleId}/permissions", new { screens = new object[] { new { screenCode = "TEST_WEB", standard = new { VIEW = false } } } }, matrix.Version)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await f.Send(HttpMethod.Put, $"/api/roles/{roleId}/permissions", new { screens = new object[] { new { screenCode = "TEST_WEB", standard = new { VIEW = false } } } }, matrix.Version)).StatusCode);
     }
     [Theory]
     [InlineData("VIEW")] [InlineData("NEW")] [InlineData("UPDATE")] [InlineData("DELETE")] [InlineData("APPROVE")] [InlineData("EXPORT")]

@@ -11,3 +11,7 @@ Migration: 20261113000000_AddRoleScreenActionDataScope, with target designer and
 API specification, conversion rules and endpoint mapping: ../modules/Employees/DATA_SCOPE.md. Both Postman collections include GET/PUT scope requests; JSON sample is role-permissions-data-scope.sample.json.
 
 Validation: solution build succeeded with 0 warnings/errors; full automated suite passed 174/174, 0 skipped. Coverage includes SELF/DEPARTMENT/ALL, missing scope despite legacy ALL configuration, multi-role union without ungranted widening, immediate grant revocation, scope-only token invalidation, five Notification grants preserved, nullable migration operations and snapshot consistency. Initial sandbox test execution could not bind the test runner localhost socket; rerun with the permitted test-runner escalation passed. No EF database update, Railway or Production action was performed.
+
+## Generic scope administration update
+
+Scope management now uses live WEB_PERMISSIONS UPDATE+APPROVE authority for every active screen/action, without per-screen name conditions or requiring the administrator's own same-screen data scope. Action/role authority, runtime data filtering, If-Match, audit, token revocation and recovery checks remain. GET /api/authorization/actions adds dataScopes choices from the same central definition used by validation and scope precedence. No schema migration is needed.

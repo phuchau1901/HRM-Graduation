@@ -49,7 +49,7 @@ public sealed class PermissionService(AppDbContext db) : IPermissionService
         var scopes = candidates.Where(g => PermissionActions.Extended.Contains(operation) ||
             details.Any(d => d.RoleID == g.RoleID && d.ScreenID == g.ScreenID && PermissionActions.Columns[operation](d) == "Y"))
             .Select(g => g.DataScope).ToArray();
-        return new[] { "ALL", "DEPARTMENT", "SELF" }.FirstOrDefault(scopes.Contains);
+        return PermissionDataScopes.Values.Reverse().FirstOrDefault(scopes.Contains);
     }
 
     public Task<bool> HasPermissionAsync(string userId, string screenCode, string action, CancellationToken ct = default)

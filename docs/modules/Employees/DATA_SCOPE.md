@@ -73,13 +73,13 @@ If-Match: "<ETag lấy từ GET>"
 
 Ví dụ trên cho phép xem/thêm/sửa hồ sơ trong phòng ban, không cho chuyển phòng ban; hợp đồng chỉ được xem của bản thân. Nếu user có nhiều role, scope hiệu lực lấy mức rộng nhất trong các role cùng cấp screen/action (`ALL > DEPARTMENT > SELF`).
 
-Không được sửa role đang gán cho chính actor hoặc cấp phạm vi vượt quyền actor. Thiếu `If-Match` trả `428`, version cũ trả `412`. Sau thay đổi quyền, user bị ảnh hưởng cần đăng nhập lại. Xem thêm [API ma trận quyền](../Authorization/PERMISSIONS_API.md).
+Own-role permission edits are allowed with live WEB_PERMISSIONS/UPDATE+APPROVE, action authority and recovery protection. Missing If-Match returns 428; stale versions return 412. Affected users must sign in again after success.
 
 ## Permission API specification
 
 GET /api/roles/{id}/permissions returns existing screen properties plus `dataScopes`, a dictionary from action code to SELF, DEPARTMENT, ALL or null. `extendedActions` contains only the five extended codes, never standard scope rows. Version/ETag includes scopes.
 
-PUT uses existing authentication, UPDATE + APPROVE permissions, If-Match concurrency, audit and anti-self-edit rules. Each screen patch accepts optional `dataScopes`. Omitted dictionary/keys retain old values; explicit null clears the scope. Invalid action/scope is 400. For screens/actions other than WEB_CONTRACTS VIEW/NEW/UPDATE, the actor must possess at least the requested scope for the same action; broadening beyond the actor is 403. WEB_CONTRACTS VIEW/NEW/UPDATE scope metadata may be configured by an administrator with live WEB_PERMISSIONS UPDATE+APPROVE independently of their personal Contract scope; action-delegation and anti-self-edit checks still apply. This does not bypass Contract Data Scope at read/write time. Extended scope metadata requires an existing or simultaneously granted extended action. Omitted extendedActions preserves Notification grants; supplying it explicitly replaces extended grants only. Scope changes revoke refresh tokens and increment auth_version for all assigned users in the same transaction.
+PUT requires live WEB_PERMISSIONS UPDATE+APPROVE, If-Match, action/role authority, audit and recovery protection. Scope configuration is generic for every active screen/action and independent of the administrator's own data scope. Each patch accepts optional dataScopes: omitted dictionary/keys preserve old values; explicit null clears scope; invalid action/scope returns 400. Extended scope metadata requires its explicit action grant. Scope changes revoke affected sessions. This does not bypass runtime Employee/Contract data filtering. GET /api/authorization/actions exposes the shared dataScopes choices SELF, DEPARTMENT, ALL.
 
 Example: [JSON sample](../../API/role-permissions-data-scope.sample.json).
 
