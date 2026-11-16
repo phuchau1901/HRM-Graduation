@@ -2,6 +2,8 @@
 
 [Module](README.md) · [Quy ước chung](../../guides/CONVENTIONS.md) · [Postman](../../HRM-API.postman_collection.json)
 
+Danh mục `contractType` được quản lý qua [Contract types API](CONTRACT_TYPES_API.md). Tạo danh mục trước khi tạo hợp đồng; request giữ mã `contractType`, response bổ sung `contractTypeName`.
+
 Phạm vi `dataScopes`: xem [giá trị hỗ trợ, bảng scope theo endpoint và cách cấu hình qua API role](DATA_SCOPE.md#cấu-hình-datascopes-cho-api-nhân-viên). Scope được cấu hình qua API permissions của role, không truyền trong body API nghiệp vụ.
 
 | Method | URL | Quyền |
@@ -38,6 +40,7 @@ JSON Response thành công — HTTP 200:
       "employeeId": 1,
       "contractNo": "DEMO-C01",
       "contractType": "FIXED_TERM",
+      "contractTypeName": "Hợp đồng có thời hạn",
       "startDate": "2024-01-01",
       "endDate": "2027-01-01",
       "status": "DRAFT",
@@ -72,6 +75,7 @@ JSON Response thành công — HTTP 200:
   "employeeId": 1,
   "contractNo": "DEMO-C01",
   "contractType": "FIXED_TERM",
+  "contractTypeName": "Hợp đồng có thời hạn",
   "startDate": "2024-01-01",
   "endDate": "2027-01-01",
   "status": "DRAFT",
@@ -90,7 +94,7 @@ Tạo hồ sơ hợp đồng.
 - Role/Permission: **WEB_CONTRACTS / NEW + ALL/DEPARTMENT**.
 - Query/Path/Header: Path employeeId; không nhận employeeId khác trong body.
 - HTTP errors: 400, 401, 403, 404, 409, 500.
-- Validation/nghiệp vụ: No<=50 unique; type<=30; start>=hireDate; end>=start; status allowlist; ACTIVE chứa hôm nay và không trùng khoảng ACTIVE khác. HTTPS attachment<=500, không có credentials, server không fetch URL. Audit/notification atomic.
+- Validation/nghiệp vụ: No<=50 unique; type<=30 và tham chiếu mã loại đang hoạt động trong contract_types; start>=hireDate; end>=start; status allowlist; ACTIVE chứa hôm nay và không trùng khoảng ACTIVE khác. HTTPS attachment<=500, không có credentials, server không fetch URL. Audit/notification atomic.
 
 JSON Request mẫu:
 
@@ -113,6 +117,7 @@ JSON Response thành công — HTTP 201:
   "employeeId": 1,
   "contractNo": "DEMO-C01",
   "contractType": "FIXED_TERM",
+  "contractTypeName": "Hợp đồng có thời hạn",
   "startDate": "2024-01-01",
   "endDate": "2027-01-01",
   "status": "DRAFT",
@@ -154,6 +159,7 @@ JSON Response thành công — HTTP 200:
   "employeeId": 1,
   "contractNo": "DEMO-C01",
   "contractType": "FIXED_TERM",
+  "contractTypeName": "Hợp đồng có thời hạn",
   "startDate": "2024-01-01",
   "endDate": "2027-01-01",
   "status": "DRAFT",
@@ -164,3 +170,5 @@ JSON Response thành công — HTTP 200:
 ### Kiểm thử endpoint
 
 Không JWT401; thiếu action403; SELF chỉ đọc chính mình; DEPARTMENT giới hạn phòng ban; ALL vẫn phải có action; kiểm tra ngày/trạng thái/FK; mutation và audit/notification phải cùng transaction.
+
+Loại đã ngừng hoạt động được giữ trên hợp đồng cũ khi bảo trì các field/trạng thái khác; không chọn cho hợp đồng mới hoặc đổi từ loại khác. Loại không tồn tại trả 400. Xóa loại đang tham chiếu trả 409; xem [đặc tả danh mục và migration](CONTRACT_TYPES_API.md).

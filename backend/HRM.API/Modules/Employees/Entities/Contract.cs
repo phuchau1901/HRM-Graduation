@@ -7,6 +7,7 @@ public class Contract
     public int EmployeeID { get; set; }
     public string ContractNo { get; set; } = string.Empty;
     public string ContractType { get; set; } = string.Empty;
+    public ContractType Type { get; set; } = null!;
     public DateOnly StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public string Status { get; set; } = string.Empty;

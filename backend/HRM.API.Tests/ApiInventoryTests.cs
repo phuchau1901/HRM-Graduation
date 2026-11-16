@@ -16,9 +16,9 @@ public sealed class ApiInventoryTests
             .OfType<ControllerActionDescriptor>().Where(x => x.ControllerTypeInfo.Namespace?.StartsWith("HRM.API.Modules.") == true).ToArray();
         var routes = actions.SelectMany(x => x.ActionConstraints!.OfType<HttpMethodActionConstraint>()
             .SelectMany(c => c.HttpMethods.Select(method => method + " " + x.AttributeRouteInfo!.Template))).ToArray();
-        Assert.Equal(82, routes.Length); Assert.Equal(routes.Length, routes.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Equal(87, routes.Length); Assert.Equal(routes.Length, routes.Distinct(StringComparer.OrdinalIgnoreCase).Count());
         var business = actions.Where(x => x.ControllerTypeInfo.Namespace!.Contains(".Organization.") || x.ControllerTypeInfo.Namespace!.Contains(".Employees.") || x.ControllerTypeInfo.Namespace!.Contains(".Authorization.") || x.ControllerTypeInfo.Namespace!.Contains(".System.")).ToArray();
-        Assert.Equal(72, business.Length);
+        Assert.Equal(77, business.Length);
         Assert.All(business, action =>
         {
             Assert.Contains(action.ControllerTypeInfo.GetCustomAttributes(true), x => x is AuthorizeAttribute);

@@ -204,6 +204,12 @@ public sealed class EmployeeApiTests
     public async Task ContractValidatesDatesOverlapTransitionsAndKeepsClosedHistory()
     {
         await using var h = await Harness.Create("ALL"); var url = $"/api/employees/{h.Self}/contracts";
+        using (var scope = h.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.AddRange(new ContractType { Code = "FIXED_TERM", Name = "Fixed term" }, new ContractType { Code = "CHANGED", Name = "Changed" });
+            await db.SaveChangesAsync();
+        }
         var bad = Contract("BAD"); bad.EndDate = bad.StartDate.AddDays(-1);
         Assert.Equal(HttpStatusCode.BadRequest, (await h.Client.PostAsJsonAsync(url, bad)).StatusCode);
         var active = Contract("ACTIVE01"); active.Status = "ACTIVE";

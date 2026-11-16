@@ -18,6 +18,7 @@ public class ContractConfiguration : IEntityTypeConfiguration<Contract>
         entity.Property(x => x.EndDate).HasColumnName("end_date").HasColumnType("date").IsRequired(false);
         entity.Property(x => x.Status).HasColumnName("status").HasColumnType("varchar(20)").HasMaxLength(20).IsRequired();
         entity.Property(x => x.AttachmentURL).HasColumnName("attachment_url").HasColumnType("varchar(500)").HasMaxLength(500).IsRequired(false);
+        entity.HasOne(x => x.Type).WithMany().HasForeignKey(x => x.ContractType).OnDelete(DeleteBehavior.Restrict);
         entity.HasIndex(x => new { x.ContractNo }).HasDatabaseName("uq_contracts_contract_no").IsUnique();
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeID).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_contracts_employee_id");
     }

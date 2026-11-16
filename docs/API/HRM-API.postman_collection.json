@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "82 source-backed REST endpoints; 89 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
+    "description": "87 source-backed REST endpoints; 94 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
   },
   "auth": {
     "type": "bearer",
@@ -183,6 +183,11 @@
     {
       "key": "auditLogId",
       "value": ""
+    },
+    {
+      "key": "contractTypeCode",
+      "value": "FIXED_TERM",
+      "type": "string"
     }
   ],
   "item": [
@@ -877,7 +882,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts",
-            "description": "Tạo hồ sơ hợp đồng\nPermission: WEB_CONTRACTS / NEW + ALL/DEPARTMENT\nPath employeeId; không nhận employeeId khác trong body.\nNo<=50 unique; type<=30; start>=hireDate; end>=start; status allowlist; ACTIVE chứa hôm nay và không trùng khoảng ACTIVE khác. HTTPS attachment<=500, không có credentials, server không fetch URL. Audit/notification atomic.\nExpected 201; errors 400, 401, 403, 404, 409, 500.",
+            "description": "Tạo hồ sơ hợp đồng\nPermission: WEB_CONTRACTS / NEW + ALL/DEPARTMENT\nPath employeeId; không nhận employeeId khác trong body.\nNo<=50 unique; type<=30; start>=hireDate; end>=start; status allowlist; ACTIVE chứa hôm nay và không trùng khoảng ACTIVE khác. HTTPS attachment<=500, không có credentials, server không fetch URL. Audit/notification atomic.\nExpected 201; errors 400, 401, 403, 404, 409, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"contractNo\": \"DEMO-C01\",\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
@@ -907,7 +912,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts?page=1&pageSize=30",
-            "description": "Danh sách hợp đồng nhân viên\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId; Query page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope.\nKhông truy vấn hợp đồng nhân viên ngoài scope. search chỉ theo contractNo.\nExpected 200; errors 400, 401, 403, 404, 500."
+            "description": "Danh sách hợp đồng nhân viên\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId; Query page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope.\nKhông truy vấn hợp đồng nhân viên ngoài scope. search chỉ theo contractNo.\nExpected 200; errors 400, 401, 403, 404, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md."
           },
           "response": []
         },
@@ -917,7 +922,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts/{{contractId}}",
-            "description": "Chi tiết hợp đồng\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId INT, contractId BIGINT.\nContract phải thuộc đúng employeeId; mismatch/outside scope trả 404.\nExpected 200; errors 401, 403, 404, 500."
+            "description": "Chi tiết hợp đồng\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId INT, contractId BIGINT.\nContract phải thuộc đúng employeeId; mismatch/outside scope trả 404.\nExpected 200; errors 401, 403, 404, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md."
           },
           "response": []
         },
@@ -932,7 +937,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts/{{contractId}}",
-            "description": "Sửa hợp đồng / chuyển trạng thái\nPermission: WEB_CONTRACTS / UPDATE + ALL/DEPARTMENT\nPath employeeId, contractId; body DTO đầy đủ.\nGiữ quy tắc tạo. ACTIVE chỉ giữ ACTIVE hoặc sang EXPIRED/TERMINATED; đóng cần endDate<=hôm nay; bản ghi đóng immutable, PUT dữ liệu giống hệt vẫn 200 không tạo event trùng. Không có DELETE hợp đồng.\nExpected 200; errors 400, 401, 403, 404, 409, 500.",
+            "description": "Sửa hợp đồng / chuyển trạng thái\nPermission: WEB_CONTRACTS / UPDATE + ALL/DEPARTMENT\nPath employeeId, contractId; body DTO đầy đủ.\nGiữ quy tắc tạo. ACTIVE chỉ giữ ACTIVE hoặc sang EXPIRED/TERMINATED; đóng cần endDate<=hôm nay; bản ghi đóng immutable, PUT dữ liệu giống hệt vẫn 200 không tạo event trùng. Không có DELETE hợp đồng.\nExpected 200; errors 400, 401, 403, 404, 409, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"contractNo\": \"DEMO-C01\",\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
@@ -2347,6 +2352,81 @@
               }
             },
             "description": "Manual example. Requires WEB_EMPLOYEES/NEW with ALL/DEPARTMENT write scope, WEB_DEPARTMENTS/UPDATE for manager=true and WEB_TEAMS/UPDATE for lead=true. Team must belong to department and roles must be vacant. Failure rolls back new employee, assignments and audit. false/null/omitted flags create without those roles. See docs/modules/Employees/PROFILES_API.md."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contract types",
+      "item": [
+        {
+          "name": "List active contract types",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/contract-types?isActive=true&page=1&pageSize=100",
+            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+          }
+        },
+        {
+          "name": "Get contract type",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
+            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+          }
+        },
+        {
+          "name": "Create contract type",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/contract-types",
+            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"FIXED_TERM\",\n  \"name\": \"Hợp đồng có thời hạn\",\n  \"description\": null,\n  \"isActive\": true,\n  \"sortOrder\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update or retire contract type",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
+            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hợp đồng có thời hạn\",\n  \"description\": null,\n  \"isActive\": false,\n  \"sortOrder\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete unreferenced contract type",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
+            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
           }
         }
       ]

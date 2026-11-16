@@ -2,14 +2,14 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **82 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **87 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
 | Auth | 3 | IMPLEMENTED |
 | Authorization / Administration | 21 | IMPLEMENTED |
 | Organization (Departments / Positions / Teams / Tree) | 18 | IMPLEMENTED |
-| Employees / Contracts / History | 12 | IMPLEMENTED |
+| Employees / Contracts / Contract Types / History | 17 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
 | Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow chưa có API |
 | System Settings | 4 | IMPLEMENTED |
@@ -80,6 +80,11 @@ Có **82 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | DELETE | `/api/employees/{employeeId}` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / DELETE + data scope |
 | PATCH | `/api/employees/{employeeId}/department` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / UPDATE + data scope |
 | GET | `/api/employees/{employeeId}/history` | [Employees](../modules/Employees/HISTORY_API.md) | WEB_EMPLOYEES / VIEW + data scope |
+| GET | `/api/contract-types` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / VIEW; global catalog |
+| GET | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / VIEW; global catalog |
+| POST | `/api/contract-types` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / NEW; global catalog |
+| PUT | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / UPDATE; global catalog |
+| DELETE | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / DELETE; global catalog |
 | GET | `/api/employees/{employeeId}/contracts` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / VIEW + data scope |
 | GET | `/api/employees/{employeeId}/contracts/{contractId}` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / VIEW + data scope |
 | POST | `/api/employees/{employeeId}/contracts` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / NEW + data scope |

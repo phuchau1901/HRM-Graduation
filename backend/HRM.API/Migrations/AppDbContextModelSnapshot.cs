@@ -679,9 +679,44 @@ namespace HRM.API.Migrations
                         .IsUnique()
                         .HasDatabaseName("uq_contracts_contract_no");
 
+                    b.HasIndex("ContractType");
+
                     b.HasIndex("EmployeeID");
 
                     b.ToTable("contracts", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Employees.Entities.ContractType", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("IsActive", "SortOrder");
+
+                    b.ToTable("contract_types", (string)null);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Employees.Entities.Employee", b =>
@@ -2225,12 +2260,20 @@ namespace HRM.API.Migrations
 
             modelBuilder.Entity("HRM.API.Modules.Employees.Entities.Contract", b =>
                 {
+                    b.HasOne("HRM.API.Modules.Employees.Entities.ContractType", "Type")
+                        .WithMany()
+                        .HasForeignKey("ContractType")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
                         .WithMany()
                         .HasForeignKey("EmployeeID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_contracts_employee_id");
+
+                    b.Navigation("Type");
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Employees.Entities.Employee", b =>

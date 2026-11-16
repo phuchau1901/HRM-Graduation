@@ -37,7 +37,9 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
     // Used only after a write has already passed its own action/scope checks. No VIEW grant is required to return that write's result.
     private Task<EmployeeDto> WriteResultAsync(int id, CancellationToken ct) =>
         ProjectEmployees(db.Employees.AsNoTracking().Where(employee => employee.Id == id)).SingleAsync(ct);
-    private static ContractDto Dto(Contract c) => new(c.ID, c.EmployeeID, c.ContractNo, c.ContractType, c.StartDate, c.EndDate, c.Status, c.AttachmentURL);
+    private static ContractDto Dto(Contract c) => new(c.ID, c.EmployeeID, c.ContractNo, c.ContractType, c.StartDate, c.EndDate, c.Status, c.AttachmentURL, c.Type.Name);
+    private static IQueryable<ContractDto> ProjectContracts(IQueryable<Contract> contracts) => contracts
+        .Select(c => new ContractDto(c.ID, c.EmployeeID, c.ContractNo, c.ContractType, c.StartDate, c.EndDate, c.Status, c.AttachmentURL, c.Type.Name));
     public Task<PageResult<EmployeeDto>> ListAsync(string userId, EmployeeQuery q, CancellationToken ct)
         => ListAsync(userId, q, false, ct);
     public Task<PageResult<EmployeeDto>> UnlinkedAsync(string userId, EmployeeQuery q, CancellationToken ct)
@@ -271,13 +273,14 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         await FindAsync(actor, employeeId, false, ct, "WEB_CONTRACTS", "VIEW");
         var query = db.Set<Contract>().AsNoTracking().Where(x => x.EmployeeID == employeeId);
         if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(x => x.ContractNo.Contains(q.Search));
-        return new(true, await query.CountAsync(ct), q.Page, q.PageSize, (await query.OrderByDescending(x => x.ID)
-            .Skip(Paging.Offset(q)).Take(q.PageSize).ToListAsync(ct)).Select(Dto).ToList());
+        return new(true, await query.CountAsync(ct), q.Page, q.PageSize, await ProjectContracts(query.OrderByDescending(x => x.ID)
+            .Skip(Paging.Offset(q)).Take(q.PageSize)).ToListAsync(ct));
     }
     public async Task<ContractDto> ContractAsync(string actor, int employeeId, long id, CancellationToken ct)
     {
         await FindAsync(actor, employeeId, false, ct, "WEB_CONTRACTS", "VIEW");
-        return Dto(await db.Set<Contract>().AsNoTracking().SingleOrDefaultAsync(x => x.ID == id && x.EmployeeID == employeeId, ct) ?? throw BusinessException.Missing());
+        return await ProjectContracts(db.Set<Contract>().AsNoTracking().Where(x => x.ID == id && x.EmployeeID == employeeId))
+            .SingleOrDefaultAsync(ct) ?? throw BusinessException.Missing();
     }
     public async Task<ContractDto> SaveContractAsync(string actor, int employeeId, long? id, ContractRequest request, string trace, CancellationToken ct)
     {
@@ -293,8 +296,16 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
             throw BusinessException.Invalid("AttachmentUrl must be an absolute HTTPS URL without credentials.");
         var number = request.ContractNo.Trim();
         if (await db.Set<Contract>().AnyAsync(x => x.ContractNo == number && x.ID != id, ct)) throw BusinessException.Conflict("Contract number already exists.");
-        var entity = id.HasValue ? await db.Set<Contract>().SingleOrDefaultAsync(x => x.ID == id && x.EmployeeID == employeeId, ct) ?? throw BusinessException.Missing() : new Contract { EmployeeID = employeeId };
-        if (id.HasValue && entity.ContractNo == number && entity.ContractType == request.ContractType.Trim() &&
+        var entity = id.HasValue ? await db.Set<Contract>().Include(x => x.Type).SingleOrDefaultAsync(x => x.ID == id && x.EmployeeID == employeeId, ct) ?? throw BusinessException.Missing() : new Contract { EmployeeID = employeeId };
+        var typeCode = request.ContractType.Trim();
+        // An inactive type may remain on an existing contract, but cannot be selected anew.
+        var type = await db.Set<ContractType>()
+            .Where(t => t.Code == request.ContractType || t.Code == typeCode)
+            .OrderBy(t => t.Code == request.ContractType ? 0 : 1).FirstOrDefaultAsync(ct)
+            ?? throw BusinessException.Invalid("Contract type does not exist.");
+        var retainingType = id.HasValue && entity.ContractType == type.Code;
+        if (!type.IsActive && !retainingType) throw BusinessException.Invalid("An active contract type is required.");
+        if (id.HasValue && entity.ContractNo == number && entity.ContractType == type.Code &&
             entity.StartDate == request.StartDate && entity.EndDate == request.EndDate && entity.Status == request.Status && entity.AttachmentURL == request.AttachmentUrl)
         {
             await tx.CommitAsync(ct); return Dto(entity);
@@ -304,7 +315,7 @@ public sealed class EmployeeService(AppDbContext db, EmployeeDataScope scopes, N
         if (request.Status == "ACTIVE" && await db.Set<Contract>().AnyAsync(x => x.EmployeeID == employeeId && x.ID != id && x.Status == "ACTIVE" &&
                 (!x.EndDate.HasValue || x.EndDate >= request.StartDate) && (!request.EndDate.HasValue || x.StartDate <= request.EndDate), ct))
             throw BusinessException.Conflict("ACTIVE contract dates overlap an existing ACTIVE contract.");
-        entity.ContractNo = number; entity.ContractType = request.ContractType.Trim(); entity.StartDate = request.StartDate;
+        entity.ContractNo = number; entity.ContractType = type.Code; entity.Type = type; entity.StartDate = request.StartDate;
         entity.EndDate = request.EndDate; entity.Status = request.Status; entity.AttachmentURL = request.AttachmentUrl;
         if (!id.HasValue) db.Add(entity);
         await db.SaveChangesAsync(ct); Audit(actor, employeeId, id.HasValue ? "CONTRACT_UPDATED" : "CONTRACT_CREATED", trace, entity.ID);

@@ -48,6 +48,6 @@ public sealed class ContractRequest
 public sealed record EmployeeDto(int Id, string EmployeeCode, string FullName, string Email, DateOnly? DateOfBirth,
     string? PhoneNumber, DateOnly HireDate, int DepartmentId, long? PositionId, string EmploymentStatus, DateTime CreatedAt, int? TeamId = null, string? TeamName = null, string? DepartmentName = null, string? PositionName = null, bool IsDepartmentManager = false, bool IsTeamLead = false);
 public sealed record ContractDto(long Id, int EmployeeId, string ContractNo, string ContractType,
-    DateOnly StartDate, DateOnly? EndDate, string Status, string? AttachmentUrl);
+    DateOnly StartDate, DateOnly? EndDate, string Status, string? AttachmentUrl, string? ContractTypeName = null);
 public sealed record EmployeeHistoryDto(long Id, int EmployeeId, int? OldDepartmentId, int? NewDepartmentId,
     long? OldPositionId, long? NewPositionId, DateOnly EffectiveDate, string? Reason, string? ChangedByUserId);
