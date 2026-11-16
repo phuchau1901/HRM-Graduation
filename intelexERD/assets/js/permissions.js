@@ -26,7 +26,7 @@ export const screenRoutes={
  '/documents':['WEB_DOCUMENTS'], 
  '/notifications':['WEB_NOTIFICATIONS'],
  '/hr/employees':['WEB_EMPLOYEES'], 
- '/hr/organization':['WEB_ORGANIZATION','WEB_DEPARTMENTS','WEB_POSITIONS'],
+ '/hr/organization':['WEB_ORGANIZATION'],
  '/hr/contracts':['WEB_CONTRACTS'], 
  '/hr/attendance':['WEB_ATTENDANCE'],
  '/hr/attendance-reports':['WEB_ATTENDANCE_REPORTS'], 

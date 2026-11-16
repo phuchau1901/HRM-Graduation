@@ -150,3 +150,10 @@ export function apiAuditLogDetail(id){return request(`/api/audit-logs/${encodeUR
 globalThis.window?.addEventListener?.('storage',event=>{
  if(event.key===SESSION_KEY||event.key===null){session=readSession();globalThis.window.dispatchEvent(new Event('auth-change'));}
 });
+
+export function apiOrganizationTree(signal){return request('/api/organization/tree',{signal,cache:'no-store'});}
+export function apiOrganizationMembers(kind,id,page=1,signal){
+ if(!['team','unassigned'].includes(kind))throw Error('Nhóm nhân viên không hợp lệ.');
+ const path=kind==='team'?`/api/teams/${encodeURIComponent(id)}/members`:`/api/departments/${encodeURIComponent(id)}/unassigned-members`;
+ return request(path+'?'+new URLSearchParams({page,pageSize:20}),{signal,cache:'no-store'});
+}
