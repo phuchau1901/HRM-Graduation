@@ -12,7 +12,7 @@ function ContractEditor({ api, employeeId, editor, permissions, types, asOfDate,
   async function save(event) {
     event.preventDefault(); setSaving(true); setError('');
     const fields = Object.fromEntries(new FormData(event.currentTarget));
-    const payload = { contractNo: fields.contractNo, contractType: fields.contractType, startDate: fields.startDate,
+    const payload = { contractType: fields.contractType, startDate: fields.startDate,
       endDate: fields.endDate || null, status: fields.status, attachmentUrl: fields.attachmentUrl || null };
     try {
       await api(`/employees/${employeeId}/contracts${contract ? `/${contract.id}` : ''}`, { method: contract ? 'PUT' : 'POST', body: JSON.stringify(payload) });
@@ -20,7 +20,7 @@ function ContractEditor({ api, employeeId, editor, permissions, types, asOfDate,
     } catch (e) { setError(e.message); } finally { setSaving(false); }
   }
   return <section className="card editor"><div className="section-title"><h2>{title}</h2><button type="button" className="subtle" disabled={saving} onClick={onClose}>Đóng</button></div><form onSubmit={save}>
-    <label>Số hợp đồng<input name="contractNo" defaultValue={contract?.contractNo || ''} maxLength={50} required /></label>
+    {contract ? <label>Số hợp đồng<input value={contract.contractNo} readOnly /></label> : <p className="muted">Số hợp đồng được tự động cấp theo loại hợp đồng và năm.</p>}
     <label>Loại hợp đồng{can(permissions, 'WEB_CONTRACT_TYPES', 'VIEW') ? <select name="contractType" defaultValue={contract?.contractType || ''} required><option value="">Chọn loại hợp đồng</option>{contract && !types.some(t => t.code === contract.contractType) && <option value={contract.contractType}>{contract.contractTypeName || contract.contractType}</option>}{types.map(t => <option key={t.code} value={t.code}>{t.name}</option>)}</select> : <input name="contractType" defaultValue={contract?.contractType || ''} maxLength={30} required />}</label>
     <div className="form-grid"><label>Ngày bắt đầu<input name="startDate" type="date" defaultValue={contract?.startDate || asOfDate || ''} required /></label><label>Ngày kết thúc<input name="endDate" type="date" defaultValue={terminating ? asOfDate || '' : contract?.endDate || ''} required={terminating} /></label></div>
     <label>Trạng thái<select name="status" defaultValue={terminating ? 'TERMINATED' : contract?.status || 'DRAFT'}>{(contract?.status === 'ACTIVE' ? ['ACTIVE', 'EXPIRED', 'TERMINATED'] : ['DRAFT', 'ACTIVE', 'EXPIRED', 'TERMINATED', 'CANCELLED']).map(status => <option key={status} value={status}>{status}</option>)}</select></label>

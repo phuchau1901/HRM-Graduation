@@ -8,6 +8,7 @@ Phạm vi `dataScopes`: xem [giá trị hỗ trợ, bảng scope theo endpoint v
 
 | Method | URL | Quyền |
 | --- | --- | --- |
+| POST | `/api/contracts` | WEB_CONTRACTS / NEW + data scope; [numbering](CONTRACT_NUMBERING.md) |
 | GET | `/api/contracts/statistics` | WEB_CONTRACTS / VIEW + data scope; [đặc tả](CONTRACT_STATISTICS_API.md) |
 | GET | `/api/employees/{employeeId}/contracts` | WEB_CONTRACTS / VIEW + data scope |
 | GET | `/api/employees/{employeeId}/contracts/{contractId}` | WEB_CONTRACTS / VIEW + data scope |
@@ -101,7 +102,6 @@ JSON Request mẫu:
 
 ```json
 {
-  "contractNo": "DEMO-C01",
   "contractType": "FIXED_TERM",
   "startDate": "2024-01-01",
   "endDate": "2027-01-01",
@@ -143,7 +143,6 @@ JSON Request mẫu:
 
 ```json
 {
-  "contractNo": "DEMO-C01",
   "contractType": "FIXED_TERM",
   "startDate": "2024-01-01",
   "endDate": "2027-01-01",
@@ -179,3 +178,7 @@ Loại đã ngừng hoạt động được giữ trên hợp đồng cũ khi b�
 [GET /api/contracts/statistics](CONTRACT_STATISTICS_API.md) trả active/expiringSoon/expired theo ngày Asia/Ho_Chi_Minh và WEB_CONTRACTS/VIEW Data Scope. Không cần đọc toàn bộ danh sách hoặc quyền Employee riêng.
 
 Cấu hình SELF/DEPARTMENT/ALL trên WEB_CONTRACTS qua role permissions dùng quyền quản trị WEB_PERMISSIONS/UPDATE+APPROVE, độc lập scope Contracts của người thao tác; xem [quy tắc quản trị scope](../Authorization/PERMISSIONS_API.md#cấu-hình-scope-web_contracts-bằng-quyền-quản-trị). Quyền action, scope tại thời điểm đọc/ghi hợp đồng không đổi.
+
+## Server-generated ContractNo
+
+Both root POST /api/contracts (employeeId in body) and nested employee POST use the same atomic document sequence allocator. ContractNo is not required/supplied by the client on creation; PUT retains it and rejects changing it. Configure active contract_types.prefix first. See [Contract numbering, schema, prefix and retry rules](CONTRACT_NUMBERING.md).

@@ -59,7 +59,7 @@ describe('Contracts statistics', () => {
     await screen.findByText('C001'); await screen.findByLabelText('Đang hiệu lực');
     await user.click(screen.getByRole('button', { name: action }));
     if (action === 'Tạo hợp đồng') {
-      await user.type(screen.getByLabelText('Số hợp đồng'), 'C002'); await user.type(screen.getByLabelText('Loại hợp đồng'), 'FIXED');
+      await user.type(screen.getByLabelText('Loại hợp đồng'), 'FIXED');
     }
     if (action === 'Gia hạn') fireEvent.change(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2028-01-01' } });
     await user.click(screen.getByRole('button', { name: 'Lưu hợp đồng' }));
@@ -67,6 +67,7 @@ describe('Contracts statistics', () => {
     expect(api.mock.calls.filter(([path]) => path.startsWith('/employees/7/contracts?'))).toHaveLength(2);
     const [, options] = api.mock.calls.find(([, options]) => options.method);
     expect(options.method).toBe(action === 'Tạo hợp đồng' ? 'POST' : 'PUT');
+    expect(JSON.parse(options.body)).not.toHaveProperty('contractNo');
     const body = JSON.parse(options.body);
     if (action === 'Gia hạn') expect(body.endDate).toBe('2028-01-01');
     if (action === 'Chấm dứt') { expect(body.status).toBe('TERMINATED'); expect(body.endDate).toBe('2026-11-16'); }

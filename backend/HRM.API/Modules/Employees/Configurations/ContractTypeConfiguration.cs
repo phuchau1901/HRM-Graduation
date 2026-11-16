@@ -9,6 +9,7 @@ public sealed class ContractTypeConfiguration : IEntityTypeConfiguration<Contrac
     {
         entity.ToTable("contract_types");
         entity.HasKey(x => x.Code);
+        entity.Property(x => x.Prefix).HasColumnName("prefix").HasColumnType("varchar(20)").HasMaxLength(20);
         entity.Property(x => x.Code).HasColumnName("code").HasColumnType("varchar(30)").HasMaxLength(30).ValueGeneratedNever();
         entity.Property(x => x.Name).HasColumnName("name").HasColumnType("varchar(150)").HasMaxLength(150).IsRequired();
         entity.Property(x => x.Description).HasColumnName("description").HasColumnType("varchar(500)").HasMaxLength(500);

@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "88 source-backed REST endpoints; 95 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
+    "description": "89 source-backed REST endpoints; 96 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
   },
   "auth": {
     "type": "bearer",
@@ -887,10 +887,10 @@
               }
             ],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts",
-            "description": "Tạo hồ sơ hợp đồng\nPermission: WEB_CONTRACTS / NEW + ALL/DEPARTMENT\nPath employeeId; không nhận employeeId khác trong body.\nNo<=50 unique; type<=30; start>=hireDate; end>=start; status allowlist; ACTIVE chứa hôm nay và không trùng khoảng ACTIVE khác. HTTPS attachment<=500, không có credentials, server không fetch URL. Audit/notification atomic.\nExpected 201; errors 400, 401, 403, 404, 409, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
+            "description": "Tạo hồ sơ hợp đồng\nPermission: WEB_CONTRACTS / NEW + ALL/DEPARTMENT\nPath employeeId; không nhận employeeId khác trong body.\nNo<=50 unique; type<=30; start>=hireDate; end>=start; status allowlist; ACTIVE chứa hôm nay và không trùng khoảng ACTIVE khác. HTTPS attachment<=500, không có credentials, server không fetch URL. Audit/notification atomic.\nExpected 201; errors 400, 401, 403, 404, 409, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md. ContractNo is generated on creation and immutable on update. Active ContractType with valid prefix required. See docs/modules/Employees/CONTRACT_NUMBERING.md.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"contractNo\": \"DEMO-C01\",\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
+              "raw": "{\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -917,7 +917,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts?page=1&pageSize=30",
-            "description": "Danh sách hợp đồng nhân viên\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId; Query page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope.\nKhông truy vấn hợp đồng nhân viên ngoài scope. search chỉ theo contractNo.\nExpected 200; errors 400, 401, 403, 404, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+            "description": "Danh sách hợp đồng nhân viên\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId; Query page>=1 (default 1), pageSize=1..100 (default 30), search<=150; total tính sau filter/scope.\nKhông truy vấn hợp đồng nhân viên ngoài scope. search chỉ theo contractNo.\nExpected 200; errors 400, 401, 403, 404, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md. ContractNo is generated on creation and immutable on update. Active ContractType with valid prefix required. See docs/modules/Employees/CONTRACT_NUMBERING.md."
           },
           "response": []
         },
@@ -927,7 +927,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts/{{contractId}}",
-            "description": "Chi tiết hợp đồng\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId INT, contractId BIGINT.\nContract phải thuộc đúng employeeId; mismatch/outside scope trả 404.\nExpected 200; errors 401, 403, 404, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+            "description": "Chi tiết hợp đồng\nPermission: WEB_CONTRACTS / VIEW + employee row scope\nPath employeeId INT, contractId BIGINT.\nContract phải thuộc đúng employeeId; mismatch/outside scope trả 404.\nExpected 200; errors 401, 403, 404, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md. ContractNo is generated on creation and immutable on update. Active ContractType with valid prefix required. See docs/modules/Employees/CONTRACT_NUMBERING.md."
           },
           "response": []
         },
@@ -942,7 +942,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/employees/{{employeeId}}/contracts/{{contractId}}",
-            "description": "Sửa hợp đồng / chuyển trạng thái\nPermission: WEB_CONTRACTS / UPDATE + ALL/DEPARTMENT\nPath employeeId, contractId; body DTO đầy đủ.\nGiữ quy tắc tạo. ACTIVE chỉ giữ ACTIVE hoặc sang EXPIRED/TERMINATED; đóng cần endDate<=hôm nay; bản ghi đóng immutable, PUT dữ liệu giống hệt vẫn 200 không tạo event trùng. Không có DELETE hợp đồng.\nExpected 200; errors 400, 401, 403, 404, 409, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
+            "description": "Sửa hợp đồng / chuyển trạng thái\nPermission: WEB_CONTRACTS / UPDATE + ALL/DEPARTMENT\nPath employeeId, contractId; body DTO đầy đủ.\nGiữ quy tắc tạo. ACTIVE chỉ giữ ACTIVE hoặc sang EXPIRED/TERMINATED; đóng cần endDate<=hôm nay; bản ghi đóng immutable, PUT dữ liệu giống hệt vẫn 200 không tạo event trùng. Không có DELETE hợp đồng.\nExpected 200; errors 400, 401, 403, 404, 409, 500. ContractType must reference configured contract_types.code (active for new/type changes). Responses add contractTypeName. See docs/modules/Employees/CONTRACT_TYPES_API.md. ContractNo is generated on creation and immutable on update. Active ContractType with valid prefix required. See docs/modules/Employees/CONTRACT_NUMBERING.md.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"contractNo\": \"DEMO-C01\",\n  \"contractType\": \"FIXED_TERM\",\n  \"startDate\": \"2024-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"status\": \"DRAFT\",\n  \"attachmentUrl\": null\n}",
@@ -2370,7 +2370,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/contract-types?isActive=true&page=1&pageSize=100",
-            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md. Prefix is returned on reads and editable via POST/PUT; uppercase letters/digits, 1..20 chars starting with a letter. Omission on PUT preserves it; null clears it. Prefix changes do not reset counters."
           }
         },
         {
@@ -2378,7 +2378,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
-            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md. Prefix is returned on reads and editable via POST/PUT; uppercase letters/digits, 1..20 chars starting with a letter. Omission on PUT preserves it; null clears it. Prefix changes do not reset counters."
           }
         },
         {
@@ -2386,7 +2386,7 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/contract-types",
-            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md. Prefix is returned on reads and editable via POST/PUT; uppercase letters/digits, 1..20 chars starting with a letter. Omission on PUT preserves it; null clears it. Prefix changes do not reset counters.",
             "header": [
               {
                 "key": "Content-Type",
@@ -2395,7 +2395,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"code\": \"FIXED_TERM\",\n  \"name\": \"Hợp đồng có thời hạn\",\n  \"description\": null,\n  \"isActive\": true,\n  \"sortOrder\": 0\n}",
+              "raw": "{\n  \"code\": \"FIXED_TERM\",\n  \"name\": \"Hợp đồng có thời hạn\",\n  \"description\": null,\n  \"isActive\": true,\n  \"sortOrder\": 0,\n  \"prefix\": \"HDLD\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2409,7 +2409,7 @@
           "request": {
             "method": "PUT",
             "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
-            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md. Prefix is returned on reads and editable via POST/PUT; uppercase letters/digits, 1..20 chars starting with a letter. Omission on PUT preserves it; null clears it. Prefix changes do not reset counters.",
             "header": [
               {
                 "key": "Content-Type",
@@ -2418,7 +2418,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Hợp đồng có thời hạn\",\n  \"description\": null,\n  \"isActive\": false,\n  \"sortOrder\": 0\n}",
+              "raw": "{\n  \"name\": \"Hợp đồng có thời hạn\",\n  \"description\": null,\n  \"isActive\": false,\n  \"sortOrder\": 0,\n  \"prefix\": \"HDLD\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2432,7 +2432,7 @@
           "request": {
             "method": "DELETE",
             "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
-            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md. Prefix is returned on reads and editable via POST/PUT; uppercase letters/digits, 1..20 chars starting with a letter. Omission on PUT preserves it; null clears it. Prefix changes do not reset counters."
           }
         }
       ]
@@ -2446,6 +2446,34 @@
             "method": "GET",
             "url": "{{baseUrl}}/api/contracts/statistics?expiringWithinDays={{expiringWithinDays}}",
             "description": "WEB_CONTRACTS/VIEW and live SELF/DEPARTMENT/ALL scope required. expiringWithinDays defaults to 30, range 1..365. Uses Asia/Ho_Chi_Minh. Returns success/data with active, expiringSoon, expired, expiringWithinDays, asOfDate. No DRAFT/CANCELLED/TERMINATED, future starts or overlapping buckets. See docs/modules/Employees/CONTRACT_STATISTICS_API.md."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Contract numbering",
+      "item": [
+        {
+          "name": "Create contract with automatic number",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/api/contracts",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": {{employeeId}},\n  \"contractType\": \"{{contractTypeCode}}\",\n  \"startDate\": \"2027-01-01\",\n  \"endDate\": null,\n  \"status\": \"DRAFT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Requires WEB_CONTRACTS/NEW and ALL/DEPARTMENT scope. Configure active ContractType prefix first. Server atomically allocates PREFIX-YYYY-NNNNNN for the Vietnam creation year in the same transaction as contract/audit/notification. Do not pass ContractNo. See docs/modules/Employees/CONTRACT_NUMBERING.md."
           }
         }
       ]

@@ -16,12 +16,12 @@ public sealed class ContractTypeApiTests
     private static ContractTypeRequest Type(string code, bool active = true, int order = 0) =>
         new() { Code = code, Name = "Type " + code, IsActive = active, SortOrder = order };
     private static ContractRequest Contract(string code, string number = "C1") =>
-        new() { ContractNo = number, ContractType = code, StartDate = new(2020, 1, 1), Status = "DRAFT" };
+        new() { ContractType = code, StartDate = new(2020, 1, 1), Status = "DRAFT" };
     private static async Task Configure(EmployeeApiTests.Harness h)
     {
         await OrganizationApiTests.Grant(h.App, "WEB_CONTRACT_TYPES"); await OrganizationApiTests.Login(h.Client, h.App);
         using var services = h.App.Services.CreateScope(); var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.AddRange(new ContractType { Code = "FIXED", Name = "Fixed term" }, new ContractType { Code = "OTHER", Name = "Other" },
+        db.AddRange(new ContractType { Code = "FIXED", Name = "Fixed term", Prefix = "HDLD" }, new ContractType { Code = "OTHER", Name = "Other", Prefix = "OTHER" },
             new ContractType { Code = "OLD", Name = "Old", IsActive = false });
         await db.SaveChangesAsync();
     }
@@ -100,7 +100,7 @@ public sealed class ContractTypeApiTests
         retained.ContractType = "OTHER";
         (await h.Client.PutAsJsonAsync(created.Headers.Location, retained)).EnsureSuccessStatusCode();
         Assert.Equal("Other", (await h.Client.GetFromJsonAsync<ContractDto>(created.Headers.Location))!.ContractTypeName);
-        Assert.Equal(HttpStatusCode.NoContent, (await h.Client.DeleteAsync("/api/contract-types/FIXED")).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await h.Client.DeleteAsync("/api/contract-types/FIXED")).StatusCode); // Sequence history must not be deleted.
     }
     [Fact]
     public async Task LegacyCodeWithWhitespaceCanBeMaintainedWithoutRewritingItsCode()
@@ -111,7 +111,7 @@ public sealed class ContractTypeApiTests
         using (var scope = h.App.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            db.Add(new ContractType { Code = legacyCode, Name = "Legacy" }); await db.SaveChangesAsync();
+            db.Add(new ContractType { Code = legacyCode, Name = "Legacy", Prefix = "LEGACY" }); await db.SaveChangesAsync();
         }
         var created = await h.Client.PostAsJsonAsync($"/api/employees/{h.Self}/contracts", Contract(legacyCode));
         created.EnsureSuccessStatusCode();

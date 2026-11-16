@@ -14,6 +14,7 @@ New table `contract_types`:
 | --- | --- | --- |
 | code | varchar(30), primary key | Stable code submitted as contractType; immutable after creation |
 | name | varchar(150), required | Display name |
+| prefix | varchar(20), nullable | Prefix for future server-generated ContractNo |
 | description | varchar(500), nullable | Optional notes |
 | is_active | tinyint(1), required | Whether selectable on new contracts/type changes |
 | sort_order | int, required | Nonnegative display order |
@@ -51,7 +52,7 @@ All endpoints require JWT and an active `WEB_CONTRACT_TYPES` grant for the corre
   "total": 1,
   "page": 1,
   "pageSize": 100,
-  "data": [{"code":"FIXED_TERM","name":"Hợp đồng có thời hạn","description":null,"isActive":true,"sortOrder":0}]
+  "data": [{"code":"FIXED_TERM","name":"Hợp đồng có thời hạn","prefix":"HDLD","description":null,"isActive":true,"sortOrder":0}]
 }
 ```
 
@@ -60,7 +61,7 @@ All endpoints require JWT and an active `WEB_CONTRACT_TYPES` grant for the corre
 `POST /api/contract-types`
 
 ```json
-{"code":"FIXED_TERM","name":"Hợp đồng có thời hạn","description":null,"isActive":true,"sortOrder":0}
+{"code":"FIXED_TERM","name":"Hợp đồng có thời hạn","prefix":"HDLD","description":null,"isActive":true,"sortOrder":0}
 ```
 
 Code: 1..30 characters, starts with a letter/digit, then letters/digits/underscore/hyphen. Name: required, max 150. Description: optional, max 500. sortOrder >= 0. Defaults: isActive=true, sortOrder=0. Duplicate code: 409. Invalid fields: 400.
@@ -70,7 +71,7 @@ Code: 1..30 characters, starts with a letter/digit, then letters/digits/undersco
 `PUT /api/contract-types/FIXED_TERM`
 
 ```json
-{"name":"Hợp đồng có thời hạn","description":"Ngừng dùng cho hợp đồng mới","isActive":false,"sortOrder":10}
+{"name":"Hợp đồng có thời hạn","prefix":"HDLD","description":"Ngừng dùng cho hợp đồng mới","isActive":false,"sortOrder":10}
 ```
 
 Code is identified by the path and is not an editable request field. Update changes name, description, isActive and sortOrder. Legacy codes can be maintained without recoding contracts. Deactivating a referenced type is allowed.
@@ -108,3 +109,7 @@ Example `POST /api/screens` (requires screen administration permission):
 ```json
 {"code":"WEB_CONTRACT_TYPES","name":"Contract Type","platform":"WEB","isActive":true}
 ```
+
+## Prefix extension
+
+GET/list/detail responses include nullable prefix. POST/PUT accept prefix; omission preserves the old value on PUT, explicit null clears it. Valid prefix: 1..20 uppercase ASCII letters/digits starting with a letter. Contract creation requires a configured active type/prefix. Prefix edits do not reset counters or renumber old contracts. Types referenced by document_sequences cannot be deleted. See [numbering specification](CONTRACT_NUMBERING.md).

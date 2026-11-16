@@ -708,6 +708,11 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(150)")
                         .HasColumnName("name");
 
+                    b.Property<string>("Prefix")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("prefix");
+
                     b.Property<int>("SortOrder")
                         .HasColumnType("int")
                         .HasColumnName("sort_order");
@@ -717,6 +722,26 @@ namespace HRM.API.Migrations
                     b.HasIndex("IsActive", "SortOrder");
 
                     b.ToTable("contract_types", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Employees.Entities.DocumentSequence", b =>
+                {
+                    b.Property<string>("DocumentType")
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("document_type");
+
+                    b.Property<int>("DocumentYear")
+                        .HasColumnType("int")
+                        .HasColumnName("document_year");
+
+                    b.Property<long>("LastNumber")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_number");
+
+                    b.HasKey("DocumentType", "DocumentYear");
+
+                    b.ToTable("document_sequences", (string)null);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Employees.Entities.Employee", b =>
@@ -2274,6 +2299,15 @@ namespace HRM.API.Migrations
                         .HasConstraintName("fk_contracts_employee_id");
 
                     b.Navigation("Type");
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Employees.Entities.DocumentSequence", b =>
+                {
+                    b.HasOne("HRM.API.Modules.Employees.Entities.ContractType", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentType")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Employees.Entities.Employee", b =>

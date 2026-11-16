@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
+    <StaticWebAssetsEnabled>false</StaticWebAssetsEnabled>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>98d0b7a2-5ca3-492c-997d-2cc886a3ffe3</UserSecretsId>

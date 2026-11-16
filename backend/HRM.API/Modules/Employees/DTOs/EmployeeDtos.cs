@@ -36,9 +36,9 @@ public sealed class DepartmentTransferRequest : TeamAssignmentRequest
     public DateOnly EffectiveDate { get; set; }
     [Required, MaxLength(500)] public string Reason { get; set; } = "";
 }
-public sealed class ContractRequest
+public class ContractRequest
 {
-    [Required, MaxLength(50)] public string ContractNo { get; set; } = "";
+    [MaxLength(50)] public string? ContractNo { get; set; }
     [Required, MaxLength(30)] public string ContractType { get; set; } = "";
     public DateOnly StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
@@ -51,3 +51,8 @@ public sealed record ContractDto(long Id, int EmployeeId, string ContractNo, str
     DateOnly StartDate, DateOnly? EndDate, string Status, string? AttachmentUrl, string? ContractTypeName = null);
 public sealed record EmployeeHistoryDto(long Id, int EmployeeId, int? OldDepartmentId, int? NewDepartmentId,
     long? OldPositionId, long? NewPositionId, DateOnly EffectiveDate, string? Reason, string? ChangedByUserId);
+
+public sealed class ContractCreateRequest : ContractRequest
+{
+    [Range(1, int.MaxValue)] public int EmployeeId { get; set; }
+}

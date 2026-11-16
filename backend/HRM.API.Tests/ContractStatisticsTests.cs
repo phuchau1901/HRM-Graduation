@@ -24,7 +24,7 @@ public sealed class ContractStatisticsTests
     private static async Task Seed(EmployeeApiTests.Harness h, params Contract[] rows)
     {
         using var services = h.App.Services.CreateScope(); var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
-        if (!await db.Set<ContractType>().AnyAsync(t => t.Code == "STATS")) db.Add(new ContractType { Code = "STATS", Name = "Statistics" });
+        if (!await db.Set<ContractType>().AnyAsync(t => t.Code == "STATS")) db.Add(new ContractType { Code = "STATS", Name = "Statistics", Prefix = "STATS" });
         db.AddRange(rows); await db.SaveChangesAsync();
     }
     private static async Task<ContractStatisticsDto> Read(EmployeeApiTests.Harness h, string suffix = "") =>

@@ -134,6 +134,7 @@ builder.Services.AddScoped<HRM.API.Modules.Organization.Services.TeamService>();
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationTreeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeDataScope>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractTypeService>();
+builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractNumberGenerator>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractStatisticsService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeCodeGenerator>();
@@ -446,10 +447,6 @@ if (trustedProxies.Length > 0) app.UseForwardedHeaders();
 app.UseMiddleware<ApiAccessLoggingMiddleware>();
 
 app.UseRouting();
-if (app.Environment.IsDevelopment())
-{
-    app.UseStaticFiles();
-}
 app.UseCors();
 
 app.UseHttpsRedirection();

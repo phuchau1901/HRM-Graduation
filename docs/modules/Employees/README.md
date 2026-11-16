@@ -46,3 +46,5 @@ List/detail/unlinked trả departmentName, teamName, positionName cùng ID qua p
 - [Contract types — danh mục cấu hình loại hợp đồng](CONTRACT_TYPES_API.md)
 
 - [Contract statistics — thống kê hợp đồng có scope](CONTRACT_STATISTICS_API.md)
+
+- [Contract numbering and document sequences](CONTRACT_NUMBERING.md)

@@ -207,7 +207,7 @@ public sealed class EmployeeApiTests
         using (var scope = h.App.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            db.AddRange(new ContractType { Code = "FIXED_TERM", Name = "Fixed term" }, new ContractType { Code = "CHANGED", Name = "Changed" });
+            db.AddRange(new ContractType { Code = "FIXED_TERM", Name = "Fixed term", Prefix = "HDLD" }, new ContractType { Code = "CHANGED", Name = "Changed", Prefix = "OTHER" });
             await db.SaveChangesAsync();
         }
         var bad = Contract("BAD"); bad.EndDate = bad.StartDate.AddDays(-1);
@@ -215,6 +215,7 @@ public sealed class EmployeeApiTests
         var active = Contract("ACTIVE01"); active.Status = "ACTIVE";
         var created = await h.Client.PostAsJsonAsync(url, active); Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var contract = (await created.Content.ReadFromJsonAsync<ContractDto>())!;
+        active.ContractNo = contract.ContractNo;
         Assert.Equal(HttpStatusCode.OK, (await h.Client.GetAsync(created.Headers.Location)).StatusCode);
         var overlap = Contract("ACTIVE02"); overlap.Status = "ACTIVE";
         Assert.Equal(HttpStatusCode.Conflict, (await h.Client.PostAsJsonAsync(url, overlap)).StatusCode);
@@ -261,9 +262,9 @@ public sealed class EmployeeApiTests
         public AuthApiFactory App { get; private set; } = null!;
         public HttpClient Client { get; private set; } = null!;
         public int Self, Peer, Other, Department, OtherDepartment;
-        public static async Task<Harness> Create(string? scope, bool failNotification = false, DbCommandInterceptor? queries = null, TimeProvider? clock = null)
+        public static async Task<Harness> Create(string? scope, bool failNotification = false, DbCommandInterceptor? queries = null, TimeProvider? clock = null, string? sqlitePath = null)
         {
-            var h = new Harness { App = new AuthApiFactory { EmployeeScope = scope, FailNotificationWrites = failNotification, CreationInterceptor = queries, TestClock = clock } };
+            var h = new Harness { App = new AuthApiFactory { EmployeeScope = scope, FailNotificationWrites = failNotification, CreationInterceptor = queries, TestClock = clock, SqliteDatabasePath = sqlitePath } };
             h.Client = h.App.CreateClient(new() { BaseAddress = new Uri("https://localhost") }); await h.App.PrepareAsync();
             await OrganizationApiTests.Grant(h.App, "WEB_EMPLOYEES"); await OrganizationApiTests.Grant(h.App, "WEB_CONTRACTS");
             using var services = h.App.Services.CreateScope(); var db = services.ServiceProvider.GetRequiredService<AppDbContext>();

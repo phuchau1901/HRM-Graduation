@@ -30,3 +30,5 @@ Ca & lịch làm việc dùng WEB_SHIFTS/WEB_WORK_SCHEDULES và API System tái 
 Route `/#/hr/contracts` dùng WEB_CONTRACTS/VIEW; thống kê từ `/api/contracts/statistics` với window mặc định 30 ngày. Không dùng mock/fallback counts. Có skeleton, lỗi và retry; successful create/update/gia hạn/chấm dứt refetch cả stats và list. Từ Employees có thể mở “Hợp đồng” của nhân viên; cũng có thể nhập employee ID trên trang Contracts. List/POST/PUT dùng các API nested hiện có. Contract Type dropdown cần WEB_CONTRACT_TYPES/VIEW; nếu không có quyền danh mục có thể nhập mã loại đã cấu hình. Backend vẫn quyết định phạm vi nhân viên, lifecycle và quyền ghi.
 
 Checkout ban đầu chưa có trang Contracts; đây là trang được thêm vào workspace hiện có. Tests `Contracts.test.jsx` kiểm tra loading/error/zero/RBAC/refetch; chưa QA với database production và không deploy.
+
+Contract creation no longer accepts a manually typed ContractNo. The backend allocates the number using the configured ContractType prefix and Vietnam creation year. Existing numbers are displayed read-only in edit. See docs/modules/Employees/CONTRACT_NUMBERING.md.
