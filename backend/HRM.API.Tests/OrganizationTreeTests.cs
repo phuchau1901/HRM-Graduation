@@ -71,14 +71,21 @@ public sealed class OrganizationTreeTests
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/employees/{h.Self}")).StatusCode);
     }
     [Fact]
-    public async Task MissingGrantsAndMissingScopeDenyTree()
+    public async Task TreeRequiresViewButMissingScopeDefaultsToSelf()
     {
         await using var h = await EmployeeApiTests.Harness.Create("ALL");
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync("/api/organization/tree")).StatusCode);
         await Setup(h);
         using var scope = h.App.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await db.Set<HRM.API.Modules.Authorization.Entities.RoleScreenAction>().ExecuteDeleteAsync();
-        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync("/api/organization/tree")).StatusCode);
+        var tree = (await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!;
+        var department = Assert.Single(tree);
+        Assert.Equal(h.Department, department.Id); Assert.Equal(1, department.EmployeeCount);
+        Assert.Null(department.Manager); Assert.Equal(h.Self, Assert.Single(department.Teams).Lead!.Id);
+        // Other endpoints retain their existing explicit scope requirement.
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/teams/{department.Teams[0].Id}/members")).StatusCode);
+        await db.Set<User>().Where(x => x.UserId == "api-user").ExecuteUpdateAsync(s => s.SetProperty(x => x.EmployeeId, (int?)null));
+        Assert.Empty((await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!);
         h.Client.DefaultRequestHeaders.Authorization = null;
         Assert.Equal(HttpStatusCode.Unauthorized, (await h.Client.GetAsync("/api/organization/tree")).StatusCode);
     }

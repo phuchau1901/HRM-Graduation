@@ -9,7 +9,7 @@
 
 ## Authorization and visibility
 
-Tree, Team members and unassigned members require only `WEB_ORGANIZATION / VIEW` plus JWT. Employee visibility uses SELF/DEPARTMENT/ALL from the live `WEB_ORGANIZATION / VIEW` action scope through EmployeeDataScope; no WEB_EMPLOYEES, WEB_DEPARTMENTS or WEB_TEAMS grant is required for these three endpoints. Configure that action's DataScope explicitly; missing scope denies with 403. Existing catalog tabs, CRUD and full employee profiles retain their own permissions.
+Tree, Team members and unassigned members require only `WEB_ORGANIZATION / VIEW` plus JWT. Employee visibility uses SELF/DEPARTMENT/ALL from the live `WEB_ORGANIZATION / VIEW` action scope through EmployeeDataScope; no WEB_EMPLOYEES, WEB_DEPARTMENTS or WEB_TEAMS grant is required for these three endpoints. For GET /api/organization/tree, VIEW alone is sufficient: missing DataScope defaults to SELF, returning an empty tree if the user has no linked employee. Explicit SELF/DEPARTMENT/ALL scopes remain effective. Member endpoints still require configured DataScope. Existing catalog tabs, CRUD and full employee profiles retain their own permissions.
 
 - ALL: all departments and teams, including empty nodes.
 - DEPARTMENT: employee's department and its teams (including empty teams).

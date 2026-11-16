@@ -9,7 +9,8 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
 {
     public async Task<IReadOnlyList<OrganizationDepartment>> TreeAsync(string actor, CancellationToken ct)
     {
-        var access = await scopes.GetAsync(actor, "WEB_ORGANIZATION", "VIEW", ct);
+        // VIEW is sufficient to open the tree; absent scope defaults to the linked employee only.
+        var access = await scopes.GetAsync(actor, "WEB_ORGANIZATION", "VIEW", ct, fallbackToSelf: true);
         var employees = access.Apply(db.Employees.AsNoTracking());
         // Fixed number of SQL queries. Counts and manager names are projected from the scoped query;
         // no member list is materialized until a group is opened.
