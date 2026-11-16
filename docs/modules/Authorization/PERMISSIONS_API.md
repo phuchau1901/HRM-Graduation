@@ -66,7 +66,7 @@ If-Match: "<ETag lấy từ GET>"
 
 Để chỉ đổi phạm vi xem, gửi `screens: [{ "screenCode": "WEB_EMPLOYEES", "dataScopes": { "VIEW": "DEPARTMENT" } }]`; grant và scope khác giữ nguyên. Muốn xóa scope xem, thay giá trị bằng `null`. Thay đổi chỉ áp dụng trong role đang sửa; user vẫn có thể nhận scope từ role khác.
 
-Thiếu `If-Match` trả `428`; version cũ trả `412`; thiếu quyền quản trị, sửa role đang gán cho actor hoặc cấp scope vượt actor trả `403`; action/scope không hợp lệ trả `400`. Toàn bộ request permissions chạy trong một transaction. Response `200` trả ma trận cùng `version` và header `ETag` mới; scope tham gia tính version. User bị ảnh hưởng cần đăng nhập lại sau thay đổi quyền.
+Thiếu `If-Match` trả `428`; version cũ trả `412`; thiếu quyền quản trị, sửa role đang gán cho actor hoặc cấp scope vượt actor (ngoại trừ cấu hình VIEW/NEW/UPDATE của WEB_CONTRACTS bằng quyền quản trị nêu dưới) trả `403`; action/scope không hợp lệ trả `400`. Toàn bộ request permissions chạy trong một transaction. Response `200` trả ma trận cùng `version` và header `ETag` mới; scope tham gia tính version. User bị ảnh hưởng cần đăng nhập lại sau thay đổi quyền.
 
 ## GET /api/roles/{roleId}/permissions
 
@@ -196,8 +196,22 @@ Response thành công:
 }
 ```
 
-## Chẩn đoán lỗi cấp scope WEB_CONTRACTS
+## Cấu hình scope WEB_CONTRACTS bằng quyền quản trị
 
-Payload có `standard.VIEW=true` và `dataScopes.VIEW=ALL` trên WEB_CONTRACTS yêu cầu người thao tác có **cả grant VIEW và scope ALL hiệu lực trên chính WEB_CONTRACTS**. WEB_PERMISSIONS/UPDATE+APPROVE chỉ cho phép mở thao tác quản trị; không tự cấp quyền ủy quyền dữ liệu ALL. Scope của WEB_EMPLOYEES hoặc screen khác không thay thế scope WEB_CONTRACTS.
+PUT role permissions kiểm tra live `WEB_PERMISSIONS/UPDATE` và `WEB_PERMISSIONS/APPROVE`. Với `WEB_CONTRACTS`, hai quyền quản trị này cho phép cấu hình SELF/DEPARTMENT/ALL cho các action VIEW/NEW/UPDATE mà không phụ thuộc scope Contracts hiện có của người thao tác. Vì vậy user quản trị chưa được gán Contract scope vẫn cấp được `dataScopes.VIEW=ALL` cho role khác.
 
-Nếu scope của người thao tác thiếu, SELF hoặc DEPARTMENT, request ALL trả 403/HRM_ADMIN_403; message nêu screen/action, scope yêu cầu và scope hiệu lực của chính người thao tác, ví dụ: `Cannot grant WEB_CONTRACTS/VIEW scope ALL. Your effective scope is not configured.` Không tự fallback lên ALL và không chỉnh database. Cần người quản trị có quyền/scope đủ rộng cấu hình role phù hợp, hoặc chỉ cấp phạm vi mà người thao tác được phép ủy quyền.
+Các kiểm tra cấp action và authority của role vẫn áp dụng; người thao tác cần có action sẽ cấp, không được sửa role đang gán cho chính mình, phải gửi If-Match hợp lệ và không được làm mất tài khoản phục hồi cuối cùng. Screen ngừng hoạt động hoặc scope ngoài SELF/DEPARTMENT/ALL vẫn bị từ chối. Các screen/action khác giữ quy tắc không cấp scope rộng hơn scope của người thao tác.
+
+```json
+{
+  "screens": [{
+    "screenCode": "WEB_CONTRACTS",
+    "standard": { "VIEW": true },
+    "dataScopes": { "VIEW": "ALL" }
+  }]
+}
+```
+
+Quyền cấu hình không tự mở dữ liệu cho người thao tác. Các API hợp đồng nhân viên và `/api/contracts/statistics` tiếp tục dùng live WEB_CONTRACTS/VIEW scope: SELF theo users.employee_id, DEPARTMENT theo phòng ban của employee liên kết, ALL cho toàn bộ. Scope NULL/thiếu vẫn trả 403 khi đọc dữ liệu. NEW/UPDATE với SELF vẫn không được phép ghi, giống Employee. User của role được cập nhật phải đăng nhập lại sau thay đổi quyền.
+
+Validation: 97 tests quản trị/quyền, Contract scope/statistics và Employee liên quan đều đạt; gồm cấp scope khi actor thiếu/SELF/DEPARTMENT/ALL, đủ ba giá trị cho VIEW/NEW/UPDATE, và kiểm tra live UPDATE+APPROVE. Không sửa database hoặc deploy.

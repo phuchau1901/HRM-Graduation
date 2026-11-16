@@ -336,11 +336,18 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
                             throw BusinessException.Invalid("Invalid action or data scope.");
                         if (pair.Value != null)
                         {
-                            var ownScope = await permissions.GetDataScopeAsync(actor, screen.Code, pair.Key, ct);
-                            static int Rank(string? scope) => scope switch { "SELF" => 1, "DEPARTMENT" => 2, "ALL" => 3, _ => 0 };
                             if (!screen.IsActive) throw Denied($"Cannot configure data scope for inactive screen {screen.Code}.");
-                            if (Rank(ownScope) < Rank(pair.Value))
-                                throw Denied($"Cannot grant {screen.Code}/{pair.Key} scope {pair.Value}. Your effective scope is {ownScope ?? "not configured"}.");
+                            // UPDATE + APPROVE were checked live above. They authorize Contract scope
+                            // configuration independently of the administrator's personal Contract scope.
+                            // Action delegation, role ownership and recovery checks still apply.
+                            var managesContractScope = screen.Code == "WEB_CONTRACTS" && pair.Key is "VIEW" or "NEW" or "UPDATE";
+                            if (!managesContractScope)
+                            {
+                                var ownScope = await permissions.GetDataScopeAsync(actor, screen.Code, pair.Key, ct);
+                                static int Rank(string? scope) => scope switch { "SELF" => 1, "DEPARTMENT" => 2, "ALL" => 3, _ => 0 };
+                                if (Rank(ownScope) < Rank(pair.Value))
+                                    throw Denied($"Cannot grant {screen.Code}/{pair.Key} scope {pair.Value}. Your effective scope is {ownScope ?? "not configured"}.");
+                            }
                         }
                     }
                 }

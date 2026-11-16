@@ -59,11 +59,11 @@ public sealed class AdministrationApiTests
         public void Dispose() { Client.Dispose(); App.Dispose(); }
     }
     [Theory]
-    [InlineData(null, false)]
-    [InlineData("SELF", false)]
-    [InlineData("DEPARTMENT", false)]
-    [InlineData("ALL", true)]
-    public async Task ContractViewAllScopeRequiresActorsOwnContractViewAllAndExplainsDenial(string? ownScope, bool allowed)
+    [InlineData(null)]
+    [InlineData("SELF")]
+    [InlineData("DEPARTMENT")]
+    [InlineData("ALL")]
+    public async Task PermissionAdministratorCanConfigureContractAllWithoutPersonalAllScope(string? ownScope)
     {
         using var f = new Fixture(); await f.Start();
         using (var services = f.App.Services.CreateScope())
@@ -71,12 +71,8 @@ public sealed class AdministrationApiTests
             var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
             var role = await db.Set<Role>().SingleAsync(r => r.Code == "HR");
             var contracts = new Screen { Code = "WEB_CONTRACTS", Name = "Contracts", IsActive = true };
-            var employees = new Screen { Code = "WEB_EMPLOYEES", Name = "Employees", IsActive = true };
-            db.AddRange(contracts, employees); await db.SaveChangesAsync();
-            db.AddRange(new RoleDetail { RoleID = role.ID, ScreenID = contracts.ID, CanView = "Y" },
-                new RoleDetail { RoleID = role.ID, ScreenID = employees.ID, CanView = "Y" });
-            // A scope on Employees does not authorize the same scope on Contracts.
-            db.Add(new RoleScreenAction { RoleID = role.ID, ScreenID = employees.ID, ActionCode = "VIEW", DataScope = "ALL" });
+            db.Add(contracts); await db.SaveChangesAsync();
+            db.Add(new RoleDetail { RoleID = role.ID, ScreenID = contracts.ID, CanView = "Y" });
             if (ownScope is not null) db.Add(new RoleScreenAction { RoleID = role.ID, ScreenID = contracts.ID, ActionCode = "VIEW", DataScope = ownScope });
             await db.SaveChangesAsync();
         }
@@ -88,22 +84,77 @@ public sealed class AdministrationApiTests
             standard = new { NEW = false, VIEW = true, UPDATE = false, DELETE = false, APPROVE = false, EXPORT = false },
             dataScopes = new { VIEW = "ALL" }
         } } }, before.Version);
-        Assert.Equal(allowed ? HttpStatusCode.OK : HttpStatusCode.Forbidden, response.StatusCode);
-        if (allowed)
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var matrix = (await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!;
+        var contractsView = Assert.Single(matrix.Screens, screen => screen.ScreenCode == "WEB_CONTRACTS");
+        Assert.True(contractsView.Standard["VIEW"]); Assert.Equal("ALL", contractsView.DataScopes["VIEW"]);
+        // Managing scope never grants the actor data access to contracts.
+        if (ownScope is null) Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.GetAsync("/api/contracts/statistics")).StatusCode);
+    }
+    [Theory]
+    [InlineData("VIEW", "SELF")]
+    [InlineData("VIEW", "DEPARTMENT")]
+    [InlineData("VIEW", "ALL")]
+    [InlineData("NEW", "SELF")]
+    [InlineData("NEW", "DEPARTMENT")]
+    [InlineData("NEW", "ALL")]
+    [InlineData("UPDATE", "SELF")]
+    [InlineData("UPDATE", "DEPARTMENT")]
+    [InlineData("UPDATE", "ALL")]
+    public async Task ContractScopeConfigurationSupportsAllThreeValuesForScopedActions(string action, string dataScope)
+    {
+        using var f = new Fixture(); await f.Start();
+        using (var services = f.App.Services.CreateScope())
         {
-            var matrix = (await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!;
-            var contracts = Assert.Single(matrix.Screens, screen => screen.ScreenCode == "WEB_CONTRACTS");
-            Assert.True(contracts.Standard["VIEW"]); Assert.Equal("ALL", contracts.DataScopes["VIEW"]);
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            var role = await db.Set<Role>().SingleAsync(r => r.Code == "HR");
+            var contracts = new Screen { Code = "WEB_CONTRACTS", Name = "Contracts", IsActive = true };
+            db.Add(contracts); await db.SaveChangesAsync();
+            db.Add(new RoleDetail { RoleID = role.ID, ScreenID = contracts.ID, CanView = "Y", CanNew = "Y", CanUpdate = "Y" });
+            await db.SaveChangesAsync();
         }
-        else
+        await OrganizationApiTests.Login(f.Client, f.App);
+        var matrix = await f.Matrix();
+        var response = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
         {
-            using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            Assert.Equal("HRM_ADMIN_403", body.RootElement.GetProperty("code").GetString());
-            var message = body.RootElement.GetProperty("message").GetString()!;
-            Assert.Contains("WEB_CONTRACTS/VIEW scope ALL", message);
-            Assert.Contains($"Your effective scope is {ownScope ?? "not configured"}", message);
-            Assert.Equal(before.Version, (await f.Matrix()).Version);
+            screenCode = "WEB_CONTRACTS", standard = new Dictionary<string, bool> { [action] = true },
+            dataScopes = new Dictionary<string, string> { [action] = dataScope }
+        } } }, matrix.Version);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var after = (await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!;
+        Assert.Equal(dataScope, Assert.Single(after.Screens, s => s.ScreenCode == "WEB_CONTRACTS").DataScopes[action]);
+    }
+    [Theory]
+    [InlineData("UPDATE")]
+    [InlineData("APPROVE")]
+    public async Task ContractScopeDelegationStillRequiresBothLivePermissionManagementGrants(string missingAction)
+    {
+        using var f = new Fixture(); await f.Start();
+        using (var services = f.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            var role = await db.Set<Role>().SingleAsync(r => r.Code == "HR");
+            var contracts = new Screen { Code = "WEB_CONTRACTS", Name = "Contracts", IsActive = true };
+            db.Add(contracts); await db.SaveChangesAsync();
+            db.Add(new RoleDetail { RoleID = role.ID, ScreenID = contracts.ID, CanView = "Y" });
+            await db.SaveChangesAsync();
         }
+        await OrganizationApiTests.Login(f.Client, f.App); // JWT contains grants, then live authority is revoked.
+        var before = await f.Matrix();
+        using (var services = f.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            var screen = await db.Screens.SingleAsync(s => s.Code == "WEB_PERMISSIONS");
+            var detail = await db.RoleDetails.SingleAsync(d => d.ScreenID == screen.ID && d.CanApprove == "Y");
+            if (missingAction == "UPDATE") detail.CanUpdate = "N"; else detail.CanApprove = "N";
+            await db.SaveChangesAsync();
+        }
+        var response = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode = "WEB_CONTRACTS", standard = new { VIEW = true }, dataScopes = new { VIEW = "ALL" }
+        } } }, before.Version);
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(before.Version, (await f.Matrix()).Version);
     }
     [Fact]
     public async Task ScopePatchPreservesNotificationsAndInvalidatesOldToken()

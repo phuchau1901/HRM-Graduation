@@ -1706,7 +1706,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/roles/{{roleId}}/permissions",
-            "description": "Patch các quyền đã được phê duyệt\nPermission: WEB_PERMISSIONS/UPDATE AND WEB_PERMISSIONS/APPROVE\nParameters: roleId; If-Match\nChỉ 6 standard action chính xác uppercase. Omit flag giữ giá trị cũ. Omit extendedActions giữ nguyên, [] gỡ các extended đã đăng ký cho screen đó; cung cấp array thay các extended đã đăng ký; action lạ đã lưu giữ nguyên/read-only. Screen không có trong request không đổi. Không sửa Role đang gán cho actor. Quyền cũ/mới không vượt actor; toàn bộ transaction; audit before/after; phiên user ảnh hưởng hết hiệu lực.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 401/403; Screen/action sai400; request có screen trùng400; stale412; lỗi một mục rollback toàn bộ; không mất extended.",
+            "description": "Patch các quyền đã được phê duyệt\nPermission: WEB_PERMISSIONS/UPDATE AND WEB_PERMISSIONS/APPROVE\nParameters: roleId; If-Match\nChỉ 6 standard action chính xác uppercase. Omit flag giữ giá trị cũ. Omit extendedActions giữ nguyên, [] gỡ các extended đã đăng ký cho screen đó; cung cấp array thay các extended đã đăng ký; action lạ đã lưu giữ nguyên/read-only. Screen không có trong request không đổi. Không sửa Role đang gán cho actor. Quyền cũ/mới không vượt actor; toàn bộ transaction; audit before/after; phiên user ảnh hưởng hết hiệu lực.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 401/403; Screen/action sai400; request có screen trùng400; stale412; lỗi một mục rollback toàn bộ; không mất extended. WEB_CONTRACTS VIEW/NEW/UPDATE scope configuration supports SELF/DEPARTMENT/ALL under live WEB_PERMISSIONS UPDATE+APPROVE, independently of the administrator's own Contract scope. Action authority, no-self-edit, If-Match, recovery and runtime Contract Data Scope checks remain. See docs/modules/Authorization/PERMISSIONS_API.md.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"screens\": [\n    {\n      \"screenCode\": \"WEB_EXAMPLE\",\n      \"standard\": {\n        \"VIEW\": true,\n        \"NEW\": false\n      },\n      \"extendedActions\": [\n        \"SEND_USER\"\n      ]\n    }\n  ]\n}",
@@ -1817,7 +1817,8 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"screens\": [\n    {\n      \"screenCode\": \"WEB_EMPLOYEES\",\n      \"standard\": {\n        \"VIEW\": true,\n        \"UPDATE\": true\n      },\n      \"dataScopes\": {\n        \"VIEW\": \"DEPARTMENT\",\n        \"UPDATE\": \"DEPARTMENT\"\n      }\n    }\n  ]\n}"
-            }
+            },
+            "description": " WEB_CONTRACTS VIEW/NEW/UPDATE scope configuration supports SELF/DEPARTMENT/ALL under live WEB_PERMISSIONS UPDATE+APPROVE, independently of the administrator's own Contract scope. Action authority, no-self-edit, If-Match, recovery and runtime Contract Data Scope checks remain. See docs/modules/Authorization/PERMISSIONS_API.md."
           }
         }
       ]

@@ -177,3 +177,5 @@ Loại đã ngừng hoạt động được giữ trên hợp đồng cũ khi b�
 ## Thống kê hợp đồng
 
 [GET /api/contracts/statistics](CONTRACT_STATISTICS_API.md) trả active/expiringSoon/expired theo ngày Asia/Ho_Chi_Minh và WEB_CONTRACTS/VIEW Data Scope. Không cần đọc toàn bộ danh sách hoặc quyền Employee riêng.
+
+Cấu hình SELF/DEPARTMENT/ALL trên WEB_CONTRACTS qua role permissions dùng quyền quản trị WEB_PERMISSIONS/UPDATE+APPROVE, độc lập scope Contracts của người thao tác; xem [quy tắc quản trị scope](../Authorization/PERMISSIONS_API.md#cấu-hình-scope-web_contracts-bằng-quyền-quản-trị). Quyền action, scope tại thời điểm đọc/ghi hợp đồng không đổi.
