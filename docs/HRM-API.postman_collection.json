@@ -2364,7 +2364,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/contract-types?isActive=true&page=1&pageSize=100",
-            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
           }
         },
         {
@@ -2372,7 +2372,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
-            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
           }
         },
         {
@@ -2380,7 +2380,7 @@
           "request": {
             "method": "POST",
             "url": "{{baseUrl}}/api/contract-types",
-            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
             "header": [
               {
                 "key": "Content-Type",
@@ -2403,7 +2403,7 @@
           "request": {
             "method": "PUT",
             "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
-            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md.",
             "header": [
               {
                 "key": "Content-Type",
@@ -2426,7 +2426,7 @@
           "request": {
             "method": "DELETE",
             "url": "{{baseUrl}}/api/contract-types/{{contractTypeCode}}",
-            "description": "Requires WEB_CONTRACTS action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
+            "description": "Requires WEB_CONTRACT_TYPES action grant. Global configuration, no Employee scope. Referenced types cannot be deleted; deactivate instead. Configure an active type before creating contracts. See docs/modules/Employees/CONTRACT_TYPES_API.md."
           }
         }
       ]

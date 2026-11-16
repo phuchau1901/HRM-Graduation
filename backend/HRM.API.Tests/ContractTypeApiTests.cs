@@ -19,6 +19,7 @@ public sealed class ContractTypeApiTests
         new() { ContractNo = number, ContractType = code, StartDate = new(2020, 1, 1), Status = "DRAFT" };
     private static async Task Configure(EmployeeApiTests.Harness h)
     {
+        await OrganizationApiTests.Grant(h.App, "WEB_CONTRACT_TYPES"); await OrganizationApiTests.Login(h.Client, h.App);
         using var services = h.App.Services.CreateScope(); var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
         db.AddRange(new ContractType { Code = "FIXED", Name = "Fixed term" }, new ContractType { Code = "OTHER", Name = "Other" },
             new ContractType { Code = "OLD", Name = "Old", IsActive = false });
@@ -33,6 +34,12 @@ public sealed class ContractTypeApiTests
         await OrganizationApiTests.Login(client, app);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/contract-types")).StatusCode);
         await OrganizationApiTests.Grant(app, "WEB_CONTRACTS"); await OrganizationApiTests.Login(client, app);
+        // Contract grants must not authorize configuration on the separate Contract Types screen.
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/contract-types")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/contract-types", Type("FIXED"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync("/api/contract-types/FIXED", new { name = "No" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync("/api/contract-types/FIXED")).StatusCode);
+        await OrganizationApiTests.Grant(app, "WEB_CONTRACT_TYPES"); await OrganizationApiTests.Login(client, app);
         var created = await client.PostAsJsonAsync("/api/contract-types", Type("FIXED"));
         Assert.Equal(HttpStatusCode.Created, created.StatusCode); Assert.NotNull(created.Headers.Location);
         Assert.Equal("FIXED", (await client.GetFromJsonAsync<ContractTypeDto>(created.Headers.Location))!.Code);
@@ -57,6 +64,7 @@ public sealed class ContractTypeApiTests
     public async Task CatalogSupportsSearchActiveFilterStablePagingDeletionAndAudit()
     {
         await using var h = await EmployeeApiTests.Harness.Create("SELF");
+        await OrganizationApiTests.Grant(h.App, "WEB_CONTRACT_TYPES"); await OrganizationApiTests.Login(h.Client, h.App);
         foreach (var type in new[] { Type("B", order: 2), Type("A", order: 2), Type("C", false, 0) })
             (await h.Client.PostAsJsonAsync("/api/contract-types", type)).EnsureSuccessStatusCode();
         var first = (await h.Client.GetFromJsonAsync<PageResult<ContractTypeDto>>("/api/contract-types?isActive=true&pageSize=1"))!;
@@ -98,6 +106,7 @@ public sealed class ContractTypeApiTests
     public async Task LegacyCodeWithWhitespaceCanBeMaintainedWithoutRewritingItsCode()
     {
         await using var h = await EmployeeApiTests.Harness.Create("ALL");
+        await OrganizationApiTests.Grant(h.App, "WEB_CONTRACT_TYPES"); await OrganizationApiTests.Login(h.Client, h.App);
         const string legacyCode = " Legacy Code ";
         using (var scope = h.App.Services.CreateScope())
         {
@@ -125,6 +134,22 @@ public sealed class ContractTypeApiTests
             var response = await h.Client.PostAsJsonAsync($"/api/employees/{id}/contracts", Contract("FIXED", "SCOPE" + index));
             Assert.Equal(index < allowed ? HttpStatusCode.Created : scope == "SELF" ? HttpStatusCode.Forbidden : HttpStatusCode.NotFound, response.StatusCode);
         }
+    }
+    [Fact]
+    public async Task ContractTypePermissionDoesNotGrantAccessToEmployeeContracts()
+    {
+        await using var h = await EmployeeApiTests.Harness.Create("ALL"); await Configure(h);
+        using (var services = h.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            var contractScreenId = await db.Screens.Where(s => s.Code == "WEB_CONTRACTS").Select(s => s.ID).SingleAsync();
+            await db.RoleDetails.Where(d => d.ScreenID == contractScreenId).ExecuteDeleteAsync();
+            await db.Set<RoleScreenAction>().Where(a => a.ScreenID == contractScreenId).ExecuteDeleteAsync();
+        }
+        await OrganizationApiTests.Login(h.Client, h.App);
+        (await h.Client.GetAsync("/api/contract-types")).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/employees/{h.Self}/contracts")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.PostAsJsonAsync($"/api/employees/{h.Self}/contracts", Contract("FIXED"))).StatusCode);
     }
     [Fact]
     public async Task ReadingNamesUsesBoundedQueriesAndForeignKeyRejectsUnconfiguredType()

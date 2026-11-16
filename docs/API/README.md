@@ -80,11 +80,11 @@ Có **87 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | DELETE | `/api/employees/{employeeId}` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / DELETE + data scope |
 | PATCH | `/api/employees/{employeeId}/department` | [Employees](../modules/Employees/PROFILES_API.md) | WEB_EMPLOYEES / UPDATE + data scope |
 | GET | `/api/employees/{employeeId}/history` | [Employees](../modules/Employees/HISTORY_API.md) | WEB_EMPLOYEES / VIEW + data scope |
-| GET | `/api/contract-types` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / VIEW; global catalog |
-| GET | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / VIEW; global catalog |
-| POST | `/api/contract-types` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / NEW; global catalog |
-| PUT | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / UPDATE; global catalog |
-| DELETE | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACTS / DELETE; global catalog |
+| GET | `/api/contract-types` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACT_TYPES / VIEW; global catalog |
+| GET | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACT_TYPES / VIEW; global catalog |
+| POST | `/api/contract-types` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACT_TYPES / NEW; global catalog |
+| PUT | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACT_TYPES / UPDATE; global catalog |
+| DELETE | `/api/contract-types/{code}` | [Contract types](../modules/Employees/CONTRACT_TYPES_API.md) | WEB_CONTRACT_TYPES / DELETE; global catalog |
 | GET | `/api/employees/{employeeId}/contracts` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / VIEW + data scope |
 | GET | `/api/employees/{employeeId}/contracts/{contractId}` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / VIEW + data scope |
 | POST | `/api/employees/{employeeId}/contracts` | [Employees](../modules/Employees/CONTRACTS_API.md) | WEB_CONTRACTS / NEW + data scope |

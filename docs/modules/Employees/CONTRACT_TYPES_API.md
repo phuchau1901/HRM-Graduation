@@ -26,7 +26,7 @@ Migration and snapshot are generated only. The migration is **not applied** by t
 
 ## Permissions
 
-All endpoints require JWT and an active `WEB_CONTRACTS` grant for the corresponding action. Catalog metadata is global and does not contain employee records; it does not require Employee Data Scope. This does not grant access to contracts belonging to employees: existing contract APIs retain WEB_CONTRACTS/VIEW, NEW or UPDATE scope (SELF/DEPARTMENT/ALL for reads; DEPARTMENT/ALL for writes).
+All endpoints require JWT and an active `WEB_CONTRACT_TYPES` grant for the corresponding action. Catalog metadata is global and does not contain employee records; it does not require Employee Data Scope. This does not grant access to contracts belonging to employees: existing contract APIs retain WEB_CONTRACTS/VIEW, NEW or UPDATE scope (SELF/DEPARTMENT/ALL for reads; DEPARTMENT/ALL for writes).
 
 | Method | Endpoint | Action | Success |
 | --- | --- | --- | --- |
@@ -96,3 +96,15 @@ Names reflect current catalog configuration, including retired types. List/detai
 ContractTypeApiTests covers JWT/action permissions, global catalog access, pagination/filter/order, audits, reference-safe deletion, active/unknown types, maintenance of retired types, read names, Employee Data Scope and bounded query counts. ContractTypeMigrationTests checks the offline MySQL script, snapshot, FK and preservation/backfill of legacy codes. The existing contract lifecycle test is retained with explicitly configured catalog types.
 
 Validation: backend build succeeded. Full backend run: 305 passed / 9 failed (314 total); failures are the pre-existing EmployeeCreationTests NV-vs-TX code-prefix mismatch, outside ContractType changes. All ContractType/API/migration regressions passed, including a legacy code with whitespace. SQL was generated offline; no migration was applied.
+
+## Separate Contract Types screen
+
+Catalog API permissions belong to screen `WEB_CONTRACT_TYPES` (display name: Contract Type). Employee contract APIs retain `WEB_CONTRACTS` and their Employee Data Scope checks. A grant on either screen does not implicitly grant access to the other. Users selecting types through `/api/contract-types` need WEB_CONTRACT_TYPES/VIEW; creating a contract needs WEB_CONTRACTS/NEW plus its scope, not Contract Type NEW.
+
+Register the screen through the existing screen administration API if absent, then assign its actions through role permissions and sign in again for updated JWT grants. No direct database or automatic permission grant is performed by this change.
+
+Example `POST /api/screens` (requires screen administration permission):
+
+```json
+{"code":"WEB_CONTRACT_TYPES","name":"Contract Type","platform":"WEB","isActive":true}
+```

@@ -12,18 +12,18 @@ namespace HRM.API.Modules.Employees.Controllers;
 public sealed class ContractTypesController(ContractTypeService service) : ControllerBase
 {
     private string Actor => User.FindFirst(JwtRegisteredClaimNames.Sub)!.Value;
-    [HttpGet, ScreenPermission("WEB_CONTRACTS", "VIEW")]
+    [HttpGet, ScreenPermission("WEB_CONTRACT_TYPES", "VIEW")]
     public async Task<IActionResult> List([FromQuery] ContractTypeQuery q, CancellationToken ct) => Ok(await service.ListAsync(q, ct));
-    [HttpGet("{code}"), ScreenPermission("WEB_CONTRACTS", "VIEW")]
+    [HttpGet("{code}"), ScreenPermission("WEB_CONTRACT_TYPES", "VIEW")]
     public async Task<IActionResult> Get(string code, CancellationToken ct) => Ok(await service.GetAsync(code, ct));
-    [HttpPost, ScreenPermission("WEB_CONTRACTS", "NEW")]
+    [HttpPost, ScreenPermission("WEB_CONTRACT_TYPES", "NEW")]
     public async Task<IActionResult> Create(ContractTypeRequest request, CancellationToken ct)
     {
         var type = await service.SaveAsync(Actor, null, request, ct);
         return CreatedAtAction(nameof(Get), new { code = type.Code }, type);
     }
-    [HttpPut("{code}"), ScreenPermission("WEB_CONTRACTS", "UPDATE")]
+    [HttpPut("{code}"), ScreenPermission("WEB_CONTRACT_TYPES", "UPDATE")]
     public async Task<IActionResult> Update(string code, ContractTypeUpdateRequest request, CancellationToken ct) => Ok(await service.SaveAsync(Actor, code, request, ct));
-    [HttpDelete("{code}"), ScreenPermission("WEB_CONTRACTS", "DELETE")]
+    [HttpDelete("{code}"), ScreenPermission("WEB_CONTRACT_TYPES", "DELETE")]
     public async Task<IActionResult> Delete(string code, CancellationToken ct) { await service.DeleteAsync(Actor, code, ct); return NoContent(); }
 }
