@@ -195,3 +195,9 @@ Response thành công:
   ]
 }
 ```
+
+## Chẩn đoán lỗi cấp scope WEB_CONTRACTS
+
+Payload có `standard.VIEW=true` và `dataScopes.VIEW=ALL` trên WEB_CONTRACTS yêu cầu người thao tác có **cả grant VIEW và scope ALL hiệu lực trên chính WEB_CONTRACTS**. WEB_PERMISSIONS/UPDATE+APPROVE chỉ cho phép mở thao tác quản trị; không tự cấp quyền ủy quyền dữ liệu ALL. Scope của WEB_EMPLOYEES hoặc screen khác không thay thế scope WEB_CONTRACTS.
+
+Nếu scope của người thao tác thiếu, SELF hoặc DEPARTMENT, request ALL trả 403/HRM_ADMIN_403; message nêu screen/action, scope yêu cầu và scope hiệu lực của chính người thao tác, ví dụ: `Cannot grant WEB_CONTRACTS/VIEW scope ALL. Your effective scope is not configured.` Không tự fallback lên ALL và không chỉnh database. Cần người quản trị có quyền/scope đủ rộng cấu hình role phù hợp, hoặc chỉ cấp phạm vi mà người thao tác được phép ủy quyền.

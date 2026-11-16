@@ -22,7 +22,7 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
 {
     public const string Users = "WEB_USERS", Roles = "WEB_ROLES", Permissions = "WEB_PERMISSIONS";
     public static string Version(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
-    private static BusinessException Denied() => new(403, "HRM_ADMIN_403", "Operation exceeds current administrative authority.");
+    private static BusinessException Denied(string? message = null) => new(403, "HRM_ADMIN_403", message ?? "Operation exceeds current administrative authority.");
     private static void Match(string? header, string version)
     {
         if (string.IsNullOrEmpty(header)) throw new BusinessException(428, "HRM_ADMIN_428", "If-Match is required; read the resource first.");
@@ -338,7 +338,9 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
                         {
                             var ownScope = await permissions.GetDataScopeAsync(actor, screen.Code, pair.Key, ct);
                             static int Rank(string? scope) => scope switch { "SELF" => 1, "DEPARTMENT" => 2, "ALL" => 3, _ => 0 };
-                            if (!screen.IsActive || Rank(ownScope) < Rank(pair.Value)) throw Denied();
+                            if (!screen.IsActive) throw Denied($"Cannot configure data scope for inactive screen {screen.Code}.");
+                            if (Rank(ownScope) < Rank(pair.Value))
+                                throw Denied($"Cannot grant {screen.Code}/{pair.Key} scope {pair.Value}. Your effective scope is {ownScope ?? "not configured"}.");
                         }
                     }
                 }
