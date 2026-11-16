@@ -9,7 +9,9 @@
 
 ## Authorization and visibility
 
-Tree and unassigned members require `WEB_ORGANIZATION / VIEW` plus JWT. Team members require `WEB_ORGANIZATION / VIEW` and `WEB_EMPLOYEES / VIEW`; their employee rows and total use the live WEB_EMPLOYEES/VIEW DataScope, not an Organization or Team scope. Employee visibility uses SELF/DEPARTMENT/ALL from the live `WEB_ORGANIZATION / VIEW` action scope through EmployeeDataScope; WEB_DEPARTMENTS and WEB_TEAMS grants are not required for these endpoints. For GET /api/organization/tree, VIEW alone is sufficient: missing DataScope defaults to SELF, returning structural nodes with zero visible employees if the user has no linked employee. Explicit SELF/DEPARTMENT/ALL scopes remain effective. Team members require configured WEB_EMPLOYEES/VIEW DataScope. Unassigned members retain WEB_ORGANIZATION/VIEW DataScope. Existing catalog tabs, CRUD and full employee profiles retain their own permissions.
+Tree requires only `WEB_ORGANIZATION / VIEW` plus JWT. It returns all Department/Team metadata without Organization or Team DataScope filtering. Employee counts, manager/lead identities and unassigned counts use the live `WEB_EMPLOYEES / VIEW` scope, matching member lists. Missing Employee access/scope yields zero employee counts and null manager/lead identities, while structural nodes remain visible.
+
+Team members and unassigned members require `WEB_ORGANIZATION / VIEW` and `WEB_EMPLOYEES / VIEW`, with configured `WEB_EMPLOYEES / VIEW` DataScope (SELF/DEPARTMENT/ALL). No Organization/Team DataScope or WEB_DEPARTMENTS/WEB_TEAMS grant is required. Employee filtering happens before counts and pagination. Existing CRUD and full employee profiles retain their own permissions.
 
 Department and Team metadata is visible with WEB_ORGANIZATION/VIEW, regardless of employee membership. Departments with no teams and teams with no employees remain in the tree. Employee Data Scope applies to identities and employee counts:
 
@@ -65,3 +67,5 @@ SELECT Id, TeamName, DepartmentId FROM teams ORDER BY TeamName, Id;
 ```
 
 These show the structural selection only; the actual projections also include scoped employee counts and nullable manager/lead information.
+
+Count regression: Tree employeeCount matches Members total under SELF/DEPARTMENT/ALL even when Organization DataScope is absent. Department employeeCount equals the sum of Team employeeCounts plus unassignedCount.

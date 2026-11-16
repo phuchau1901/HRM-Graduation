@@ -2256,7 +2256,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/organization/tree",
-            "description": "Requires WEB_ORGANIZATION / VIEW. Configured SELF/DEPARTMENT/ALL is respected; missing DataScope defaults to SELF. See docs/modules/Organization/TREE_API.md."
+            "description": "Requires WEB_ORGANIZATION/VIEW. Department and Team nodes have no DataScope filter. Employee counts and manager/lead identities use WEB_EMPLOYEES/VIEW scope; absent Employee access returns zero counts and null identities."
           }
         },
         {
@@ -2264,7 +2264,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/teams/{{teamId}}/members?page=1&pageSize=20",
-            "description": "Requires WEB_ORGANIZATION/VIEW and WEB_EMPLOYEES/VIEW. Team lookup has no scope; employee rows and total use WEB_EMPLOYEES/VIEW SELF/DEPARTMENT/ALL. No Organization or Team DataScope required."
+            "description": "Requires WEB_ORGANIZATION/VIEW and WEB_EMPLOYEES/VIEW. Employee rows and total use WEB_EMPLOYEES/VIEW SELF/DEPARTMENT/ALL, matching Tree employeeCount. No Organization/Team DataScope required."
           }
         },
         {
@@ -2272,7 +2272,7 @@
           "request": {
             "method": "GET",
             "url": "{{baseUrl}}/api/departments/{{departmentId}}/unassigned-members?page=1&pageSize=20",
-            "description": "Requires only WEB_ORGANIZATION / VIEW; configure its SELF/DEPARTMENT/ALL DataScope. See docs/modules/Organization/TREE_API.md."
+            "description": "Requires WEB_ORGANIZATION/VIEW and WEB_EMPLOYEES/VIEW. Employee rows and total use WEB_EMPLOYEES/VIEW SELF/DEPARTMENT/ALL, matching Tree employeeCount. No Organization/Team DataScope required."
           }
         }
       ]

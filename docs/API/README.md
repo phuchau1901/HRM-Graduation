@@ -54,9 +54,9 @@ Có **82 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | POST | `/api/notifications/announcements` | [Notifications](../modules/Notifications/API.md) | WEB_NOTIFICATIONS / action theo target; CANCEL cho hủy |
 | POST | `/api/notifications/{notificationId}/publish` | [Notifications](../modules/Notifications/API.md) | WEB_NOTIFICATIONS / action theo target; CANCEL cho hủy |
 | POST | `/api/notifications/{notificationId}/cancel` | [Notifications](../modules/Notifications/API.md) | WEB_NOTIFICATIONS / action theo target; CANCEL cho hủy |
-| GET | `/api/organization/tree` | [Organization Tree](../modules/Organization/TREE_API.md) | WEB_ORGANIZATION / VIEW + scope |
+| GET | `/api/organization/tree` | [Organization Tree](../modules/Organization/TREE_API.md) | WEB_ORGANIZATION / VIEW; employee facts use WEB_EMPLOYEES scope |
 | GET | `/api/teams/{teamId}/members` | [Organization Tree](../modules/Organization/TREE_API.md) | WEB_ORGANIZATION + WEB_EMPLOYEES / VIEW; WEB_EMPLOYEES scope |
-| GET | `/api/departments/{departmentId}/unassigned-members` | [Organization Tree](../modules/Organization/TREE_API.md) | WEB_ORGANIZATION / VIEW + scope |
+| GET | `/api/departments/{departmentId}/unassigned-members` | [Organization Tree](../modules/Organization/TREE_API.md) | WEB_ORGANIZATION + WEB_EMPLOYEES / VIEW; WEB_EMPLOYEES scope |
 | GET | `/api/departments` | [Organization](../modules/Organization/DEPARTMENTS_API.md) | WEB_DEPARTMENTS / VIEW |
 | GET | `/api/departments/{departmentId}` | [Organization](../modules/Organization/DEPARTMENTS_API.md) | WEB_DEPARTMENTS / VIEW |
 | POST | `/api/departments` | [Organization](../modules/Organization/DEPARTMENTS_API.md) | WEB_DEPARTMENTS / NEW |

@@ -67,7 +67,7 @@ public sealed class OrganizationTreeTests
         await OrganizationApiTests.Login(h.Client, h.App);
         (await h.Client.GetAsync("/api/organization/tree")).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/teams/{teamId}/members")).StatusCode);
-        (await h.Client.GetAsync($"/api/departments/{h.Department}/unassigned-members")).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/departments/{h.Department}/unassigned-members")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/employees/{h.Self}")).StatusCode);
     }
     [Theory]
@@ -86,6 +86,14 @@ public sealed class OrganizationTreeTests
         }
         var result = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/teams/{teamId}/members?pageSize=1"))!;
         Assert.Equal(expectedTotal, result.Total); Assert.Equal(h.Self, Assert.Single(result.Data).Id);
+        var tree = (await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!;
+        var department = Assert.Single(tree, d => d.Id == h.Department);
+        Assert.Equal(expectedTotal, department.EmployeeCount);
+        Assert.Equal(result.Total, Assert.Single(department.Teams, t => t.Id == teamId).EmployeeCount);
+        var unassigned = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/departments/{h.Department}/unassigned-members"))!;
+        Assert.Equal(unassigned.Total, department.UnassignedCount);
+        Assert.Equal(department.EmployeeCount, department.Teams.Sum(t => t.EmployeeCount) + department.UnassignedCount);
+
         var second = (await h.Client.GetFromJsonAsync<PageResult<OrganizationMember>>($"/api/teams/{teamId}/members?pageSize=1&page=2"))!;
         if (expectedTotal == 1) Assert.Empty(second.Data); else Assert.Equal(h.Peer, Assert.Single(second.Data).Id);
         Assert.DoesNotContain(result.Data, e => e.Id == h.Other);
@@ -96,9 +104,11 @@ public sealed class OrganizationTreeTests
             await db.Set<RoleScreenAction>().Where(g => g.ScreenID == employeeId && g.ActionCode == "VIEW").ExecuteDeleteAsync();
         }
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/teams/{teamId}/members")).StatusCode);
+        var deniedTree = (await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!;
+        Assert.All(deniedTree, d => { Assert.Equal(0, d.EmployeeCount); Assert.Equal(0, d.UnassignedCount); Assert.Null(d.Manager); Assert.All(d.Teams, t => { Assert.Equal(0, t.EmployeeCount); Assert.Null(t.Lead); }); });
     }
     [Fact]
-    public async Task TreeRequiresViewButMissingScopeDefaultsToSelf()
+    public async Task TreeRequiresOrganizationViewButMissingEmployeeScopeHidesEmployeeFacts()
     {
         await using var h = await EmployeeApiTests.Harness.Create("ALL");
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync("/api/organization/tree")).StatusCode);
@@ -107,8 +117,8 @@ public sealed class OrganizationTreeTests
         await db.Set<HRM.API.Modules.Authorization.Entities.RoleScreenAction>().ExecuteDeleteAsync();
         var tree = (await h.Client.GetFromJsonAsync<List<OrganizationDepartment>>("/api/organization/tree"))!;
         var department = Assert.Single(tree, d => d.Id == h.Department);
-        Assert.Equal(h.Department, department.Id); Assert.Equal(1, department.EmployeeCount);
-        Assert.Null(department.Manager); Assert.Equal(h.Self, Assert.Single(department.Teams).Lead!.Id);
+        Assert.Equal(h.Department, department.Id); Assert.Equal(0, department.EmployeeCount);
+        Assert.Null(department.Manager); Assert.Null(Assert.Single(department.Teams).Lead);
         // Other endpoints retain their existing explicit scope requirement.
         Assert.Equal(HttpStatusCode.Forbidden, (await h.Client.GetAsync($"/api/teams/{department.Teams[0].Id}/members")).StatusCode);
         await db.Set<User>().Where(x => x.UserId == "api-user").ExecuteUpdateAsync(s => s.SetProperty(x => x.EmployeeId, (int?)null));

@@ -9,8 +9,9 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
 {
     public async Task<IReadOnlyList<OrganizationDepartment>> TreeAsync(string actor, CancellationToken ct)
     {
-        // VIEW is sufficient to open the tree; absent scope defaults to the linked employee only.
-        var access = await scopes.GetAsync(actor, "WEB_ORGANIZATION", "VIEW", ct, fallbackToSelf: true);
+        // Structure only requires Organization VIEW; employee facts use the same scope as member lists.
+        // Without Employee access, keep all nodes but expose no employee facts.
+        var access = await scopes.GetAsync(actor, "WEB_EMPLOYEES", "VIEW", ct, allowEmptyScope: true);
         var employees = access.Apply(db.Employees.AsNoTracking());
         // Organization VIEW exposes structural nodes even when no scoped employees belong to them.
         // Employee identities and counts remain scoped.
@@ -41,8 +42,7 @@ public sealed class OrganizationTreeService(AppDbContext db, EmployeeDataScope s
     public async Task<PageResult<OrganizationMember>> MembersAsync(string actor, int? teamId, int? departmentId, PageQuery q, CancellationToken ct)
     {
         // Team metadata has no Data Scope. Employee rows use the employee permission scope.
-        var employeeScreen = teamId.HasValue ? "WEB_EMPLOYEES" : "WEB_ORGANIZATION";
-        var access = await scopes.GetAsync(actor, employeeScreen, "VIEW", ct);
+        var access = await scopes.GetAsync(actor, "WEB_EMPLOYEES", "VIEW", ct);
         var employees = access.Apply(db.Employees.AsNoTracking());
         if (teamId.HasValue)
         {

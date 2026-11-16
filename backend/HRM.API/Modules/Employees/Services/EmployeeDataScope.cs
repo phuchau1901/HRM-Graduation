@@ -27,12 +27,12 @@ public sealed record EmployeeAccess(string Scope, int? EmployeeId, int? Departme
 }
 public sealed class EmployeeDataScope(AppDbContext db, IPermissionService permissions)
 {
-    public async Task<EmployeeAccess> GetAsync(string userId, string screen, string action, CancellationToken ct, bool fallbackToSelf = false)
+    public async Task<EmployeeAccess> GetAsync(string userId, string screen, string action, CancellationToken ct, bool allowEmptyScope = false)
     {
         var user = await db.Set<User>().AsNoTracking().Where(x => x.UserId == userId && x.Status == "ACTIVE")
             .Select(x => new { x.EmployeeId }).SingleOrDefaultAsync(ct) ?? throw BusinessException.Scope();
         var scope = await permissions.GetDataScopeAsync(userId, screen, action, ct)
-            ?? (fallbackToSelf ? "SELF" : throw BusinessException.Scope());
+            ?? (allowEmptyScope ? "NONE" : throw BusinessException.Scope());
         var departmentId = await db.Set<Employee>().AsNoTracking().Where(x => x.Id == user.EmployeeId)
             .Select(x => (int?)x.DepartmentId).SingleOrDefaultAsync(ct);
         return new(scope, user.EmployeeId, departmentId);
