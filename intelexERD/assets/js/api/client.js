@@ -38,7 +38,7 @@ export async function login(userId,password){
 
 export function me(){return request('/api/auth/me');}
 export function permissions(){return request('/api/auth/me/permissions');}
-export function apiEmployees(query=''){return request('/api/employees'+(query?`?${query}`:''));}
+export function apiEmployees(query='',signal){return request('/api/employees'+(query?`?${query}`:''),{signal});}
 export function apiEmployeeDetail(employeeId){return request(`/api/employees/${encodeURIComponent(employeeId)}`);}
 export function apiUnlinkedEmployees(query=''){return request('/api/employees/unlinked'+(query?`?${query}`:''));}
 export function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
@@ -161,3 +161,26 @@ export function apiOrganizationMembers(kind,id,page=1,signal){
 export function apiUpdateEmployee(employeeId,payload){return request(`/api/employees/${encodeURIComponent(employeeId)}`,{method:"PUT",body:JSON.stringify(payload)});}
 
 export function apiTransferEmployeeDepartment(employeeId,payload){return request(`/api/employees/${encodeURIComponent(employeeId)}/department`,{method:'PATCH',body:JSON.stringify(payload)});}
+
+export function apiContractTypes(query=''){return request('/api/contract-types'+(query?`?${query}`:''));}
+export function apiContractType(code){return request(`/api/contract-types/${encodeURIComponent(code)}`);}
+export function apiSaveContractType(code,payload){return request('/api/contract-types'+(code===null?'':`/${encodeURIComponent(code)}`),{method:code===null?'POST':'PUT',body:JSON.stringify(payload)});}
+export function apiDeleteContractType(code){return request(`/api/contract-types/${encodeURIComponent(code)}`,{method:'DELETE'});}
+
+export function apiCreateScreen(payload){return request('/api/screens',{method:'POST',body:JSON.stringify(payload)});}
+
+export function apiEmployeeContracts(employeeId,query='',signal){return request(`/api/employees/${encodeURIComponent(employeeId)}/contracts`+(query?`?${query}`:''),{signal});}
+export function apiEmployeeContract(employeeId,contractId){return request(`/api/employees/${encodeURIComponent(employeeId)}/contracts/${encodeURIComponent(contractId)}`);}
+export function apiSaveEmployeeContract(employeeId,contractId,payload){return request(`/api/employees/${encodeURIComponent(employeeId)}/contracts`+(contractId===null?'':`/${encodeURIComponent(contractId)}`),{method:contractId===null?'POST':'PUT',body:JSON.stringify(payload)});}
+export async function apiActiveContractTypes(){
+ const items=[];let page=1;
+ while(true){const result=await apiContractTypes(new URLSearchParams({page,pageSize:100,isActive:true}).toString());
+ if(!Array.isArray(result?.data))throw Error('Danh sách loại hợp đồng không hợp lệ.');
+ items.push(...result.data);if(!result.data.length||items.length>=result.total)break;page++;
+ }
+ return items.filter(item=>item.isActive);
+}
+
+export function apiContractStatistics(expiringWithinDays=30){return request('/api/contracts/statistics?'+new URLSearchParams({expiringWithinDays}),{cache:'no-store'});}
+
+export function apiCreateContract(payload){return request('/api/contracts',{method:'POST',body:JSON.stringify(payload)});}

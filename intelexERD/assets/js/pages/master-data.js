@@ -1,3 +1,4 @@
+import {mountContractTypes} from './contract-types.js';
 import {mountSystemSettings} from './system-settings.js';
 import {apiOrganization,apiActiveDepartments,apiSession,apiShifts,apiShiftDetail,apiSaveShift} from '../api/client.js';
 import {e} from '../utils.js';
@@ -65,10 +66,10 @@ async function mountOrganizationData(root,filters={},options={}){
  await list();
 }
 
-export const masterDataTabs={departments:'Phòng ban',positions:'Chức vụ',teams:'Teams',attendance:'Chấm công',shifts:'Ca làm việc'};
+export const masterDataTabs={departments:'Phòng ban',positions:'Chức vụ',teams:'Teams',contractTypes:'Loại hợp đồng',attendance:'Chấm công',shifts:'Ca làm việc'};
 export async function mountMasterData(root,filters={}){
  if(!root)return;
- const screens={departments:'WEB_DEPARTMENTS',positions:'WEB_POSITIONS',teams:'WEB_TEAMS',attendance:'WEB_SYSTEM_SETTINGS',shifts:'WEB_SHIFTS'};
+ const screens={departments:'WEB_DEPARTMENTS',positions:'WEB_POSITIONS',teams:'WEB_TEAMS',contractTypes:'WEB_CONTRACT_TYPES',attendance:'WEB_SYSTEM_SETTINGS',shifts:'WEB_SHIFTS'};
  let tab=masterDataTabs[filters.tab]?filters.tab:Object.keys(masterDataTabs).find(key=>apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===screens[key]&&p.canView==='Y'))||'departments',dirty=false,saving=false;
  async function draw(){
  dirty=false;
@@ -76,6 +77,7 @@ export async function mountMasterData(root,filters={}){
  root.querySelectorAll('[data-master-tab]').forEach(button=>button.onclick=()=>{if(saving||button.dataset.masterTab===tab)return;if(dirty&&!confirm('Bỏ các thay đổi chưa lưu?'))return;tab=button.dataset.masterTab;draw();});
  const panel=root.querySelector('#master-data-panel'),options={onDirty:value=>{if(panel.isConnected)dirty=value;},onSaving:value=>{if(!panel.isConnected)return;saving=value;root.querySelectorAll('[data-master-tab]').forEach(button=>button.disabled=value);}};
  if(tab==='attendance')await mountSystemSettings(panel,{tab:'attendance'},{...options,embedded:true});
+ else if(tab==='contractTypes')await mountContractTypes(panel,options);
  else if(tab==='shifts')await mountShifts(panel,options);
  else await mountOrganizationData(panel,{tab},options);
  }

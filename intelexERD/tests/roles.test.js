@@ -92,3 +92,60 @@ test('Master Data container does not create an overview child',()=>{
  assert.deepEqual(admin.subgroups[0].entries.map(screen=>screen.code),['WEB_TEAMS']);
  assert.ok(!admin.subgroups[0].entries.some(screen=>screen.label==='Tổng quan'));
 });
+
+test('Contracts renders the same three data-scope choices as Employees for each permission',async()=>{
+ const {roleScopeSelect}=await import('../assets/js/pages/roles.js');
+ for(const [flag,label] of roleFlags){
+  const contracts=roleScopeSelect('WEB_CONTRACTS',flag,label,'DEPARTMENT');
+  assert.equal(contracts,roleScopeSelect('WEB_EMPLOYEES',flag,label,'DEPARTMENT'));
+  assert.ok(contracts.includes('Chính mình'));assert.ok(contracts.includes('Cùng phòng ban'));assert.ok(contracts.includes('Tất cả'));
+  assert.ok(contracts.includes('value="DEPARTMENT" selected'));assert.ok(contracts.includes(`data-role-scope="${flag}"`));
+ }
+ assert.equal(roleScopeSelect('WEB_CONTRACT_TYPES','VIEW','Xem'), '');
+ assert.ok(roleScopeSelect('WEB_CONTRACTS','VIEW','Xem','SELF',true).includes('disabled'));
+});
+
+test('Permissions menu and Roles menu both mount the API permission editor',async()=>{
+ const {adminPage}=await import('../assets/js/pages/operations.js');
+ for(const path of ['/admin/permissions','/admin/roles']){
+  const html=adminPage({},path);
+  assert.ok(html.includes('id="roles-api-root"'));assert.ok(!html.includes('Ma trận quyền'));
+ }
+});
+
+test('Contracts scope is saved independently of Employees scope with the role version',async()=>{
+ const original=globalThis.fetch,calls=[];
+ try{
+  globalThis.fetch=async(url,options)=>{calls.push({url,options});return {ok:true,json:async()=>({version:'new-version'})};};
+  const draft=new Map([['WEB_CONTRACTS',{VIEW:true,NEW:true,UPDATE:true}],['WEB_EMPLOYEES',{VIEW:true}]]);
+  const scopes=new Map([['WEB_CONTRACTS',{VIEW:'SELF',NEW:'DEPARTMENT',UPDATE:'ALL'}],['WEB_EMPLOYEES',{VIEW:'ALL'}]]);
+  const patch=rolePermissionPatch(draft,new Set(['WEB_CONTRACTS']),new Set(),scopes);
+  await apiSaveRolePermissions(7,'role-version',patch);
+  const body=JSON.parse(calls[0].options.body);
+  assert.equal(body.screens.length,1);assert.equal(body.screens[0].screenCode,'WEB_CONTRACTS');assert.deepEqual(body.screens[0].dataScopes,{VIEW:'SELF',NEW:'DEPARTMENT',UPDATE:'ALL'});
+  assert.equal(calls[0].options.headers.get('If-Match'),'"role-version"');
+ }finally{globalThis.fetch=original;}
+});
+
+test('Roles account display uses only authenticated API identity and roles',async()=>{
+ const {roleSessionIdentity}=await import('../assets/js/pages/roles.js');
+ assert.deepEqual(roleSessionIdentity({user:{userId:'real-user',fullName:'Nguyễn A'},roles:[{name:'Nhân sự'},{code:'CONTRACT_MANAGER'}]}),{id:'real-user',name:'Nguyễn A',role:'Nhân sự, CONTRACT_MANAGER'});
+ assert.deepEqual(roleSessionIdentity(null),{id:'',name:'Tài khoản',role:''});
+});
+
+test('Roles never substitutes demo roles when unauthenticated or when the API fails',async()=>{
+ const {mountRoles}=await import('../assets/js/pages/roles.js');
+ const {login,apiLogout}=await import('../assets/js/api/client.js');
+ const original=globalThis.fetch;let roleReads=0;
+ const root={isConnected:true,innerHTML:'',querySelector:()=>({})};
+ try{
+  apiLogout();globalThis.fetch=()=>{throw Error('must not fetch without authentication');};
+  await mountRoles(root);assert.match(root.innerHTML,/Vui lòng đăng nhập/);
+  globalThis.fetch=async url=>{
+   if(url.endsWith('/api/auth/login'))return {ok:true,json:async()=>({accessToken:'test',user:{userId:'real-user'},roles:[],permissions:[],expiresAtUtc:'2099-01-01T00:00:00Z'})};
+   roleReads++;return {ok:false,status:503,json:async()=>({message:'Không kết nối được dịch vụ vai trò'})};
+  };
+  await login('real-user','test');await mountRoles(root,{});
+  assert.equal(roleReads,1);assert.ok(root.innerHTML.includes('Không kết nối được dịch vụ vai trò'));assert.ok(root.innerHTML.includes('Thử lại'));assert.ok(!root.innerHTML.includes('<table'));assert.ok(!root.innerHTML.includes('demo'));
+ }finally{apiLogout();globalThis.fetch=original;}
+});

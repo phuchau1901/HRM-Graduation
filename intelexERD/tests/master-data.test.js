@@ -27,7 +27,7 @@ test('organization list, detail, create and update use resource endpoints withou
 test('Master Data owns attendance and shifts tabs and exposes their API permission aliases',async()=>{
  const {masterDataTabs}=await import('../assets/js/pages/master-data.js');
  const {screenRoutes,roleScreenRoutes}=await import('../assets/js/permissions.js');
- assert.deepEqual(Object.keys(masterDataTabs),['departments','positions','teams','attendance','shifts']);
+ assert.deepEqual(Object.keys(masterDataTabs),['departments','positions','teams','contractTypes','attendance','shifts']);
  assert.ok(screenRoutes['/admin/master-data'].includes('WEB_SYSTEM_SETTINGS'));
  assert.ok(screenRoutes['/admin/master-data'].includes('WEB_SHIFTS'));
  assert.deepEqual(screenRoutes['/admin/settings'],['WEB_SYSTEM_SETTINGS']);

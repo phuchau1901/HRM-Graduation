@@ -37,12 +37,12 @@ export const screenRoutes={
  '/admin/permissions':['WEB_PERMISSIONS'], 
  '/admin/audit-logs':['WEB_AUDIT_LOGS'],
  '/admin/settings':['WEB_SYSTEM_SETTINGS'], 
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_SYSTEM_SETTINGS','WEB_SHIFTS']
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_SYSTEM_SETTINGS','WEB_SHIFTS']
 };
 // Permission editor placement follows menu ownership, independently of route access aliases.
 export const roleScreenRoutes={...screenRoutes,
  '/hr/organization':['WEB_ORGANIZATION'],
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_SHIFTS']
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_SHIFTS']
 };
 export function screenAllowed(path,flag='canView'){
  const current=apiSession();if(!current)return false;

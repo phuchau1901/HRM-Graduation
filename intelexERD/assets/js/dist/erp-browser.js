@@ -42,7 +42,7 @@ async function login(userId,password){
 
 function me(){return request('/api/auth/me');}
 function permissions(){return request('/api/auth/me/permissions');}
-function apiEmployees(query=''){return request('/api/employees'+(query?`?${query}`:''));}
+function apiEmployees(query='',signal){return request('/api/employees'+(query?`?${query}`:''),{signal});}
 function apiEmployeeDetail(employeeId){return request(`/api/employees/${encodeURIComponent(employeeId)}`);}
 function apiUnlinkedEmployees(query=''){return request('/api/employees/unlinked'+(query?`?${query}`:''));}
 function apiDepartments(query=''){return request('/api/departments'+(query?`?${query}`:''));}
@@ -165,6 +165,29 @@ function apiOrganizationMembers(kind,id,page=1,signal){
 function apiUpdateEmployee(employeeId,payload){return request(`/api/employees/${encodeURIComponent(employeeId)}`,{method:"PUT",body:JSON.stringify(payload)});}
 
 function apiTransferEmployeeDepartment(employeeId,payload){return request(`/api/employees/${encodeURIComponent(employeeId)}/department`,{method:'PATCH',body:JSON.stringify(payload)});}
+
+function apiContractTypes(query=''){return request('/api/contract-types'+(query?`?${query}`:''));}
+function apiContractType(code){return request(`/api/contract-types/${encodeURIComponent(code)}`);}
+function apiSaveContractType(code,payload){return request('/api/contract-types'+(code===null?'':`/${encodeURIComponent(code)}`),{method:code===null?'POST':'PUT',body:JSON.stringify(payload)});}
+function apiDeleteContractType(code){return request(`/api/contract-types/${encodeURIComponent(code)}`,{method:'DELETE'});}
+
+function apiCreateScreen(payload){return request('/api/screens',{method:'POST',body:JSON.stringify(payload)});}
+
+function apiEmployeeContracts(employeeId,query='',signal){return request(`/api/employees/${encodeURIComponent(employeeId)}/contracts`+(query?`?${query}`:''),{signal});}
+function apiEmployeeContract(employeeId,contractId){return request(`/api/employees/${encodeURIComponent(employeeId)}/contracts/${encodeURIComponent(contractId)}`);}
+function apiSaveEmployeeContract(employeeId,contractId,payload){return request(`/api/employees/${encodeURIComponent(employeeId)}/contracts`+(contractId===null?'':`/${encodeURIComponent(contractId)}`),{method:contractId===null?'POST':'PUT',body:JSON.stringify(payload)});}
+async function apiActiveContractTypes(){
+ const items=[];let page=1;
+ while(true){const result=await apiContractTypes(new URLSearchParams({page,pageSize:100,isActive:true}).toString());
+ if(!Array.isArray(result?.data))throw Error('Danh sách loại hợp đồng không hợp lệ.');
+ items.push(...result.data);if(!result.data.length||items.length>=result.total)break;page++;
+ }
+ return items.filter(item=>item.isActive);
+}
+
+function apiContractStatistics(expiringWithinDays=30){return request('/api/contracts/statistics?'+new URLSearchParams({expiringWithinDays}),{cache:'no-store'});}
+
+function apiCreateContract(payload){return request('/api/contracts',{method:'POST',body:JSON.stringify(payload)});}
 
 
 const {HubConnectionBuilder,LogLevel}=globalThis.signalR||{};
@@ -358,12 +381,12 @@ const screenRoutes={
  '/admin/permissions':['WEB_PERMISSIONS'], 
  '/admin/audit-logs':['WEB_AUDIT_LOGS'],
  '/admin/settings':['WEB_SYSTEM_SETTINGS'], 
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_SYSTEM_SETTINGS','WEB_SHIFTS']
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_SYSTEM_SETTINGS','WEB_SHIFTS']
 };
 // Permission editor placement follows menu ownership, independently of route access aliases.
 const roleScreenRoutes={...screenRoutes,
  '/hr/organization':['WEB_ORGANIZATION'],
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_SHIFTS']
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_SHIFTS']
 };
 function screenAllowed(path,flag='canView'){
  const current=apiSession();if(!current)return false;
@@ -864,6 +887,317 @@ function bindPasswordPolicy(form,{passwordName,confirmName=null,username,optiona
 }
 
 
+// Source: pages/contracts.js
+
+const contractStatuses={DRAFT:'Bản nháp',ACTIVE:'Đang hiệu lực',EXPIRED:'Hết hạn',TERMINATED:'Đã chấm dứt',CANCELLED:'Đã hủy'};
+function contractGrant(flag,session=apiSession()){
+ return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_CONTRACTS'&&p.canView==='Y'&&p[flag]==='Y');
+}
+const contractCatalogGrant=code=>apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p.canView==='Y');
+function contractClosed(item){return ['EXPIRED','TERMINATED','CANCELLED'].includes(item?.status);}
+const contractBusinessDate=(now=new Date())=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Ho_Chi_Minh',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+function contractAttachment(value){
+ if(!value)return null;
+ try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password?value:null;}catch{return null;}
+}
+function contractPayload(values,{original=null,hireDate=null,today=contractBusinessDate()}={}){
+ const contractType=String(values.contractType||''),startDate=values.startDate,endDate=values.endDate||null,status=values.status,attachmentUrl=String(values.attachmentUrl||'').trim()||null;
+ if(original&&values.contractNo!==undefined&&values.contractNo!==original.contractNo)throw Error('Không được thay đổi số hợp đồng đã cấp.');
+ if(!contractType.trim()||contractType.length>30)throw Error('Vui lòng chọn loại hợp đồng hợp lệ.');
+ const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value)&&!Number.isNaN(Date.parse(value))&&new Date(value).toISOString().slice(0,10)===value;
+ if(!validDate(startDate)||endDate&&!validDate(endDate))throw Error('Ngày hợp đồng không hợp lệ.');
+ if(hireDate&&startDate<hireDate.slice(0,10))throw Error('Ngày bắt đầu không được trước ngày vào làm.');
+ if(endDate&&endDate<startDate)throw Error('Ngày kết thúc không được trước ngày bắt đầu.');
+ if(!Object.hasOwn(contractStatuses,status))throw Error('Trạng thái hợp đồng không hợp lệ.');
+ if(attachmentUrl&&(attachmentUrl.length>500||!contractAttachment(attachmentUrl)))throw Error('Tệp đính kèm phải là liên kết HTTPS không chứa thông tin đăng nhập, tối đa 500 ký tự.');
+ if(original?.status==='ACTIVE'&&!['ACTIVE','EXPIRED','TERMINATED'].includes(status))throw Error('Hợp đồng đang hiệu lực chỉ có thể giữ hiệu lực, hết hạn hoặc chấm dứt.');
+ if(status==='ACTIVE'&&(startDate>today||endDate&&endDate<today))throw Error('Hợp đồng đang hiệu lực phải bao gồm ngày hôm nay.');
+ if(['EXPIRED','TERMINATED'].includes(status)&&(!endDate||endDate>today))throw Error('Hợp đồng đóng phải có ngày kết thúc không sau hôm nay.');
+ const payload={contractType,startDate,endDate,status,attachmentUrl};
+ if(contractClosed(original)&&Object.keys(payload).some(key=>payload[key]!==original[key]))throw Error('Hợp đồng đã đóng chỉ được xem.');
+ return payload;
+}
+function contractStatisticsData(response){
+ const data=response?.data;
+ if(response?.success!==true||!data||!['active','expiringSoon','expired'].every(key=>Number.isSafeInteger(data[key])&&data[key]>=0)||!Number.isInteger(data.expiringWithinDays)||data.expiringWithinDays<1||data.expiringWithinDays>365||!/^\d{4}-\d{2}-\d{2}$/.test(data.asOfDate)||Number.isNaN(Date.parse(data.asOfDate))||new Date(data.asOfDate).toISOString().slice(0,10)!==data.asOfDate)throw Error('Dữ liệu thống kê hợp đồng không hợp lệ.');
+ return data;
+}
+function contractCategory(item,today=contractBusinessDate(),days=30){
+ if(item.startDate>today)return null;
+ const cutoff=new Date(today+'T00:00:00Z');cutoff.setUTCDate(cutoff.getUTCDate()+days);
+ if(['ACTIVE','EXPIRED'].includes(item.status)&&item.endDate&&item.endDate<today)return 'expired';
+ if(item.status!=='ACTIVE')return null;
+ if(!item.endDate||item.endDate>cutoff.toISOString().slice(0,10))return 'active';
+ return 'expiringSoon';
+}
+function contractListRows(items,canUpdate=false,employee=null,today=contractBusinessDate(),days=30){
+ return items.map((item,index)=>{
+  const category=contractCategory(item,today,days),label=({active:'Đang hiệu lực',expiringSoon:'Sắp hết hạn',expired:'Đã hết hạn'})[category]||contractStatuses[item.status]||item.status;
+  return `<tr><td><strong class="contract-number">${e(item.contractNo)}</strong><span class="contract-employee-name">${e(item.employeeName||employee?.fullName||`Nhân viên #${item.employeeId||'—'}`)}</span><small>${e(item.employeeCode||employee?.employeeCode||'')}</small></td><td><span class="contract-type-name">${e(item.contractTypeName||item.contractType)}</span><span class="contract-period">${dateLabel(item.startDate)} – ${dateLabel(item.endDate)}</span></td><td><span class="contract-state ${category||e(item.status?.toLowerCase())}"><span aria-hidden="true"></span>${e(label)}</span></td><td class="text-right"><button type="button" class="btn contract-view" data-contract-open="${index}">Xem</button></td></tr>`;
+ }).join('');
+}
+
+const contractSearchText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').toLocaleLowerCase('vi').trim();
+function searchContracts(items,query='',status='',today=contractBusinessDate(),days=30){
+ const term=contractSearchText(query);
+ return items.filter(item=>(!term||[item.contractNo,item.employeeName,item.employeeCode].some(value=>contractSearchText(value).includes(term)))&&(!status||(['active','expiringSoon','expired'].includes(status)?contractCategory(item,today,days)===status:item.status===status)));
+}
+async function loadVisibleContracts({canReadEmployees=false,ownEmployee=null,signal,isCurrent=()=>true,readEmployees=apiEmployees,readContracts=apiEmployeeContracts}={}){
+ const check=()=>{if(signal?.aborted||!isCurrent())throw new DOMException('Request aborted','AbortError');};
+ async function pages(read){
+  const items=[];let page=1,total=Infinity;
+  while(items.length<total){check();const result=await read(new URLSearchParams({page,pageSize:100}).toString());check();
+   if(!Array.isArray(result?.data)||!Number.isInteger(result.total)||result.total<0)throw Error('Danh sách hợp đồng hoặc nhân viên không hợp lệ.');
+   items.push(...result.data);total=result.total;if(!result.data.length)break;page++;
+  }
+  return items;
+ }
+ const employees=canReadEmployees?await pages(query=>readEmployees(query,signal)):ownEmployee?.id?[ownEmployee]:[];
+ if(!canReadEmployees&&!employees.length)throw Error('Cần quyền xem nhân viên hoặc hồ sơ nhân viên liên kết để tải danh sách hợp đồng.');
+ const contracts=[];let next=0;
+ await Promise.all(Array.from({length:Math.min(4,employees.length)},async()=>{
+  while(next<employees.length){check();const employee=employees[next++];
+   try{const rows=await pages(query=>readContracts(employee.id,query,signal));for(const item of rows)contracts.push({...item,employeeId:employee.id,employeeName:employee.fullName||'',employeeCode:employee.employeeCode||'',employeeHireDate:employee.hireDate||null});}
+   catch(err){if(err.status!==404)throw err;}
+  }
+ }));
+ check();return contracts.sort((a,b)=>String(a.contractNo).localeCompare(String(b.contractNo),'vi')||Number(a.employeeId)-Number(b.employeeId)||String(a.id).localeCompare(String(b.id)));
+}
+
+async function mountContracts(root){
+ if(!root)return;
+ if(!contractGrant('canView')){root.innerHTML='<p>Bạn chưa có quyền xem hợp đồng.</p>';return;}
+ let employeeId=null,employee=null,page=1,search='',generation=0,statisticsGeneration=0,saving=false,dirty=false,statusFilter='',expiringWithinDays=30,statistics=null,directory=null,directoryRequest=null,directoryController=null,searchTimer;
+ const ownId=apiSession()?.user?.employeeId;
+ root.innerHTML=`<div class="contracts-heading"><div><h1>Hợp đồng lao động</h1><p>Quản lý hợp đồng và thời hạn của nhân viên</p></div>${contractGrant('canNew')?`<button type="button" class="btn primary" id="contracts-create">${icon('plus',18)} Tạo hợp đồng</button>`:''}</div><div id="contract-statistics" aria-live="polite"></div><div class="contracts-statistics-note"><span id="contracts-as-of"></span><label>Cảnh báo sắp hết hạn<select id="contracts-window" aria-label="Khoảng thời gian sắp hết hạn"><option value="7">7 ngày</option><option value="30" selected>30 ngày</option><option value="60">60 ngày</option><option value="90">90 ngày</option><option value="365">365 ngày</option></select></label></div><form class="contracts-filters" id="contract-search"><div class="contracts-search-input">${icon('search',18)}<input type="search" name="search" maxlength="150" placeholder="Tìm nhân viên, mã hợp đồng…" aria-label="Tìm theo tên nhân viên, mã nhân viên hoặc mã hợp đồng"></div><select name="status" aria-label="Lọc trạng thái hợp đồng"><option value="">Tất cả</option><option value="active">Đang hiệu lực</option><option value="expiringSoon">Sắp hết hạn</option><option value="expired">Đã hết hạn</option></select></form><section id="contract-workspace"><p role="status">Đang tải hợp đồng…</p></section>`;
+ async function loadStatistics(){
+  const id=++statisticsGeneration,panel=root.querySelector('#contract-statistics');
+  statistics=null;root.querySelector('#contracts-as-of').textContent='';
+  panel.innerHTML=`<div class="contracts-stats" aria-busy="true" role="status" aria-label="Đang tải thống kê">${[1,2,3].map(()=>'<div class="contract-stat contract-stat-loading"><span></span><strong></strong><span></span></div>').join('')}</div>`;
+  try{
+   const data=contractStatisticsData(await apiContractStatistics(expiringWithinDays));if(!root.isConnected||id!==statisticsGeneration)return;
+   statistics=data;
+   panel.innerHTML=`<div class="contracts-stats">${[['active','Đang hiệu lực','approval'],['expiringSoon','Sắp hết hạn','clock'],['expired','Đã hết hạn','file']].map(([key,label,glyph])=>`<article class="contract-stat ${key}"><span class="contract-stat-icon">${icon(glyph,21)}</span><strong>${data[key].toLocaleString('vi-VN')}</strong><span>${label}</span></article>`).join('')}</div>`;
+   root.querySelector('#contracts-as-of').textContent=`Trong phạm vi được xem · Cập nhật ${dateLabel(data.asOfDate)}`;
+  }catch(err){if(root.isConnected&&id===statisticsGeneration){panel.innerHTML=`<div class="contracts-stats-error"><p role="alert">${e(err.message)}</p><button type="button" class="btn">Thử lại thống kê</button></div>`;panel.querySelector('button').onclick=loadStatistics;}}
+ }
+ root.querySelector('#contracts-window').onchange=event=>{expiringWithinDays=Number(event.target.value);loadStatistics();if(!dirty&&!saving)list();};
+ root.querySelector('#contracts-create')?.addEventListener('click',()=>{
+  if(!canLeave())return;
+  openContractCreation({isPageCurrent:()=>root.isConnected,onSaved:async()=>{directory=null;loadStatistics();await list();}});
+ });
+ const workspace=root.querySelector('#contract-workspace'),searchForm=root.querySelector('#contract-search');
+ const applySearch=()=>{if(!canLeave())return;search=searchForm.elements.search.value.trim();statusFilter=searchForm.elements.status.value;page=1;list();};
+ searchForm.onsubmit=event=>{event.preventDefault();event.stopPropagation();clearTimeout(searchTimer);applySearch();};
+ searchForm.elements.search.oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{if(root.isConnected)applySearch();},250);};
+ searchForm.elements.status.onchange=()=>{clearTimeout(searchTimer);applySearch();};
+ const alive=id=>root.isConnected&&generation===id;
+ const canLeave=()=>!saving&&(!dirty||confirm('Bỏ các thay đổi hợp đồng chưa lưu?'));
+ function showError(err,retry){workspace.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn">Thử lại</button>`;workspace.querySelector('button').onclick=retry;}
+ async function getDirectory(){
+  if(directory)return directory;
+  if(!directoryRequest){
+   directoryController=new AbortController();
+   directoryRequest=loadVisibleContracts({canReadEmployees:!!contractCatalogGrant('WEB_EMPLOYEES'),ownEmployee:ownId?{id:ownId,fullName:apiSession()?.user?.fullName||'',employeeCode:apiSession()?.user?.employeeCode||''}:null,signal:directoryController.signal,isCurrent:()=>root.isConnected}).then(items=>{directory=items;return items;}).catch(err=>{directoryController?.abort();throw err;}).finally(()=>{directoryRequest=null;});
+  }
+  return directoryRequest;
+ }
+ async function list(){
+  clearTimeout(searchTimer);const id=++generation;dirty=false;searchForm.hidden=false;
+  workspace.innerHTML='<p role="status">Đang tải hợp đồng…</p>';
+  try{
+   if(!contractGrant('canView'))throw Error('Bạn chưa có quyền xem hợp đồng.');
+   const items=await getDirectory();if(!alive(id))return;
+   const filtered=searchContracts(items,search,statusFilter,statistics?.asOfDate||contractBusinessDate(),expiringWithinDays);
+   page=Math.min(page,Math.max(1,Math.ceil(filtered.length/30)));
+   const result={data:filtered.slice((page-1)*30,page*30),total:filtered.length};
+   workspace.innerHTML=`<div class="table-wrap"><table class="contracts-table"><thead><tr><th>Hợp đồng / Nhân viên</th><th>Loại / Hiệu lực</th><th>Trạng thái</th><th><span class="sr-only">Hành động</span></th></tr></thead><tbody>${contractListRows(result.data,contractGrant('canUpdate'),null,statistics?.asOfDate||contractBusinessDate(),expiringWithinDays)}</tbody></table></div>${result.data.length?'':'<div class="empty"><h3>Không có hợp đồng phù hợp</h3><p>Thử thay đổi từ khóa hoặc trạng thái.</p></div>'}<div class="toolbar user-pagination contracts-pagination"><span>${e(result.total)} hợp đồng · Trang ${page}</span><div><button type="button" class="btn" id="contract-prev" ${page<=1?'disabled':''}>Trang trước</button><button type="button" class="btn" id="contract-next" ${page*30>=result.total?'disabled':''}>Trang sau</button></div></div>`;
+   workspace.querySelectorAll('[data-contract-open]').forEach(button=>button.onclick=()=>{const item=result.data[Number(button.dataset.contractOpen)];employeeId=item.employeeId;employee={id:item.employeeId,fullName:item.employeeName,employeeCode:item.employeeCode,hireDate:item.employeeHireDate};edit(item.id);});
+   workspace.querySelector('#contract-prev').onclick=()=>{page--;list();};workspace.querySelector('#contract-next').onclick=()=>{page++;list();};
+  }catch(err){if(alive(id))showError(err,list);}
+ }
+ async function edit(contractId=null,editing=false){
+  if(contractId===null&&!contractGrant('canNew'))return;
+  clearTimeout(searchTimer);searchForm.hidden=true;const id=++generation,target=employeeId;workspace.innerHTML='<p role="status">Đang tải thông tin hợp đồng…</p>';
+  try{
+   const item=contractId===null?null:await apiEmployeeContract(target,contractId);if(!alive(id))return;
+   const editable=contractGrant(contractId===null?'canNew':'canUpdate')&&!contractClosed(item);
+   if(item&&(!editable||!editing)){
+    const attachment=contractAttachment(item?.attachmentUrl);
+    workspace.innerHTML=`<button type="button" class="btn" id="contract-back">← Danh sách hợp đồng</button><h2 class="role-editor-title">${e(item.contractNo)}</h2>${details([['Loại hợp đồng',e(item.contractTypeName||item.contractType)],['Bắt đầu',dateLabel(item.startDate)],['Kết thúc',dateLabel(item.endDate)],['Trạng thái',e(contractStatuses[item.status]||item.status)],['Tệp đính kèm',attachment?`<a href="${e(attachment)}" target="_blank" rel="noopener noreferrer">Xem tệp đính kèm</a>`:'—']])}${contractClosed(item)?'<p class="muted">Hợp đồng đã đóng chỉ được xem.</p>':''}${editable?'<button type="button" class="btn primary" id="contract-edit-detail">Chỉnh sửa hợp đồng</button>':''}`;
+    workspace.querySelector('#contract-back').onclick=list;workspace.querySelector('#contract-edit-detail')?.addEventListener('click',()=>edit(contractId,true));return;
+   }
+   workspace.innerHTML=`<button type="button" class="btn" id="contract-back">← Danh sách hợp đồng</button><h2 class="role-editor-title">${item?'Chỉnh sửa':'Thêm'} hợp đồng · ${employee?e(employee.fullName):`Nhân viên #${e(target)}`}</h2><form class="user-registration" id="contract-form"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Số hợp đồng','contractNo','text',item?.contractNo||'','readonly')}<label>Loại hợp đồng<select name="contractType" required disabled>${item?`<option value="${e(item.contractType)}">${e(item.contractTypeName||item.contractType)}</option>`:'<option value="">Đang tải loại hợp đồng…</option>'}</select></label>${field('Ngày bắt đầu','startDate','date',item?.startDate||'','required')}${field('Ngày kết thúc (tùy chọn)','endDate','date',item?.endDate||'')}<label>Trạng thái<select name="status">${Object.entries(contractStatuses).filter(([value])=>item?.status!=='ACTIVE'||['ACTIVE','EXPIRED','TERMINATED'].includes(value)).map(([value,label])=>`<option value="${value}" ${(item?.status||'DRAFT')===value?'selected':''}>${label}</option>`).join('')}</select></label>${field('Liên kết tệp đính kèm (HTTPS)','attachmentUrl','url',item?.attachmentUrl||'','maxlength="500"')}</div><p id="contract-type-feedback" role="status"></p><div class="form-actions"><button type="submit" class="btn primary" ${!item?'disabled':''}>Lưu hợp đồng</button></div></fieldset><p id="contract-feedback" role="alert"></p></form>`;
+   const form=workspace.querySelector('#contract-form'),fieldset=form.querySelector('fieldset'),feedback=workspace.querySelector('#contract-feedback'),typeFeedback=workspace.querySelector('#contract-type-feedback'),submit=form.querySelector('[type=submit]');
+   let types=[],typeReady=!!item;
+   form.oninput=form.onchange=()=>{dirty=true;};
+   workspace.querySelector('#contract-back').onclick=()=>{if(canLeave())list();};
+   async function loadTypes(){
+    if(!contractCatalogGrant('WEB_CONTRACT_TYPES')){typeFeedback.textContent=item?'Giữ loại hợp đồng hiện tại. Cần quyền xem loại hợp đồng để đổi loại.':'Bạn cần quyền xem WEB_CONTRACT_TYPES để chọn loại hợp đồng.';return;}
+    try{
+     const result=await apiActiveContractTypes();if(!alive(id)||!form.isConnected)return;types=result;
+     const choices=[...types];if(item&&!choices.some(type=>type.code===item.contractType))choices.unshift({code:item.contractType,name:item.contractTypeName||item.contractType});
+     form.elements.contractType.innerHTML='<option value="">Chọn loại hợp đồng</option>'+choices.map(type=>`<option value="${e(type.code)}" ${item?.contractType===type.code?'selected':''}>${e(type.name)}</option>`).join('');form.elements.contractType.disabled=false;typeReady=choices.length>0;submit.disabled=!typeReady;
+     typeFeedback.textContent=choices.length?'':'Chưa có loại hợp đồng hoạt động. Thêm loại hợp đồng trong Master Data trước.';
+    }catch(err){if(alive(id)&&form.isConnected){typeFeedback.innerHTML=`${e(err.message)} <button type="button" class="btn">Thử lại</button>`;typeFeedback.querySelector('button').onclick=loadTypes;}}
+   }
+   form.onsubmit=async event=>{
+    event.preventDefault();event.stopPropagation();if(saving)return;feedback.textContent='';
+    try{
+     if(!contractGrant(item?'canUpdate':'canNew'))throw Error('Bạn không có quyền lưu hợp đồng.');
+     if(!typeReady)throw Error('Vui lòng tải và chọn loại hợp đồng.');
+     const values=Object.fromEntries(new FormData(form));if(form.elements.contractType.disabled)values.contractType=item?.contractType;
+     const payload=contractPayload(values,{original:item,hireDate:employee?.hireDate});
+     if(payload.contractType!==item?.contractType&&!types.some(type=>type.code===payload.contractType))throw Error('Vui lòng chọn loại hợp đồng đang hoạt động.');
+     saving=true;fieldset.disabled=true;submit.textContent='Đang lưu…';
+     await apiSaveEmployeeContract(target,contractId,payload);if(alive(id)){dirty=false;directory=null;loadStatistics();await list();}
+    }catch(err){if(alive(id)&&form.isConnected)feedback.textContent=err.message;}
+    finally{saving=false;if(form.isConnected){fieldset.disabled=false;submit.disabled=!typeReady;submit.textContent='Lưu hợp đồng';}}
+   };
+   loadTypes();
+  }catch(err){if(alive(id))showError(err,()=>edit(contractId,editing));}
+ }
+ loadStatistics();
+ await list();
+}
+
+function openContractCreation({onSaved=()=>{},isPageCurrent=()=>true}={}){
+ if(!contractGrant('canNew'))throw Error('Bạn không có quyền tạo hợp đồng.');
+ const canEmployees=!!contractCatalogGrant('WEB_EMPLOYEES'),ownId=apiSession()?.user?.employeeId;
+ openDialog('Tạo hợp đồng',`<section id="contract-create-popup">${canEmployees?'<label class="contract-popup-employee-search">Tìm nhân viên<input type="search" id="contract-create-employee-search" maxlength="150" placeholder="Tìm tên hoặc mã nhân viên"></label>':''}<form id="contract-create-form" class="user-registration"><fieldset class="user-edit-fieldset"><div class="form-grid">${canEmployees?'<label>Nhân viên<select name="employeeId" required disabled><option value="">Đang tải nhân viên…</option></select></label>':field('ID nhân viên','employeeId','number',ownId||'','required min="1" step="1"')}<label>Loại hợp đồng<select name="contractType" required disabled><option value="">Đang tải loại hợp đồng…</option></select></label>${field('Ngày bắt đầu','startDate','date','','required')}${field('Ngày kết thúc (tùy chọn)','endDate','date','')}<label>Trạng thái<select name="status">${Object.entries(contractStatuses).map(([value,label])=>`<option value="${value}">${label}</option>`).join('')}</select></label>${field('Liên kết tệp đính kèm (HTTPS)','attachmentUrl','url','','maxlength="500"')}</div><p id="contract-create-catalog-feedback" role="status"></p><div class="form-actions"><button type="button" class="btn" id="contract-create-cancel">Hủy</button><button type="submit" class="btn primary" disabled>Tạo hợp đồng</button></div></fieldset><p id="contract-create-feedback" role="alert"></p></form></section>`);
+ const popup=document.getElementById('contract-create-popup'),form=popup.querySelector('form'),fieldset=form.querySelector('fieldset'),submit=form.querySelector('[type=submit]'),feedback=popup.querySelector('#contract-create-feedback'),catalogFeedback=popup.querySelector('#contract-create-catalog-feedback');
+ let employees=[],types=[],employeesReady=!canEmployees,typesReady=false,busy=false;
+ const modal=document.getElementById('modal'),closeButton=modal.querySelector('[data-action="close"]');
+ const preventBusyClose=event=>{if(busy)event.preventDefault();};
+ modal.addEventListener('cancel',preventBusyClose);
+ modal.addEventListener('close',()=>modal.removeEventListener('cancel',preventBusyClose),{once:true});
+ const current=()=>isPageCurrent()&&popup.isConnected&&document.getElementById('contract-create-popup')===popup&&document.getElementById('modal').open;
+ const ready=()=>{submit.disabled=busy||!employeesReady||!typesReady;};
+ function catalogError(key,err,retry){
+  const previous=catalogFeedback.querySelector(`[data-catalog="${key}"]`);previous?.remove();
+  const row=document.createElement('span');row.dataset.catalog=key;row.textContent=err.message+' ';
+  if(retry){const button=document.createElement('button');button.type='button';button.className='btn';button.textContent='Thử lại';button.onclick=()=>{row.remove();retry();};row.append(button);}
+  catalogFeedback.append(row);
+ }
+ function drawEmployees(){
+  const selected=form.elements.employeeId.value||String(ownId||''),query=popup.querySelector('#contract-create-employee-search').value;
+  const filtered=employees.filter(item=>!query||[item.fullName,item.employeeCode].some(value=>contractSearchText(value).includes(contractSearchText(query)))||String(item.id)===selected);
+  form.elements.employeeId.innerHTML='<option value="">Chọn nhân viên</option>'+filtered.map(item=>`<option value="${e(item.id)}" ${String(item.id)===selected?'selected':''}>${e(item.employeeCode)} · ${e(item.fullName)}</option>`).join('');
+  form.elements.employeeId.disabled=false;
+ }
+ async function loadEmployees(){
+  try{
+   const items=[];let page=1,total=Infinity;
+   while(items.length<total){const result=await apiEmployees(new URLSearchParams({page,pageSize:100}).toString());if(!current())return;if(!Array.isArray(result?.data)||!Number.isInteger(result.total))throw Error('Danh sách nhân viên không hợp lệ.');items.push(...result.data);total=result.total;if(!result.data.length)break;page++;}
+   employees=items;employeesReady=items.length>0;drawEmployees();ready();if(!employeesReady)catalogError('employees',Error('Không có nhân viên trong phạm vi được xem.'));
+  }catch(err){if(current())catalogError('employees',err,loadEmployees);}
+ }
+ async function loadTypes(){
+  if(!contractCatalogGrant('WEB_CONTRACT_TYPES')){catalogError('types',Error('Bạn cần quyền xem loại hợp đồng để chọn loại hợp đồng.'));return;}
+  try{
+   const items=await apiActiveContractTypes();if(!current())return;
+   types=items.filter(item=>/^[A-Z][A-Z0-9]{0,19}$/.test(item.prefix||''));typesReady=types.length>0;
+   form.elements.contractType.innerHTML='<option value="">Chọn loại hợp đồng</option>'+types.map(item=>`<option value="${e(item.code)}">${e(item.name)} · ${e(item.prefix)}</option>`).join('');form.elements.contractType.disabled=false;ready();
+   if(!typesReady)catalogError('types',Error('Chưa có loại hợp đồng hoạt động có prefix hợp lệ. Cấu hình prefix tại Master Data.'));
+  }catch(err){if(current())catalogError('types',err,loadTypes);}
+ }
+ popup.querySelector('#contract-create-employee-search')?.addEventListener('input',()=>{if(employeesReady)drawEmployees();});
+ popup.querySelector('#contract-create-cancel').onclick=()=>{if(!busy)closeDialog();};
+ form.onsubmit=async event=>{
+  event.preventDefault();event.stopPropagation();if(busy)return;feedback.textContent='';
+  try{
+   if(!contractGrant('canNew'))throw Error('Bạn không có quyền tạo hợp đồng.');
+   if(!employeesReady||!typesReady)throw Error('Vui lòng tải danh sách nhân viên và loại hợp đồng.');
+   const values=Object.fromEntries(new FormData(form)),employeeId=Number(values.employeeId),employee=employees.find(item=>Number(item.id)===employeeId);
+   if(!Number.isSafeInteger(employeeId)||employeeId<=0||canEmployees&&!employee)throw Error('Vui lòng chọn nhân viên hợp lệ.');
+   if(!types.some(item=>item.code===values.contractType))throw Error('Vui lòng chọn loại hợp đồng có prefix hợp lệ.');
+   const payload={employeeId,...contractPayload(values,{hireDate:employee?.hireDate})};
+   busy=true;fieldset.disabled=true;if(closeButton)closeButton.disabled=true;submit.textContent='Đang tạo…';
+   const saved=await apiCreateContract(payload);
+   if(current()){closeDialog();toast(`Đã tạo hợp đồng · ${saved.contractNo}`);await onSaved(saved);}
+  }catch(err){if(current())feedback.textContent=err.message;}
+  finally{busy=false;if(current()){fieldset.disabled=false;if(closeButton)closeButton.disabled=false;submit.textContent='Tạo hợp đồng';ready();}}
+ };
+ if(canEmployees)loadEmployees();loadTypes();
+}
+
+
+// Source: pages/contract-types.js
+
+function contractTypeGrant(flag,session=apiSession()){
+ return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_CONTRACT_TYPES'&&p.canView==='Y'&&p[flag]==='Y');
+}
+function contractTypePayload(values,creating=false){
+ const name=String(values.name||'').trim(),description=String(values.description||'').trim()||null;
+ if(!name||name.length>150)throw Error('Tên loại hợp đồng bắt buộc, tối đa 150 ký tự.');
+ if(description&&description.length>500)throw Error('Mô tả tối đa 500 ký tự.');
+ if(values.sortOrder===''||values.sortOrder===undefined)throw Error('Vui lòng nhập thứ tự hiển thị.');
+ const sortOrder=Number(values.sortOrder);
+ if(!Number.isInteger(sortOrder)||sortOrder<0||sortOrder>2147483647)throw Error('Thứ tự hiển thị phải là số nguyên không âm.');
+ if(typeof values.isActive!=='boolean')throw Error('Trạng thái không hợp lệ.');
+ const payload={name,description,isActive:values.isActive,sortOrder};
+ if(values.prefix!==undefined){
+  const prefix=values.prefix===null?null:String(values.prefix).trim()||null;
+  if(prefix!==null&&!/^[A-Z][A-Z0-9]{0,19}$/.test(prefix))throw Error('Prefix gồm 1–20 chữ hoa hoặc số, bắt đầu bằng chữ cái.');
+  payload.prefix=prefix;
+ }
+ if(creating){const code=String(values.code||'').trim();if(!/^[A-Za-z0-9][A-Za-z0-9_-]{0,29}$/.test(code))throw Error('Mã tối đa 30 ký tự, bắt đầu bằng chữ/số, chỉ gồm chữ, số, dấu gạch dưới hoặc gạch ngang.');payload.code=code;}
+ return payload;
+}
+
+async function mountContractTypes(root,{onDirty=()=>{},onSaving=()=>{}}={}){
+ if(!root)return;
+ let page=1,search='',active='',generation=0,busy=false;
+ const current=id=>root.isConnected&&generation===id;
+ function failure(err,retry){root.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn" data-retry>Thử lại</button>`;root.querySelector('[data-retry]').onclick=retry;}
+ async function list(){
+  const id=++generation;onDirty(false);
+  if(!contractTypeGrant('canView')){root.innerHTML='<p>Bạn chưa có quyền xem loại hợp đồng.</p>';return;}
+  root.innerHTML='<p role="status">Đang tải loại hợp đồng…</p>';
+  try{
+   const query=new URLSearchParams({page,pageSize:30,search});if(active!=='')query.set('isActive',active);
+   const result=await apiContractTypes(query.toString());if(!current(id))return;
+   if(!Array.isArray(result?.data))throw Error('Danh sách loại hợp đồng không hợp lệ.');
+   root.innerHTML=`<form class="toolbar" id="contract-type-search"><input name="search" maxlength="150" value="${e(search)}" placeholder="Tìm mã hoặc tên loại hợp đồng" aria-label="Tìm loại hợp đồng"><select name="active" aria-label="Trạng thái"><option value="">Tất cả trạng thái</option><option value="true" ${active==='true'?'selected':''}>Hoạt động</option><option value="false" ${active==='false'?'selected':''}>Ngừng hoạt động</option></select><button class="btn">Tìm kiếm</button>${contractTypeGrant('canNew')?'<button type="button" class="btn primary" id="contract-type-create">Thêm loại hợp đồng</button>':''}</form><div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên loại hợp đồng</th><th>Prefix</th><th>Mô tả</th><th>Thứ tự</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${result.data.map((item,index)=>`<tr><td>${e(item.code)}</td><td>${e(item.name)}</td><td>${e(item.prefix||'—')}</td><td class="organization-description">${e(item.description||'—')}</td><td>${e(item.sortOrder)}</td><td>${item.isActive?'Hoạt động':'Ngừng hoạt động'}</td><td><button type="button" class="btn" data-contract-type-edit="${index}">${contractTypeGrant('canUpdate')?'Chỉnh sửa':'Chi tiết'}</button>${contractTypeGrant('canDelete')?` <button type="button" class="btn danger" data-contract-type-delete="${index}">Xóa</button>`:''}</td></tr>`).join('')}</tbody></table></div>${result.data.length?'':'<p>Không có loại hợp đồng phù hợp.</p>'}<p id="contract-type-list-feedback" role="alert"></p><div class="toolbar user-pagination"><button type="button" class="btn" id="contract-type-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} loại hợp đồng</span><button type="button" class="btn" id="contract-type-next" ${page*30>=result.total?'disabled':''}>Trang sau</button></div>`;
+   const form=root.querySelector('#contract-type-search');form.onsubmit=event=>{event.preventDefault();event.stopPropagation();if(busy)return;search=form.elements.search.value.trim();active=form.elements.active.value;page=1;list();};
+   root.querySelector('#contract-type-create')?.addEventListener('click',()=>edit());
+   root.querySelectorAll('[data-contract-type-edit]').forEach(button=>button.onclick=()=>{if(!busy)edit(result.data[Number(button.dataset.contractTypeEdit)].code);});
+   root.querySelectorAll('[data-contract-type-delete]').forEach(button=>button.onclick=async()=>{
+    if(busy||!contractTypeGrant('canDelete'))return;
+    const item=result.data[Number(button.dataset.contractTypeDelete)];if(!confirm(`Xóa loại hợp đồng “${item.name}”?`))return;
+    busy=true;onSaving(true);root.querySelectorAll('button,input,select').forEach(control=>control.disabled=true);
+    try{await apiDeleteContractType(item.code);if(current(id)){if(result.data.length===1&&page>1)page--;await list();}}
+    catch(err){if(current(id)){root.querySelector('#contract-type-list-feedback').textContent=err.message+(err.status===409?' Bạn có thể chỉnh sửa và chuyển sang ngừng hoạt động.':'');root.querySelectorAll('button,input,select').forEach(control=>control.disabled=false);root.querySelector('#contract-type-prev').disabled=page<=1;root.querySelector('#contract-type-next').disabled=page*30>=result.total;}}
+    finally{busy=false;onSaving(false);}
+   });
+   root.querySelector('#contract-type-prev').onclick=()=>{if(!busy){page--;list();}};root.querySelector('#contract-type-next').onclick=()=>{if(!busy){page++;list();}};
+  }catch(err){if(current(id))failure(err,list);}
+ }
+ async function edit(code=null){
+  if(busy||!contractTypeGrant(code===null?'canNew':'canView'))return;
+  const id=++generation;root.innerHTML='<p role="status">Đang tải loại hợp đồng…</p>';
+  try{
+   const item=code===null?{isActive:true,sortOrder:0}:await apiContractType(code);if(!current(id))return;
+   const canSave=contractTypeGrant(code===null?'canNew':'canUpdate');
+   root.innerHTML=`<button type="button" class="btn" id="contract-type-back">← Danh sách loại hợp đồng</button><h2 class="role-editor-title">${code===null?'Thêm':'Chi tiết'} loại hợp đồng</h2><form id="contract-type-form" class="user-registration"><fieldset class="user-edit-fieldset" ${canSave?'':'disabled'}><div class="form-grid">${field('Mã','code','text',item.code||'',code===null?'required maxlength="30" pattern="[A-Za-z0-9][A-Za-z0-9_-]*"':'readonly')}${field('Tên loại hợp đồng','name','text',item.name||'','required maxlength="150"')}${field('Prefix số hợp đồng','prefix','text',item.prefix||'','maxlength="20" pattern="[A-Z][A-Z0-9]{0,19}" placeholder="Ví dụ: HDLD"')}<label>Mô tả<textarea name="description" maxlength="500">${e(item.description||'')}</textarea></label>${field('Thứ tự hiển thị','sortOrder','number',item.sortOrder,'required min="0" max="2147483647" step="1"')}<label>Trạng thái<select name="isActive"><option value="true" ${item.isActive?'selected':''}>Hoạt động</option><option value="false" ${!item.isActive?'selected':''}>Ngừng hoạt động</option></select></label></div><p class="muted">Prefix dùng để cấp số cho hợp đồng mới; thay đổi không đổi số hợp đồng đã cấp.</p>${canSave?'<div class="form-actions"><button type="submit" class="btn primary">Lưu lại</button></div>':''}</fieldset><p id="contract-type-feedback" role="status"></p></form>`;
+   const form=root.querySelector('#contract-type-form'),feedback=root.querySelector('#contract-type-feedback'),fieldset=form.querySelector('fieldset');
+   form.oninput=form.onchange=()=>{if(canSave)onDirty(true);};root.querySelector('#contract-type-back').onclick=()=>{if(!busy)list();};
+   form.onsubmit=async event=>{
+    event.preventDefault();event.stopPropagation();if(busy||!canSave)return;
+    try{
+     if(!contractTypeGrant(code===null?'canNew':'canUpdate'))throw Error('Bạn không có quyền lưu loại hợp đồng.');
+     const values=Object.fromEntries(new FormData(form)),payload=contractTypePayload({...values,isActive:values.isActive==='true'},code===null);
+     busy=true;onSaving(true);fieldset.disabled=true;feedback.textContent='Đang lưu…';
+     await apiSaveContractType(code,payload);if(current(id)){onDirty(false);await list();}
+    }catch(err){if(current(id))feedback.textContent=err.message;}
+    finally{busy=false;onSaving(false);if(form.isConnected)fieldset.disabled=!canSave;}
+   };
+  }catch(err){if(current(id))failure(err,()=>edit(code));}
+ }
+ await list();
+}
+
+
 // Source: pages/master-data.js
 
 const organizationCatalogs={
@@ -928,10 +1262,10 @@ async function mountOrganizationData(root,filters={},options={}){
  await list();
 }
 
-const masterDataTabs={departments:'Phòng ban',positions:'Chức vụ',teams:'Teams',attendance:'Chấm công',shifts:'Ca làm việc'};
+const masterDataTabs={departments:'Phòng ban',positions:'Chức vụ',teams:'Teams',contractTypes:'Loại hợp đồng',attendance:'Chấm công',shifts:'Ca làm việc'};
 async function mountMasterData(root,filters={}){
  if(!root)return;
- const screens={departments:'WEB_DEPARTMENTS',positions:'WEB_POSITIONS',teams:'WEB_TEAMS',attendance:'WEB_SYSTEM_SETTINGS',shifts:'WEB_SHIFTS'};
+ const screens={departments:'WEB_DEPARTMENTS',positions:'WEB_POSITIONS',teams:'WEB_TEAMS',contractTypes:'WEB_CONTRACT_TYPES',attendance:'WEB_SYSTEM_SETTINGS',shifts:'WEB_SHIFTS'};
  let tab=masterDataTabs[filters.tab]?filters.tab:Object.keys(masterDataTabs).find(key=>apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===screens[key]&&p.canView==='Y'))||'departments',dirty=false,saving=false;
  async function draw(){
  dirty=false;
@@ -939,6 +1273,7 @@ async function mountMasterData(root,filters={}){
  root.querySelectorAll('[data-master-tab]').forEach(button=>button.onclick=()=>{if(saving||button.dataset.masterTab===tab)return;if(dirty&&!confirm('Bỏ các thay đổi chưa lưu?'))return;tab=button.dataset.masterTab;draw();});
  const panel=root.querySelector('#master-data-panel'),options={onDirty:value=>{if(panel.isConnected)dirty=value;},onSaving:value=>{if(!panel.isConnected)return;saving=value;root.querySelectorAll('[data-master-tab]').forEach(button=>button.disabled=value);}};
  if(tab==='attendance')await mountSystemSettings(panel,{tab:'attendance'},{...options,embedded:true});
+ else if(tab==='contractTypes')await mountContractTypes(panel,options);
  else if(tab==='shifts')await mountShifts(panel,options);
  else await mountOrganizationData(panel,{tab},options);
  }
@@ -1041,7 +1376,7 @@ async function mountEmployees(root,filters={},employeeId=null){
  try{
  if(employeeId!==null){
  const employee=await apiEmployeeDetail(employeeId);if(!root.isConnected||current!==generation)return;
- root.innerHTML=`<a class="btn" href="#/hr/employees">← Danh sách nhân viên</a><h2 class="role-editor-title">${e(employee.fullName)}</h2>${details([['Mã nhân viên',employeeValue(employee.employeeCode)],['Chức danh',employeeValue(employee.positionName)],['Phòng ban',employeeValue(employee.departmentName)],['Team',employeeValue(employee.teamName)],['Trạng thái',employeeValue(employeeStatuses[employee.employmentStatus]||employee.employmentStatus)],['Quản lý phòng ban',employee.isDepartmentManager?'Có':'Không'],['Team Lead',employee.isTeamLead?'Có':'Không'],['Email',employeeValue(employee.email)],['Số điện thoại',employeeValue(employee.phoneNumber)],['Ngày sinh',employee.dateOfBirth?dateLabel(employee.dateOfBirth):'—'],['Ngày vào làm',employee.hireDate?dateLabel(employee.hireDate):'—']])}${employeeCanUpdate()?'<button type="button" class="btn primary" id="employee-profile-edit">Chỉnh sửa</button>':''}`;
+ root.innerHTML=`<a class="btn" href="#/hr/employees">← Danh sách nhân viên</a><h2 class="role-editor-title">${e(employee.fullName)}</h2>${details([['Mã nhân viên',employeeValue(employee.employeeCode)],['Chức danh',employeeValue(employee.positionName)],['Phòng ban',employeeValue(employee.departmentName)+(employee.isDepartmentManager?' (Quản lý)':'')],['Team',employeeValue(employee.teamName)+(employee.isTeamLead?' (Quản lý)':'')],['Trạng thái',employeeValue(employeeStatuses[employee.employmentStatus]||employee.employmentStatus)],['Email',employeeValue(employee.email)],['Số điện thoại',employeeValue(employee.phoneNumber)],['Ngày sinh',employee.dateOfBirth?dateLabel(employee.dateOfBirth):'—'],['Ngày vào làm',employee.hireDate?dateLabel(employee.hireDate):'—']])}${employeeCanUpdate()?'<button type="button" class="btn primary" id="employee-profile-edit">Chỉnh sửa</button>':''}`;
  root.querySelector('#employee-profile-edit')?.addEventListener('click',()=>editEmployeeProfile(root,employee,load));
  return;
  }
@@ -1223,7 +1558,19 @@ function employeeTransferPayload(values,employee){
 
 // Source: pages/roles.js
 
+const roleUsesEmployeeScope=code=>['WEB_EMPLOYEES','WEB_CONTRACTS'].includes(code);
+
+function roleScopeSelect(code,flag,label,value='SELF',disabled=false){
+ if(!roleUsesEmployeeScope(code))return '';
+ return `<div class="role-scope"><select data-role-scope="${e(flag)}" aria-label="Phạm vi ${e(label)}" ${disabled?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([scope,text])=>`<option value="${scope}" ${value===scope?'selected':''}>${text}</option>`).join('')}</select></div>`;
+}
+
 const roleFlags=[['NEW','Thêm mới','can_new'],['VIEW','Xem','can_view'],['UPDATE','Chỉnh sửa','can_update'],['DELETE','Xóa','can_delete'],['APPROVE','Phê duyệt','can_approve'],['EXPORT','Xuất dữ liệu','can_export']];
+function roleScreenCatalog(catalog){
+ const screens=catalog.map(screen=>screen.code==='WEB_CONTRACT_TYPES'?{...screen,name:'Loại hợp đồng'}:{...screen});
+ if(!screens.some(screen=>screen.code==='WEB_CONTRACT_TYPES'))screens.push({id:'pending-WEB_CONTRACT_TYPES',code:'WEB_CONTRACT_TYPES',name:'Loại hợp đồng',platform:'WEB',isActive:true,registrationRequired:true});
+ return screens;
+}
 function roleMenuGroups(catalog,platform='WEB'){
  catalog=catalog.filter(screen=>!screen.platform||screen.platform===platform);
  const used=new Set();const groups=nav.map(group=>{
@@ -1247,8 +1594,13 @@ function rolePermissionPatch(draft,changed,disabled=new Set(),scopes=new Map()){
  return [...changed].map(code=>({screenCode:code,standard:{...draft.get(code)},...(scopes.has(code)?{dataScopes:{...scopes.get(code)}}:{}),...(disabled.has(code)?{extendedActions:[]}: {})}));
 }
 function roleGrant(code,flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p.canView==='Y'&&p[flag]==='Y');}
-async function mountRoles(root,filters){
+function roleSessionIdentity(session=apiSession()){
+ const account=session?.user;
+ return {id:account?.userId||'',name:account?.fullName||account?.userId||'Tài khoản',role:(session?.roles||[]).map(role=>role.name||role.code||'').filter(Boolean).join(', ')};
+}
+async function mountRoles(root,filters={}){
  if(!root)return;
+ if(!apiSession()){root.innerHTML='<p>Vui lòng đăng nhập để xem vai trò và phân quyền.</p>';return;}
  let rolePage=Number(filters.page)||1,roleSearch=filters.search||'';
  const showError=(err,retry)=>{if(!root.isConnected)return;root.innerHTML=`<p role="alert">${e(err.message)}</p><button class="btn" data-role-retry>Thử lại</button>`;root.querySelector('[data-role-retry]').onclick=retry;};
  async function list(){
@@ -1266,9 +1618,10 @@ async function mountRoles(root,filters){
  try{const [catalog,matrix]=await Promise.all([apiAllScreens(),apiRolePermissions(role.id)]);if(!root.isConnected)return;
  if(!Array.isArray(matrix?.screens)||!matrix.version)throw Error('Ma trận quyền hoặc version không hợp lệ.');
  // Keep inactive grants visible and read-only; extended actions are omitted from patches to preserve them.
- const screens=[...catalog];for(const item of matrix.screens)if(!screens.some(x=>x.id===item.screenId))screens.push({id:item.screenId,code:item.screenCode,name:item.name,platform:item.platform,isActive:false});
+ const mergedCatalog=[...catalog];for(const item of matrix.screens)if(!mergedCatalog.some(x=>x.code===item.screenCode))mergedCatalog.push({id:item.screenId,code:item.screenCode,name:item.name,platform:item.platform,isActive:false});
+ const screens=roleScreenCatalog(mergedCatalog);
  const draft=new Map(screens.map(screen=>{const original=matrix.screens.find(x=>x.screenCode===screen.code);return [screen.code,Object.fromEntries(roleFlags.map(([flag])=>[flag,original?.standard?.[flag]===true]))];}));
- const scopes=new Map(matrix.screens.filter(item=>item.screenCode==='WEB_EMPLOYEES').map(item=>[item.screenCode,{...item.dataScopes}]));
+ const scopes=new Map(matrix.screens.filter(item=>roleUsesEmployeeScope(item.screenCode)).map(item=>[item.screenCode,{...item.dataScopes}]));
  const enabledScreens=new Set(matrix.screens.filter(item=>Object.values(item.standard||{}).some(value=>value===true)||item.extendedActions?.length).map(item=>item.screenCode));
  const disabledScreens=new Set();
  const changed=new Set();let activePlatform='WEB';
@@ -1280,7 +1633,7 @@ async function mountRoles(root,filters){
  for(const subgroup of group.subgroups||[])if(subgroup.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id)){openByPlatform[platform].add(group.name);openByPlatform[platform].add(subgroup.key);}
  }
  const canSave=roleGrant('WEB_PERMISSIONS','canUpdate')&&roleGrant('WEB_PERMISSIONS','canApprove');
- function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
+ function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||screen.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
  function draw(){
  const menuGroups=roleMenuGroups(screens,activePlatform),openGroups=openByPlatform[activePlatform];
  root.innerHTML=`<button class="btn" id="role-back">← Danh sách role</button><h2 class="role-editor-title">Chỉnh sửa role</h2><form id="role-rename" class="role-name-editor"><label for="role-name">Tên role</label><input id="role-name" name="name" required maxlength="100" value="${e(nameDraft)}" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}><button class="btn" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}>Lưu tên role</button><span class="muted">${e(role.code)}</span></form><p class="muted">Chọn màn hình trong menu, sau đó bật các chức năng được phép.</p><div class="tabs role-platform-tabs" role="tablist" aria-label="Nền tảng phân quyền">${['WEB','MOBILE'].map(platform=>`<button type="button" role="tab" id="role-platform-${platform}" class="tab ${activePlatform===platform?'active':''}" aria-selected="${activePlatform===platform}" aria-controls="role-platform-panel" data-role-platform="${platform}">${icon(platform==='WEB'?'grid':'person',16)} ${platform}</button>`).join('')}</div><div class="role-editor" id="role-platform-panel" role="tabpanel" aria-labelledby="role-platform-${activePlatform}"><nav class="role-menu" aria-label="Màn hình phân quyền">${menuGroups.map(group=>{
@@ -1296,7 +1649,20 @@ async function mountRoles(root,filters){
  return `<button type="button" class="role-subgroup-toggle ${subActive?'active':''}" data-role-group="${e(subgroup.key)}" aria-expanded="${expanded}"><span>${e(subgroup.name)}</span><span class="chev ${expanded?'role-chevron-open':''}">${icon('chevron',12)}</span>${subgroup.entries.some(item=>changed.has(item.code))?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${expanded?`<div class="submenu role-submenu role-subgroup-items">${subgroup.entries.map(screenButton).join('')}</div>`:''}`;
  }).join('');
  return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="nav-label">${e(group.name)}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${menuEntries}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
- }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu trong System Settings và cấu hình Chấm công trong Master Data theo API.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${selected.code==='WEB_EMPLOYEES'?`<div class="role-scope"><select data-role-scope="${flag}" aria-label="Phạm vi ${label}" ${!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||saving?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([value,text])=>`<option value="${value}" ${(scopes.get(selected.code)?.[flag]||'SELF')===value?'selected':''}>${text}</option>`).join('')}</select></div>`:''}</div>`).join('')}</div>${selected.code==='WEB_EMPLOYEES'?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
+ }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.registrationRequired?`<p>Màn hình chưa được đăng ký trên hệ thống.</p><button type="button" class="btn primary" id="role-register-contract-types" ${!roleGrant('WEB_PERMISSIONS','canNew')||saving?'disabled':''}>Đăng ký màn hình Loại hợp đồng</button>${!roleGrant('WEB_PERMISSIONS','canNew')?'<p class="muted">Cần quyền thêm mới trong Phân quyền để đăng ký màn hình.</p>':''}`:''}${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu trong System Settings và cấu hình Chấm công trong Master Data theo API.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||selected.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${roleScopeSelect(selected.code,flag,label,scopes.get(selected.code)?.[flag]||'SELF',!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||selected.registrationRequired||saving)}</div>`).join('')}</div>${roleUsesEmployeeScope(selected.code)?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
+ root.querySelector('#role-register-contract-types')?.addEventListener('click',async()=>{
+ if(saving||!selected?.registrationRequired||!roleGrant('WEB_PERMISSIONS','canNew'))return;
+ const target=selected;saving=true;draw();
+ try{
+  let registered;
+  try{registered=await apiCreateScreen({code:'WEB_CONTRACT_TYPES',name:'Loại hợp đồng',platform:'WEB',isActive:true});}
+  catch(err){if(err.status!==409)throw err;registered=(await apiAllScreens()).find(screen=>screen.code==='WEB_CONTRACT_TYPES');}
+  if(!root.isConnected)return;
+  if(!registered?.id||registered.code!=='WEB_CONTRACT_TYPES')throw Error('Chưa nhận được màn hình đã đăng ký. Vui lòng mở lại role.');
+  Object.assign(target,registered,{name:'Loại hợp đồng',registrationRequired:false});
+  saving=false;draw();root.querySelector('#role-feedback').textContent='Đã đăng ký màn hình. Bật màn hình và chọn các quyền cần cấp, sau đó lưu lại.';
+ }catch(err){saving=false;if(root.isConnected){draw();root.querySelector('#role-feedback').textContent=err.message;}}
+ });
  root.querySelector('#role-name').oninput=ev=>{nameDraft=ev.target.value;};
  root.querySelector('#role-rename').onsubmit=async ev=>{
  ev.preventDefault();ev.stopPropagation();if(saving||!roleGrant('WEB_ROLES','canUpdate'))return;
@@ -1313,13 +1679,13 @@ async function mountRoles(root,filters){
  root.querySelectorAll('[data-screen-id]').forEach(el=>el.onclick=()=>{selected=screens.find(x=>String(x.id)===el.dataset.screenId);draw();});
  root.querySelectorAll('[data-screen-enabled]').forEach(el=>el.onchange=()=>{
  const screen=screens.find(item=>String(item.id)===el.dataset.screenEnabled);
- if(!screen||!canSave||screen.isActive===false||saving)return;
+ if(!screen||!canSave||screen.isActive===false||screen.registrationRequired||saving)return;
  selected=screen;
- if(el.checked){enabledScreens.add(screen.code);draft.get(screen.code).VIEW=true;if(screen.code==='WEB_EMPLOYEES'){if(!scopes.has(screen.code))scopes.set(screen.code,{});scopes.get(screen.code).VIEW??='SELF';}}
+ if(el.checked){enabledScreens.add(screen.code);draft.get(screen.code).VIEW=true;if(roleUsesEmployeeScope(screen.code)){if(!scopes.has(screen.code))scopes.set(screen.code,{});scopes.get(screen.code).VIEW??='SELF';}}
  else{enabledScreens.delete(screen.code);disabledScreens.add(screen.code);roleFlags.forEach(([flag])=>{draft.get(screen.code)[flag]=false;});}
  changed.add(screen.code);draw();root.querySelector(`[data-screen-enabled="${screen.id}"]`)?.focus();
  });
- root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(selected.code==='WEB_EMPLOYEES'&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
+ root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(roleUsesEmployeeScope(selected.code)&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
  root.querySelectorAll('[data-role-scope]').forEach(el=>el.onchange=()=>{
  if(!canSave||saving||selected.isActive===false)return;
  const flag=el.dataset.roleScope;
@@ -1537,14 +1903,12 @@ function reportsPage(f){if(f.tab==='attendance')return tabs(user().role==='HR'?[
 
 
 // Source: pages/operations.js
-function hrPage(f,path){if(path==='/hr/organization')return '<section id="organization-api-root"></section>';if(apiSession()&&(path==='/hr/employees'||path.startsWith('/hr/employees/')))return '<section class="card user-admin" id="employees-api-root"></section>';if(path==='/hr/employees')return peoplePage(f);if(path.startsWith('/hr/employees/')){const u=scope.employees(s,user()).find(u=>u.id===path.split('/').pop());if(!u)return empty('Không tìm thấy nhân viên','Hồ sơ nằm ngoài phạm vi của bạn.');return card('Hồ sơ nhân viên','Thông tin công việc tại Intelex',`<div class="card-body">${person(u)}${details([['Chức danh',e(u.position)],['Email',e(u.email)],['Team',e(s.teams.find(t=>t.id===u.teamId)?.name||'Office')],['Ngày gia nhập',dateLabel(u.joinedAt)]])}${scope.can(s,user(),'hr')?button('Sửa hồ sơ','edit-employee','edit','primary',`data-id="${u.id}"`):''}</div>`);}if(path==='/hr/attendance')return `${tabs([['company','Toàn công ty'],['adjustment','Điều chỉnh'],['shifts','Ca làm việc'],['late','Đi trễ / Về sớm'],['overtime','Tăng ca']],f.tab||'company')}${f.tab==='shifts'?card('Ca làm việc','Ca chuẩn toàn công ty',`<div class="card-body">${details([['Tên ca','Hành chính'],['Giờ làm',`${e(s.settings.shiftStart)}–${e(s.settings.shiftEnd)}`],['Nghỉ trưa','12:00–13:00'],['Ngày làm','Thứ Hai–Thứ Sáu']])}<a class="btn" href="#/admin/settings">Cấu hình ca (Admin)</a></div>`):['adjustment','overtime'].includes(f.tab)?approvalPage(f):attendancePage(f.tab==='late'?{...f,status:'late'}:f)}`;
+function hrPage(f,path){if(apiSession()&&path==='/hr/contracts')return '<section class="card contracts-page" id="contracts-api-root"></section>';if(path==='/hr/organization')return '<section id="organization-api-root"></section>';if(apiSession()&&(path==='/hr/employees'||path.startsWith('/hr/employees/')))return '<section class="card user-admin" id="employees-api-root"></section>';if(path==='/hr/employees')return peoplePage(f);if(path.startsWith('/hr/employees/')){const u=scope.employees(s,user()).find(u=>u.id===path.split('/').pop());if(!u)return empty('Không tìm thấy nhân viên','Hồ sơ nằm ngoài phạm vi của bạn.');return card('Hồ sơ nhân viên','Thông tin công việc tại Intelex',`<div class="card-body">${person(u)}${details([['Chức danh',e(u.position)],['Email',e(u.email)],['Team',e(s.teams.find(t=>t.id===u.teamId)?.name||'Office')],['Ngày gia nhập',dateLabel(u.joinedAt)]])}${scope.can(s,user(),'hr')?button('Sửa hồ sơ','edit-employee','edit','primary',`data-id="${u.id}"`):''}</div>`);}if(path==='/hr/attendance')return `${tabs([['company','Toàn công ty'],['adjustment','Điều chỉnh'],['shifts','Ca làm việc'],['late','Đi trễ / Về sớm'],['overtime','Tăng ca']],f.tab||'company')}${f.tab==='shifts'?card('Ca làm việc','Ca chuẩn toàn công ty',`<div class="card-body">${details([['Tên ca','Hành chính'],['Giờ làm',`${e(s.settings.shiftStart)}–${e(s.settings.shiftEnd)}`],['Nghỉ trưa','12:00–13:00'],['Ngày làm','Thứ Hai–Thứ Sáu']])}<a class="btn" href="#/admin/settings">Cấu hình ca (Admin)</a></div>`):['adjustment','overtime'].includes(f.tab)?approvalPage(f):attendancePage(f.tab==='late'?{...f,status:'late'}:f)}`;
  if(path.includes('attendance-reports')||path==='/hr/reports')return reportsPage({...f,tab:f.tab||'attendance'});if(path==='/hr/leave')return `${tabs([['requests','Đơn nghỉ phép'],['types','Loại nghỉ'],['balances','Số dư phép']],f.tab||'requests')}${f.tab==='types'?card('Danh mục loại phép','Quy định mô phỏng',`<div class="card-body">${s.leaveTypes.map(t=>`<p style="padding:12px;border-bottom:1px solid var(--border)">${e(t)}</p>`).join('')}</div>`):f.tab==='balances'?`<div class="card">${table(['Nhân viên','Định mức','Đã dùng','Còn lại'],s.leaveBalances.map(b=>[person(s.users.find(u=>u.id===b.userId)),b.allowanceDays+' ngày',b.usedDays+' ngày',(b.allowanceDays-b.usedDays)+' ngày']),{page:f.page})}</div>`:approvalPage({...f,tab:'leave'})}`;
  if(path==='/hr/contracts')return `<div class="toolbar">${button('Thêm hợp đồng','new-contract','plus','primary')}</div><div class="card">${table(['Nhân viên','Loại hợp đồng','Bắt đầu','Kết thúc','Trạng thái',''],s.contracts.map(c=>[person(s.users.find(u=>u.id===c.employeeId)),e(c.type),dateLabel(c.startDate),dateLabel(c.endDate),badge(c.endDate<'2026-11-19'?'high':'active',c.endDate<'2026-11-19'?'Sắp hết hạn':'Còn hiệu lực'),button('Sửa','edit-contract','edit','small',`data-id="${c.id}"`)]),{page:f.page})}</div>`;
  const tab=f.tab||'departments';return `${tabs([['departments','Phòng ban'],['teams','Teams'],['positions','Chức vụ']],tab)}<div class="project-grid">${(tab==='departments'?s.departments:tab==='teams'?s.teams:s.positions.map(name=>({name}))).map(x=>`<article class="card project-card"><div class="icon-tile blue">${icon('briefcase',22)}</div><h2>${e(x.name)}</h2><p>${tab==='departments'?s.users.filter(u=>u.departmentId===x.id).length+' nhân sự':tab==='teams'?s.users.filter(u=>u.teamId===x.id).length+' thành viên':'Chức danh tại Intelex'}</p></article>`).join('')}</div>`;
 }
-const permissionActions=[['team','Quản lý team'],['project.create','Tạo/sửa dự án'],['task.create','Tạo/giao công việc'],['hr','Quản lý nhân sự'],['admin','Quản trị hệ thống']];
-function adminPage(f,path){if(path==='/admin/audit-logs'&&apiSession())return '<section class="card user-admin" id="audit-logs-api-root"></section>';if(path==='/admin/settings'&&apiSession())return '<section class="card user-admin" id="system-settings-api-root"></section>';if(path==='/admin/master-data'&&apiSession())return '<section class="card user-admin" id="master-data-api-root"></section>';if(path==='/admin/users'||path==='/admin/users/register')return '<section class="card user-admin" id="users-api-root"></section>';if(path==='/admin/roles')return '<section class="card role-admin" id="roles-api-root"></section>';
- if(path==='/admin/roles'||path==='/admin/permissions')return card('Ma trận quyền','Các thay đổi chỉ áp dụng trong bản demo hiện tại',table(['Quyền','Dev','Leader','Manager','HR','Admin'],permissionActions.map(([action,label])=>[label,...['Dev','Leader','Manager','HR','Admin'].map(role=>{const sample=s.users.find(u=>u.role===role),allowed=scope.can(s,sample,action);return `<input type="checkbox" aria-label="${label} cho ${role}" data-permission="${action}" data-role="${role}" ${allowed?'checked':''} ${role==='Admin'&&action==='admin'?'disabled':''}>`;})])));
+function adminPage(f,path){if(path==='/admin/audit-logs'&&apiSession())return '<section class="card user-admin" id="audit-logs-api-root"></section>';if(path==='/admin/settings'&&apiSession())return '<section class="card user-admin" id="system-settings-api-root"></section>';if(path==='/admin/master-data'&&apiSession())return '<section class="card user-admin" id="master-data-api-root"></section>';if(path==='/admin/users'||path==='/admin/users/register')return '<section class="card user-admin" id="users-api-root"></section>';if(path==='/admin/roles'||path==='/admin/permissions')return '<section class="card role-admin" id="roles-api-root"></section>';
  if(path==='/admin/audit-logs')return `<div class="card">${table(['Thời gian','Người thực hiện','Hành động'],s.auditLogs.map(a=>[`${dateLabel(a.createdAt)} ${timeLabel(a.createdAt)}`,e(s.users.find(u=>u.id===a.actorId)?.name),e(a.action)]),{page:f.page})}</div>`;
  if(path==='/admin/settings')return card('Thiết lập công ty','Cấu hình cho bản demo trên trình duyệt',`<div class="card-body"><form data-form="settings" class="settings-form"><div class="form-grid">${field('Tên công ty','companyName','text',s.settings.companyName,'required')}${field('Bắt đầu ca','shiftStart','time',s.settings.shiftStart,'required')}${field('Kết thúc ca','shiftEnd','time',s.settings.shiftEnd,'required')}</div><p class="muted" style="margin-top:15px">Giờ nghỉ trưa cố định 12:00–13:00. Lịch làm việc: thứ Hai–thứ Sáu.</p>${formFooter()}</form></div>`);
  return `${tabs([['departments','Phòng ban'],['positions','Chức vụ'],['leaveTypes','Loại phép']],f.tab||'departments')}<div class="toolbar">${button('Thêm danh mục','new-master','plus','primary')}</div><div class="card">${table(['Tên danh mục',''],(f.tab==='positions'?s.positions:f.tab==='leaveTypes'?s.leaveTypes:s.departments.map(x=>x.name)).map((name,i)=>[e(name),button('Sửa','edit-master','edit','small',`data-index="${i}"`)]))}</div>`;
@@ -1638,7 +2002,7 @@ function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const
  case 'new-master':case 'edit-master':{if(!scope.can(s,user(),'admin'))throw Error('Không có quyền.');const key=f().tab||'departments',index=el.dataset.index,value=key==='departments'?s.departments[index]?.name:s[key][index];form('Danh mục hệ thống','master',field('Tên danh mục','name','text',value||'','required')+`<input type="hidden" name="key" value="${key}"><input type="hidden" name="index" value="${index??''}">`);return;}
  default:throw Error('Thao tác không được hỗ trợ.');}}
  document.addEventListener('click',ev=>{const notification=ev.target.closest('[data-notification]');if(notification){const n=s.notifications.find(n=>n.id===notification.dataset.notification&&n.recipientId===user().id);if(n){n.readAt=NOW;save();if(document.getElementById('modal').open)closeDialog();}}const el=ev.target.closest('[data-action],[data-open]');if(!el)return;ev.preventDefault();const action=el.dataset.open||el.dataset.action;Promise.resolve().then(()=>act(action,el)).catch(err=>toast(err.message));});
- document.addEventListener('change',ev=>{const el=ev.target;if(el.name==='projectId'&&el.closest('[data-form="task"]')){const p=scope.projects(s,user()).find(p=>p.id===el.value),sel=el.closest('form').querySelector('[name="assigneeId"]');sel.innerHTML=scope.employees(s,user()).filter(u=>p?.memberIds.includes(u.id)).map(u=>`<option value="${u.id}">${e(u.name)}</option>`).join('');}if(el.matches('[data-permission]')){if(!scope.can(s,user(),'admin'))return;const role=el.dataset.role,action=el.dataset.permission;s.rolePermissions[role]??={};if(el.checked)delete s.rolePermissions[role][action];else s.rolePermissions[role][action]=false;log('đã cập nhật quyền '+role);render(true);toast('Đã cập nhật quyền demo');}});
+ document.addEventListener('change',ev=>{const el=ev.target;if(el.name==='projectId'&&el.closest('[data-form="task"]')){const p=scope.projects(s,user()).find(p=>p.id===el.value),sel=el.closest('form').querySelector('[name="assigneeId"]');sel.innerHTML=scope.employees(s,user()).filter(u=>p?.memberIds.includes(u.id)).map(u=>`<option value="${u.id}">${e(u.name)}</option>`).join('');}});
  document.addEventListener('submit',ev=>{const formEl=ev.target.closest('[data-form]');if(!formEl)return;ev.preventDefault();const data=Object.fromEntries(new FormData(formEl));Object.keys(data).forEach(k=>{if(typeof data[k]==='string')data[k]=data[k].trim();});const formType=formEl.dataset.form,itemId=formEl.dataset.id;try{switch(formType){
  case 'task-status':updateTask(itemId,data.status);break;
  case 'task':{if(!scope.can(s,user(),'task.create'))throw Error('Bạn không có quyền tạo/giao task.');if(!data.title||!data.assigneeId)throw Error('Điền tên và chọn người phụ trách.');if(data.dueDate<data.startDate)throw Error('Hạn hoàn thành không được trước ngày bắt đầu.');const p=scope.projects(s,user()).find(p=>p.id===data.projectId);if(!p||!p.memberIds.includes(data.assigneeId)||!scope.employees(s,user()).some(u=>u.id===data.assigneeId))throw Error('Người phụ trách phải thuộc team và dự án.');if(itemId){const t=scope.tasks(s,user()).find(t=>t.id===itemId);if(!t)throw Error('Không có quyền sửa.');Object.assign(t,data);}else s.tasks.push({...data,id:id('tsk'),code:p.code+'-'+String(s.tasks.filter(t=>t.projectId===p.id).length+1).padStart(3,'0')});log('đã lưu công việc '+data.title,p.id);break;}
@@ -1672,11 +2036,11 @@ function loginScreen(){
  });
 }
 function shell(){if(!apiSession()){loginScreen();return;}
-const path=getPath(),u=user();let unread=notificationService.snapshot().count||0,pending=scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count" data-notification-nav-count>${unread}</span>`:n.name==='Notifications'?'<span class="badge count" data-notification-nav-count hidden></span>':n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search">${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><div id="notification-header" class="notification-header"></div><span class="top-divider"></span><div class="account-menu-wrap"><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Menu tài khoản" aria-expanded="false" aria-controls="top-account-menu">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${u.role}</small></div>${icon('down',12)}</button><div class="account-dropdown" id="top-account-menu" hidden><button type="button" class="btn" data-action="self-password">Đổi mật khẩu</button><button type="button" class="btn" data-action="logout">Đăng xuất</button></div></div></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderNotificationHeader(document.getElementById('notification-header'));renderContent();}
-function header(path){const u=user(),home=path==='/dashboard';const primary=(path.includes('tasks')&&scope.can(s,u,'task.create'))?button('Tạo công việc','new-task','plus','primary'):path==='/projects'&&scope.can(s,u,'project.create')?button('Tạo dự án','new-project','plus','primary'):path==='/hr/employees'&&scope.can(s,u,'hr')?button('Thêm nhân viên','new-employee','plus','primary'):path==='/workspace/leave'?button('Tạo đơn nghỉ','new-request','plus','primary'):'';return `<div class="page-heading"><div><div class="eyebrow">${home?'YOUR WORK, CONNECTED':'INTELEX WORKSPACE'}</div><h1>${pageTitle(path)}${home?'<span style="color:#d7aa64;font-weight:400;margin-left:9px">✦</span>':''}</h1><p>${home?`Chào ${e(u.name.split(' ').pop())}, cùng xem đội ngũ đang làm việc thế nào hôm nay.`:'Một không gian chung để kết nối con người và công việc.'}</p></div><div class="heading-actions">${home?`${teamOptions(filters)}<input type="date" aria-label="Ngày dashboard" data-filter="date" value="${filters.date}" max="2026-10-19">${button('','refresh','refresh','','aria-label="Làm mới dashboard"')}`:primary}</div></div>`;}
+const path=getPath(),apiRolePage=path==='/admin/roles'||path==='/admin/permissions',u=apiRolePage?roleSessionIdentity():user();let unread=notificationService.snapshot().count||0,pending=apiRolePage?0:scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count" data-notification-nav-count>${unread}</span>`:n.name==='Notifications'?'<span class="badge count" data-notification-nav-count hidden></span>':n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${e(u.role)} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search" ${apiRolePage?'hidden':''}>${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><div id="notification-header" class="notification-header"></div><span class="top-divider"></span><div class="account-menu-wrap"><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Menu tài khoản" aria-expanded="false" aria-controls="top-account-menu">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${e(u.role)}</small></div>${icon('down',12)}</button><div class="account-dropdown" id="top-account-menu" hidden><button type="button" class="btn" data-action="self-password">Đổi mật khẩu</button><button type="button" class="btn" data-action="logout">Đăng xuất</button></div></div></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderNotificationHeader(document.getElementById('notification-header'));renderContent();}
+function header(path){if(path==='/hr/contracts')return '';const u=user(),home=path==='/dashboard';const primary=(path.includes('tasks')&&scope.can(s,u,'task.create'))?button('Tạo công việc','new-task','plus','primary'):path==='/projects'&&scope.can(s,u,'project.create')?button('Tạo dự án','new-project','plus','primary'):path==='/hr/employees'&&scope.can(s,u,'hr')?button('Thêm nhân viên','new-employee','plus','primary'):path==='/workspace/leave'?button('Tạo đơn nghỉ','new-request','plus','primary'):'';return `<div class="page-heading"><div><div class="eyebrow">${home?'YOUR WORK, CONNECTED':'INTELEX WORKSPACE'}</div><h1>${pageTitle(path)}${home?'<span style="color:#d7aa64;font-weight:400;margin-left:9px">✦</span>':''}</h1><p>${home?`Chào ${e(u.name.split(' ').pop())}, cùng xem đội ngũ đang làm việc thế nào hôm nay.`:'Một không gian chung để kết nối con người và công việc.'}</p></div><div class="heading-actions">${home?`${teamOptions(filters)}<input type="date" aria-label="Ngày dashboard" data-filter="date" value="${filters.date}" max="2026-10-19">${button('','refresh','refresh','','aria-label="Làm mới dashboard"')}`:primary}</div></div>`;}
 function routeTabs(path){const group=groupFor(path);if(!group?.children||path.startsWith('/projects/prj-')||/^\/hr\/employees\/.+/.test(path))return '';return `<div class="tabs route-tabs">${group.children.filter(([,p])=>scope.routeAllowed(s,user(),p)).map(([name,p])=>`<a class="tab ${p===path?'active':''}" href="#${p}">${name}</a>`).join('')}</div>`;}
-function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn một mục trong menu hoặc chuyển tài khoản demo.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return approvalPage(filters);if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return '<section class="card user-admin" id="notifications-api-root"></section>';if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
-function renderContent(){disposeOrganizationPage();disposeOrganizationPage=()=>{};disposeNotificationsPage();disposeNotificationsPage=()=>{};const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">${path==='/hr/organization'?'Cơ cấu tổ chức từ API':path==='/notifications'?'Thông báo từ API · Giờ Việt Nam (UTC+7)':path==='/admin/audit-logs'?'Nhật ký từ API · Giờ Việt Nam (UTC+7)':'Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt'}</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/hr/organization'&&scope.routeAllowed(s,user(),path))disposeOrganizationPage=mountOrganization(document.getElementById('organization-api-root'));if(path==='/notifications')disposeNotificationsPage=mountNotifications(document.getElementById('notifications-api-root'));if(path==='/admin/audit-logs'&&scope.routeAllowed(s,user(),path))mountAuditLogs(document.getElementById('audit-logs-api-root'));if(path==='/admin/settings'&&scope.routeAllowed(s,user(),path))mountSystemSettings(document.getElementById('system-settings-api-root'),filters);if(path==='/admin/master-data'&&scope.routeAllowed(s,user(),path))mountMasterData(document.getElementById('master-data-api-root'),filters);if(path==='/admin/roles'&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
+function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn mục được cấp quyền trong menu.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return approvalPage(filters);if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return '<section class="card user-admin" id="notifications-api-root"></section>';if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
+function renderContent(){disposeOrganizationPage();disposeOrganizationPage=()=>{};disposeNotificationsPage();disposeNotificationsPage=()=>{};const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">${path==='/admin/roles'||path==='/admin/permissions'?'Vai trò và phân quyền từ API':path==='/hr/contracts'?'Hợp đồng từ API':path==='/hr/organization'?'Cơ cấu tổ chức từ API':path==='/notifications'?'Thông báo từ API · Giờ Việt Nam (UTC+7)':path==='/admin/audit-logs'?'Nhật ký từ API · Giờ Việt Nam (UTC+7)':'Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt'}</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/hr/contracts'&&scope.routeAllowed(s,user(),path))mountContracts(document.getElementById('contracts-api-root'));if(path==='/hr/organization'&&scope.routeAllowed(s,user(),path))disposeOrganizationPage=mountOrganization(document.getElementById('organization-api-root'));if(path==='/notifications')disposeNotificationsPage=mountNotifications(document.getElementById('notifications-api-root'));if(path==='/admin/audit-logs'&&scope.routeAllowed(s,user(),path))mountAuditLogs(document.getElementById('audit-logs-api-root'));if(path==='/admin/settings'&&scope.routeAllowed(s,user(),path))mountSystemSettings(document.getElementById('system-settings-api-root'),filters);if(path==='/admin/master-data'&&scope.routeAllowed(s,user(),path))mountMasterData(document.getElementById('master-data-api-root'),filters);if((path==='/admin/roles'||path==='/admin/permissions')&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
 function render(full=false){if(!apiSession()){loginScreen();return;}if(full)shell();else renderContent();}
 function navigate(){if(lastPath!==getPath()){filters=newFilters();document.body.classList.remove('mobile-open');lastPath=getPath();const g=groupFor(lastPath);if(g?.children)expanded.add(g.name);if(document.getElementById('modal').open)closeDialog();}shell();window.scrollTo(0,0);}
 window.addEventListener('hashchange',navigate);
@@ -1688,7 +2052,7 @@ window.addEventListener('online',()=>{void notificationService.syncAuth();void n
 setInterval(()=>{if(!apiSession()&&!document.getElementById('login-form'))loginScreen();},30000);
 app.addEventListener('click',ev=>{if(ev.target.closest('[data-action="logout"]')){apiLogout();return;}const exp=ev.target.closest('[data-expand]');if(exp){const n=exp.dataset.expand;expanded.has(n)?expanded.delete(n):expanded.add(n);shell();return;}const p=ev.target.closest('[data-page]');if(p){filters.page=Number(p.dataset.page);render();}const tab=ev.target.closest('[data-tab]');if(tab){filters.tab=tab.dataset.tab;filters.page=1;render();}const sort=ev.target.closest('[data-sort]');if(sort){filters.sort=sort.dataset.sort;render();}const nf=ev.target.closest('[data-notification]');if(nf){const n=s.notifications.find(x=>x.id===nf.dataset.notification&&x.recipientId===user().id);if(n){n.readAt='2026-10-19T10:00:00+07:00';save();}}});
 document.addEventListener('change',ev=>{const el=ev.target;if(el.matches('[data-filter]')){filters[el.dataset.filter]=el.value;filters.page=1;render();}if(el.id==='demo-user'){switchUser(el.value);filters=newFilters();closeDialog();if(getPath()==='/dashboard')shell();else location.hash='/dashboard';toast('Đã chuyển tài khoản demo');}});
-document.addEventListener('input',ev=>{const el=ev.target;if(el.matches('[data-filter="search"]')){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const cursor=el.selectionStart;filters.search=el.value;filters.page=1;render();const input=document.querySelector('[data-filter="search"]');input?.focus();input?.setSelectionRange(cursor,cursor);},220);}if(el.id==='global-search'){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const q=el.value.trim().toLowerCase();const entries=[...scope.projects(s,user()).map(p=>({name:p.name,type:'Dự án',route:'/projects/'+p.id})),...scope.tasks(s,user()).map(t=>({name:t.code+' · '+t.title,type:'Công việc',route:'/workspace/tasks',open:'task',id:t.id})),...scope.employees(s,user()).map(u=>({name:u.name,type:'Nhân viên',route:'/hr/employees/'+u.id,open:'employee',id:u.id}))].filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);document.getElementById('search-results').innerHTML=q?entries.map(x=>`<a href="#${x.route}" ${x.open?`data-open="${x.open}" data-id="${x.id}"`:''}>${e(x.name)}<small>${x.type}</small></a>`).join('')||'<div class="empty">Không tìm thấy kết quả</div>':'';},250);}});
+document.addEventListener('input',ev=>{const el=ev.target;if(el.matches('[data-filter="search"]')){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const cursor=el.selectionStart;filters.search=el.value;filters.page=1;render();const input=document.querySelector('[data-filter="search"]');input?.focus();input?.setSelectionRange(cursor,cursor);},220);}if(el.id==='global-search'){if(getPath()==='/admin/roles'||getPath()==='/admin/permissions')return;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const q=el.value.trim().toLowerCase();const entries=[...scope.projects(s,user()).map(p=>({name:p.name,type:'Dự án',route:'/projects/'+p.id})),...scope.tasks(s,user()).map(t=>({name:t.code+' · '+t.title,type:'Công việc',route:'/workspace/tasks',open:'task',id:t.id})),...scope.employees(s,user()).map(u=>({name:u.name,type:'Nhân viên',route:'/hr/employees/'+u.id,open:'employee',id:u.id}))].filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);document.getElementById('search-results').innerHTML=q?entries.map(x=>`<a href="#${x.route}" ${x.open?`data-open="${x.open}" data-id="${x.id}"`:''}>${e(x.name)}<small>${x.type}</small></a>`).join('')||'<div class="empty">Không tìm thấy kết quả</div>':'';},250);}});
 document.addEventListener('click',ev=>{if(!notificationEventInside(ev,document.getElementById('notification-header')))closeNotificationHeader(document.getElementById('notification-header'));if(!ev.target.closest('.global-search'))(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();});
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){closeNotificationHeader(document.getElementById('notification-header'),true);}if(ev.key==='Escape')(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();if((ev.ctrlKey||ev.metaKey)&&ev.key==='k'){ev.preventDefault();document.getElementById('global-search')?.focus();}if(ev.key==='Enter'&&ev.target.matches('.kanban-card'))ev.target.click();});
 document.addEventListener('click',ev=>{
