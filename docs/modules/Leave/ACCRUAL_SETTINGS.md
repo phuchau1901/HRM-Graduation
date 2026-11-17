@@ -4,7 +4,7 @@
 
 ## GET /api/leave-balances/me
 
-Yêu cầu WEB_LEAVE_BALANCES VIEW và tài khoản có Employee liên kết nằm trong scope VIEW. Luôn giới hạn đúng nhân viên đang đăng nhập, kể cả người gọi có ALL. Không nhận employeeId để chọn người khác.
+Yêu cầu WEB_LEAVE_BALANCES VIEW và tài khoản ACTIVE có Employee liên kết. API này không kiểm tra Data Scope SELF/DEPARTMENT/ALL và không yêu cầu cấu hình dòng scope; backend chỉ lọc theo users.employee_id của chính tài khoản đăng nhập. Quyền VIEW vẫn kiểm tra hiện hành. Không nhận employeeId để chọn người khác.
 
 Query tùy chọn `year=2027`, `leaveTypeId=1`; mặc định năm hiện tại theo Asia/Ho_Chi_Minh. Không dùng trực tiếp ngày UTC. Không có số dư thực tế trong năm/loại được chọn thì tổng0 và balances=[], không tự tạo quota. Không có Employee liên kết =>403; year ngoài1900..9999 =>400.
 

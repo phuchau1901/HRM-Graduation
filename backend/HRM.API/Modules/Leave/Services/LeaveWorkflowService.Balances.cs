@@ -9,9 +9,11 @@ public sealed partial class LeaveWorkflowService
 {
     public async Task<MyBalanceSummary> MyLeaveBalances(string actor, MyBalanceQuery q, CancellationToken ct)
     {
-        var access = await scopes.GetAsync(actor, Balances, "VIEW", ct);
-        var employee = await access.Apply(db.Employees.AsNoTracking()).Where(e => e.Id == access.EmployeeId)
-            .Select(e => new { e.Id, e.FullName }).SingleOrDefaultAsync(ct) ?? throw BusinessException.Scope();
+        await Demand(actor, Balances, "VIEW", ct);
+        var employee = await (from user in db.Set<User>().AsNoTracking()
+                              join person in db.Employees.AsNoTracking() on user.EmployeeId equals (int?)person.Id
+                              where user.UserId == actor && user.Status == "ACTIVE"
+                              select new { person.Id, person.FullName }).SingleOrDefaultAsync(ct) ?? throw BusinessException.Scope();
         var today = VietnamBusinessDate.Today(clock); var year = q.Year ?? today.Year;
         var rows = await (from b in db.Set<LeaveBalance>().AsNoTracking()
                           join t in db.Set<LeaveType>().AsNoTracking() on b.LeaveTypeID equals t.ID

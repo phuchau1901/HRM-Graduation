@@ -48,4 +48,33 @@ public sealed class MyLeaveBalanceTests
         using (var scope = f.H.App.Services.CreateScope()) await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<User>().Where(u => u.UserId == "api-user").ExecuteUpdateAsync(s => s.SetProperty(u => u.EmployeeId, (int?)null));
         Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.GetAsync("/api/leave-balances/me")).StatusCode);
     }
+    [Theory]
+    [InlineData(null)]
+    [InlineData("SELF")]
+    [InlineData("DEPARTMENT")]
+    [InlineData("ALL")]
+    [InlineData("INVALID")]
+    public async Task MeIgnoresDataScopeButStillRequiresLiveViewPermission(string? dataScope)
+    {
+        await using var f = await Fixture.Create();
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var screen = await db.Screens.SingleAsync(s => s.Code == "WEB_LEAVE_BALANCES");
+            var grants = db.Set<RoleScreenAction>().Where(g => g.ScreenID == screen.ID && g.ActionCode == "VIEW");
+            if (dataScope == null) await grants.ExecuteDeleteAsync();
+            else await grants.ExecuteUpdateAsync(s => s.SetProperty(g => g.DataScope, dataScope));
+        }
+        var mine = await Get(f, "?employeeId=" + f.H.Other); Assert.Equal(f.H.Self, mine.EmployeeId); Assert.Equal(10, mine.TotalDays);
+        Assert.All(mine.Balances, b => Assert.Equal(f.H.Self, b.EmployeeId));
+        if (dataScope == null) Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.GetAsync("/api/leave-balances")).StatusCode);
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var screen = await db.Screens.SingleAsync(s => s.Code == "WEB_LEAVE_BALANCES");
+            await db.Set<RoleDetail>().Where(d => d.ScreenID == screen.ID).ExecuteUpdateAsync(s => s.SetProperty(d => d.CanView, "N"));
+        }
+        Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.GetAsync("/api/leave-balances/me")).StatusCode);
+    }
+
 }
