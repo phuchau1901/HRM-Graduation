@@ -130,8 +130,10 @@ public sealed partial class LeaveWorkflowService
                 throw BusinessException.Invalid("New effective dates must be today or later; historical awards are not inferred.");
             if (policy.ResetOn.HasValue && policy.ResetOn < policy.EffectiveFrom) throw BusinessException.Invalid("ResetOn must not precede EffectiveFrom.");
         }
-        if (policy.Enabled && policy.Rules.Length == 0 || policy.Rules.Any(r => r == null)) throw BusinessException.Invalid("Enabled policy requires valid position rules.");
+        if (policy.Enabled && policy.ScheduleVersion == 1 && policy.Rules.Length == 0 || policy.Rules.Any(r => r == null)) throw BusinessException.Invalid("Enabled policy requires valid position rules.");
         await NormalizeAccrualRules(policy, ct);
+        if (decimal.Round(policy.DefaultDaysPerCycle, 2) != policy.DefaultDaysPerCycle) throw BusinessException.Invalid("DefaultDaysPerCycle requires at most two decimals.");
+        if (policy.ScheduleVersion == 2 && policy.Enabled && await AnnualLeaveType(ct) == null) throw BusinessException.Invalid("Default accrual requires an active balance-tracked ANNUAL leave type.");
         if (policy.Rules.Select(r => (r.PositionId, r.LeaveTypeId)).Distinct().Count() != policy.Rules.Length) throw BusinessException.Invalid("Duplicate position/leave-type rules.");
         foreach (var rule in policy.Rules)
         {
@@ -169,10 +171,15 @@ public sealed partial class LeaveWorkflowService
         await NormalizeAccrualRules(policy, ct);
         var activePositions = await db.Set<Position>().Where(p => p.IsActive).Select(p => p.ID).ToArrayAsync(ct);
         var activeTypes = await db.Set<LeaveType>().Where(t => t.IsActive && t.RequiresBalance).Select(t => t.ID).ToArrayAsync(ct);
-        var rules = policy.Rules.Where(r => activePositions.Contains(r.PositionId) && activeTypes.Contains(r.LeaveTypeId!.Value)).ToArray();
+        var configuredRules = policy.Rules.Where(r => activePositions.Contains(r.PositionId) && activeTypes.Contains(r.LeaveTypeId!.Value)).ToArray();
+        var fallback = policy.ScheduleVersion == 2 ? await AnnualLeaveType(ct) : null;
+        if (policy.ScheduleVersion == 2 && fallback == null) throw BusinessException.Invalid("Default accrual requires an active balance-tracked ANNUAL leave type.");
+        var rules = configuredRules.Concat(fallback.HasValue ? new[] { new LeaveAccrualRule { PositionId = 0, LeaveTypeId = fallback, DaysPerCycle = policy.DefaultDaysPerCycle } } : Array.Empty<LeaveAccrualRule>()).ToArray();
+        LeaveAccrualRule[] EmployeeRules(long? position) => configuredRules.Any(r => r.PositionId == position)
+            ? configuredRules.Where(r => r.PositionId == position).ToArray() : rules.Where(r => r.PositionId == 0).ToArray();
         var positionIds = rules.Select(r => r.PositionId).Distinct().ToArray(); var typeIds = rules.Select(r => r.LeaveTypeId!.Value).Distinct().ToArray();
-        var employees = await db.Employees.AsNoTracking().Where(e => e.EmploymentStatus == "ACTIVE" && e.PositionId.HasValue && positionIds.Contains(e.PositionId.Value) && e.HireDate <= today)
-            .OrderBy(e => e.Id).Select(e => new { e.Id, PositionId = e.PositionId!.Value, e.HireDate }).ToListAsync(ct);
+        var employees = await db.Employees.AsNoTracking().Where(e => e.EmploymentStatus == "ACTIVE" && (fallback.HasValue || e.PositionId.HasValue && positionIds.Contains(e.PositionId.Value)) && e.HireDate <= today)
+            .OrderBy(e => e.Id).Select(e => new { e.Id, PositionId = e.PositionId, e.HireDate }).ToListAsync(ct);
         var expired = 0; var credited = 0; var resetProcessed = false; var accrualProcessed = false;
         var reset = ResetDue(policy, today); var resetExecuted = false;
         if (reset.HasValue && reset >= policy.EffectiveFrom && reset <= today)
@@ -192,7 +199,7 @@ public sealed partial class LeaveWorkflowService
                     foreach (var balance in balances)
                     {
                         var employee = chunk.First(e => e.Id == balance.EmployeeID);
-                        if (!rules.Any(r => r.PositionId == employee.PositionId && r.LeaveTypeId == balance.LeaveTypeID)) continue;
+                        if (!EmployeeRules(employee.PositionId).Any(r => r.LeaveTypeId == balance.LeaveTypeID)) continue;
                         var unused = Allocated(balance) - balance.UsedDays - balance.ReservedDays;
                         if (unused <= 0) continue;
                         var before = Json(balance); balance.AdjustmentDays -= unused; BalanceAmounts(balance); balance.Version++; expired++;
@@ -219,7 +226,7 @@ public sealed partial class LeaveWorkflowService
                     var balances = await db.Set<LeaveBalance>().Where(b => ids.Contains(b.EmployeeID) && typeIds.Contains(b.LeaveTypeID) && b.YearNo == due.Year).ToListAsync(ct);
                     var changes = new List<(LeaveBalance Balance, string? Before, decimal Days)>();
                     foreach (var employee in chunk)
-                    foreach (var rule in rules.Where(r => r.PositionId == employee.PositionId))
+                    foreach (var rule in EmployeeRules(employee.PositionId))
                     {
                         var balance = balances.SingleOrDefault(b => b.EmployeeID == employee.Id && b.LeaveTypeID == rule.LeaveTypeId);
                         var before = balance == null ? null : Json(balance);

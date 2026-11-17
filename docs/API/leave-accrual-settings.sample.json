@@ -19,6 +19,7 @@
         "positionId": 3,
         "daysPerCycle": 1.5
       }
-    ]
+    ],
+    "defaultDaysPerCycle": 1
   }
 }

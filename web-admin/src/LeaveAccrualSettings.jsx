@@ -4,7 +4,7 @@ function businessDate() { return new Intl.DateTimeFormat('en-CA', { timeZone: 'A
 function schedule(startDate, unit = 'MONTH') { return { startDate, interval: 1, unit }; }
 function editor(value) {
   const source = value.settings, today = value.asOfDate || businessDate(), legacy = source.scheduleVersion !== 2;
-  return { ...value, legacy, settings: { scheduleVersion: 2, enabled: source.enabled,
+  return { ...value, legacy, settings: { scheduleVersion: 2, enabled: source.enabled, defaultDaysPerCycle: source.defaultDaysPerCycle ?? 1,
     accrualSchedule: legacy ? schedule(today) : source.accrualSchedule,
     resetSchedule: legacy ? source.resetOn ? schedule(source.resetOn < today ? today : source.resetOn, 'YEAR') : null : source.resetSchedule,
     newHireEligibility: source.newHireEligibility,
@@ -48,7 +48,7 @@ export function LeaveAccrualSettings({ api, permissions }) {
       <Recurrence label="cấp phép" value={data.settings.accrualSchedule} change={value => field('accrualSchedule', value)} start={data.asOfDate || businessDate()} />
       <Recurrence label="thu hồi" value={data.settings.resetSchedule} change={value => field('resetSchedule', value)} start={data.asOfDate || businessDate()} defaultUnit="YEAR" />
       <label>Điều kiện nhân viên mới<select value={data.settings.newHireEligibility} onChange={e => field('newHireEligibility', e.target.value)}><option value="ACTIVE_ON_DATE">Đang làm việc tại ngày cấp phép</option><option value="ONE_MONTH">Đã làm đủ một tháng tại ngày cấp phép</option></select></label>
-      <h3>Đối tượng theo chức vụ</h3><p>Để trống ID loại phép để dùng Nghỉ phép năm (ANNUAL){data.defaultLeaveTypeId ? ` · ID ${data.defaultLeaveTypeId}` : ''}.</p>
+      <label>Số ngày phép mặc định mỗi chu kỳ<input type="number" min="0.01" max="99999" step="0.01" required value={data.settings.defaultDaysPerCycle} onChange={e => field('defaultDaysPerCycle', Number(e.target.value))} /></label><p>Nhân viên không có quy tắc chức vụ dùng mức mặc định cho phép năm. Có quy tắc chức vụ thì dùng mức riêng, không cộng thêm mức mặc định.</p><h3>Đối tượng theo chức vụ</h3><p>Để trống ID loại phép để dùng Nghỉ phép năm (ANNUAL){data.defaultLeaveTypeId ? ` · ID ${data.defaultLeaveTypeId}` : ''}.</p>
       {data.settings.rules.map((r, i) => <div className="location" key={i}><label>ID chức vụ<input type="number" min="1" required value={r.positionId || ''} onChange={e => rule(i, 'positionId', Number(e.target.value))} /></label><label>ID loại phép (mặc định ANNUAL)<input type="number" min="1" value={r.leaveTypeId ?? ''} onChange={e => rule(i, 'leaveTypeId', e.target.value ? Number(e.target.value) : null)} /></label>{data.settings.accrualSchedule && <label>Số ngày cấp mỗi chu kỳ<input type="number" min="0.01" max="99999" step="0.01" required value={r.daysPerCycle ?? ''} onChange={e => rule(i, 'daysPerCycle', Number(e.target.value))} /></label>}<button type="button" className="subtle" onClick={() => field('rules', data.settings.rules.filter((_, n) => n !== i))}>Xóa quy tắc</button></div>)}
       <button type="button" disabled={data.settings.rules.length >= 200} onClick={() => field('rules', [...data.settings.rules, { positionId: 0, leaveTypeId: null, daysPerCycle: 1 }])}>Thêm chức vụ</button>
       </fieldset>{incomplete && <p className="error">Cần bật ít nhất một lịch cấp hoặc thu hồi.</p>}<p>Chạy lịch đến hạn dùng cấu hình đã lưu. Số dư vẫn phân theo năm dương lịch; không tự chuyển phép sang năm mới.</p>

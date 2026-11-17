@@ -103,6 +103,7 @@ public sealed class LeaveRecurrence
 }
 public sealed class LeaveAccrualPolicy
 {
+    [Range(typeof(decimal), "0.01", "99999", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)] public decimal DefaultDaysPerCycle { get; set; } = 1;
     [Range(1, 2)] public int ScheduleVersion { get; set; } = 1;
     public LeaveRecurrence? AccrualSchedule { get; set; }
     public LeaveRecurrence? ResetSchedule { get; set; }

@@ -5,7 +5,7 @@ import { LeaveAccrualSettings } from './LeaveAccrualSettings';
 import { SystemSettings } from './SystemSettings';
 afterEach(cleanup);
 const grants = [{ code: 'WEB_SYSTEM_SETTINGS', canView: 'Y', canUpdate: 'Y' }];
-const data = { version: 2, asOfDate: '2027-01-01', defaultLeaveTypeId: 1, settings: { scheduleVersion: 2, enabled: true,
+const data = { version: 2, asOfDate: '2027-01-01', defaultLeaveTypeId: 1, settings: { scheduleVersion: 2, enabled: true, defaultDaysPerCycle: 1,
   accrualSchedule: { startDate: '2027-01-01', interval: 1, unit: 'MONTH' }, resetSchedule: { startDate: '2027-01-01', interval: 1, unit: 'YEAR' },
   newHireEligibility: 'ACTIVE_ON_DATE', rules: [{ positionId: 3, leaveTypeId: null, daysPerCycle: 1 }] } };
 describe('LeaveAccrualSettings', () => {

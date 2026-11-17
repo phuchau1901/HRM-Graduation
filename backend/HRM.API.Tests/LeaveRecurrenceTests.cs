@@ -20,6 +20,7 @@ public sealed class LeaveRecurrenceTests
         using var scope = f.H.App.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var position = new Position { Code = "RECURRENCE", Name = "Recurring leave", IsActive = true }; db.Add(position); await db.SaveChangesAsync();
         var employeeId = peer ? f.H.Peer : f.H.Self;
+        await db.Employees.Where(e => e.Id != employeeId).ExecuteUpdateAsync(s => s.SetProperty(e => e.EmploymentStatus, "INACTIVE"));
         await db.Employees.Where(e => e.Id == employeeId).ExecuteUpdateAsync(s => s.SetProperty(e => e.PositionId, position.ID)); return position.ID;
     }
     private static LeaveAccrualSettingsRequest Policy(long position, int every = 2, string unit = "MONTH") => new()
@@ -127,16 +128,41 @@ public sealed class LeaveRecurrenceTests
         using (var scope = f.H.App.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await db.Employees.Where(e => e.Id == f.H.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.PositionId, (long?)null));
+            await db.Employees.Where(e => e.Id == f.H.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.EmploymentStatus, "INACTIVE"));
             if (oldReceipt) { db.Add(new HRM.API.Modules.System.Entities.AuditLog { EntityType = "LeaveAutomation", EntityID = "accrual-cycle:20261116", Action = "LEAVE_ACCRUAL_COMPLETED", AfterJSON = "{\"creditedBalances\":0}", CreatedAt = DateTime.UtcNow }); await db.SaveChangesAsync(); }
         }
         var empty = await Run(f); Assert.Equal("NO_MATCHING_EMPLOYEES", empty.Status); Assert.Equal(new DateOnly(2026, 11, 16), empty.NextAccrualDate);
-        using (var scope = f.H.App.Services.CreateScope()) await scope.ServiceProvider.GetRequiredService<AppDbContext>().Employees.Where(e => e.Id == f.H.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.PositionId, position));
+        using (var scope = f.H.App.Services.CreateScope()) await scope.ServiceProvider.GetRequiredService<AppDbContext>().Employees.Where(e => e.Id == f.H.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.EmploymentStatus, "ACTIVE"));
         var result = await Run(f); Assert.Equal(1, result.CreditedBalances); Assert.Equal(new DateOnly(2026, 11, 16), result.AccrualDueDate); Assert.Equal(new DateOnly(2026, 12, 16), result.NextAccrualDate);
         Assert.True((await Run(f)).AccrualAlreadyProcessed);
         var settings = (await f.H.Client.GetFromJsonAsync<LeaveAccrualSettingsView>("/api/system-settings/leave-accrual"))!;
         Assert.Equal(new DateOnly(2026, 10, 16), settings.Settings.AccrualSchedule!.StartDate); Assert.Equal(result.NextAccrualDate, settings.NextAccrualDate);
         using var check = f.H.App.Services.CreateScope(); Assert.Equal(3, (await check.ServiceProvider.GetRequiredService<AppDbContext>().Set<LeaveBalance>().SingleAsync(b => b.EmployeeID == f.H.Peer)).EntitledDays);
+    }
+
+    [Fact]
+    public async Task DefaultCreditsWithoutPositionAndPositionRuleOverridesWithoutStacking()
+    {
+        await using var f = await Fixture.Create(); var position = await Prepare(f, peer: true);
+        var policy = Policy(position, 1); policy.Settings.DefaultDaysPerCycle = 1.5m;
+        policy.Settings.AccrualSchedule!.StartDate = new(2026, 10, 16); policy.Settings.Rules = [];
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Employees.Where(e => e.Id == f.H.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.PositionId, (long?)null));
+        }
+        (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).EnsureSuccessStatusCode();
+        Assert.Equal(1, (await Run(f)).CreditedBalances);
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(1.5m, (await db.Set<LeaveBalance>().SingleAsync(b => b.EmployeeID == f.H.Peer)).EntitledDays);
+            await db.Employees.Where(e => e.Id == f.H.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.PositionId, position));
+        }
+        policy.Version = 1; policy.Settings.Rules = [new() { PositionId = position, DaysPerCycle = 3 }];
+        (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).EnsureSuccessStatusCode();
+        Date(f, new(2026, 12, 16)); Assert.Equal(1, (await Run(f)).CreditedBalances); Assert.True((await Run(f)).AccrualAlreadyProcessed);
+        using var check = f.H.App.Services.CreateScope(); Assert.Equal(4.5m, (await check.ServiceProvider.GetRequiredService<AppDbContext>().Set<LeaveBalance>().SingleAsync(b => b.EmployeeID == f.H.Peer)).EntitledDays);
     }
 
 }
