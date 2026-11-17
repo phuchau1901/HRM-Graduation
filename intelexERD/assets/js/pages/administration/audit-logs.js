@@ -1,6 +1,6 @@
-import {apiAuditLogs,apiAuditLogDetail,apiSession} from '../api/client.js';
-import {e} from '../utils.js';
-import {icon,field} from '../components/ui.js';
+import {apiAuditLogs,apiAuditLogDetail,apiSession} from '../../api/client.js';
+import {e} from '../../utils.js';
+import {icon,field} from '../../components/ui.js';
 
 export const auditActionNames={SETTINGS_UPDATED:'Cập nhật cấu hình',SHIFT_SAVED:'Lưu ca làm việc',SCHEDULE_SAVED:'Lưu lịch phân ca',SCHEDULE_CANCELLED:'Hủy lịch phân ca',CHECK_IN:'Chấm công vào',CHECK_OUT:'Chấm công ra',ATTENDANCE_CLOSED:'Chốt chấm công',QR_SESSION_CREATED:'Tạo phiên QR',USER_CREATE:'Tạo tài khoản',USER_UPDATE:'Cập nhật tài khoản',USER_STATUS:'Đổi trạng thái tài khoản',USER_ROLES:'Cập nhật vai trò tài khoản',PASSWORD_RESET:'Đổi/đặt lại mật khẩu',ROLE_SAVE:'Lưu vai trò',ROLE_DELETE:'Xóa vai trò',PERMISSIONS_UPDATE:'Cập nhật phân quyền',SCREEN_SAVE:'Lưu màn hình',EMPLOYEE_CREATED:'Tạo hồ sơ nhân viên',EMPLOYEE_UPDATED:'Cập nhật hồ sơ nhân viên',EMPLOYEE_DEACTIVATED:'Ngừng hoạt động nhân viên',EMPLOYEE_DEPARTMENT_CHANGED:'Chuyển phòng ban',EMPLOYEE_TEAM_CHANGED:'Đổi team nhân viên',CONTRACT_CREATED:'Tạo hợp đồng',CONTRACT_UPDATED:'Cập nhật hợp đồng',TEAM_CREATED:'Tạo team',TEAM_UPDATED:'Cập nhật team',TEAM_DELETED:'Xóa team'};
 const auditModules={System:'Hệ thống',User:'Tài khoản',Role:'Vai trò',Screen:'Màn hình',Employee:'Nhân viên',Contract:'Hợp đồng',Team:'Teams'};

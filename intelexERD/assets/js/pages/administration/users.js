@@ -1,7 +1,7 @@
-import {bindPasswordPolicy} from '../password-policy.js';
-import {apiUsers,apiAllRoles,apiActiveDepartments,apiActiveTeams,apiActivePositions,apiCreateUser,apiSession,apiUnlinkedEmployees,apiResetUserPassword,apiUserDetail,apiUpdateUser,apiUpdateUserRoles} from '../api/client.js';
-import {e} from '../utils.js';
-import {field} from '../components/ui.js';
+import {bindPasswordPolicy} from '../../password-policy.js';
+import {apiUsers,apiAllRoles,apiActiveDepartments,apiActiveTeams,apiActivePositions,apiCreateUser,apiSession,apiUnlinkedEmployees,apiResetUserPassword,apiUserDetail,apiUpdateUser,apiUpdateUserRoles} from '../../api/client.js';
+import {e} from '../../utils.js';
+import {field} from '../../components/ui.js';
 
 function userApiGrant(code,flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p[flag]==='Y');}
 export function registrationDateValue(value){

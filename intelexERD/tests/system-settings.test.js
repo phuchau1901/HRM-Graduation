@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {apiSystemSettings} from '../assets/js/api/client.js';
-import {validateSystemSettings} from '../assets/js/pages/system-settings.js';
+import {validateSystemSettings} from '../assets/js/pages/administration/system-settings/system-settings.js';
 
 const policy=()=>({minimumLength:12,maximumLength:128,requireUppercase:false,requireLowercase:false,requireDigit:false,requireSpecialCharacter:false,disallowUsernameInPassword:false,passwordHistoryCount:0});
 const attendance=()=>({timezone:'Asia/Ho_Chi_Minh',checkInBeforeStartMinutes:60,checkInAfterStartMinutes:240,checkOutBeforeEndMinutes:240,checkOutAfterEndMinutes:120,lateGraceMinutes:5,earlyLeaveGraceMinutes:5,workingDays:[1,2,3,4,5],requireQr:false,requireGps:false,allowOvernightShifts:true,missingPunchRule:'REJECT_CHECKOUT_WITHOUT_CHECKIN',locations:[]});

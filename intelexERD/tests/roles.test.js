@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {roleMenuGroups,rolePermissionPatch,roleFlags} from '../assets/js/pages/roles.js';
+import {roleMenuGroups,rolePermissionPatch,roleFlags} from '../assets/js/pages/administration/roles.js';
 import {apiAllScreens,apiRolePermissions,apiSaveRolePermissions,apiRoles} from '../assets/js/api/client.js';
 test('screen catalog groups follow navigation and retain IDs and unmatched screens',()=>{
  const groups=roleMenuGroups([{id:17,code:'WEB_TEAM_MEMBERS',name:'Members'},{id:9,code:'WEB_ROLES',name:'Roles'},{id:99,code:'WEB_CUSTOM',name:'Custom'}]);
  assert.equal(groups[0].name,'Team Management');assert.equal(groups[0].entries[0].id,17);
- assert.equal(groups[1].name,'Administration');assert.equal(groups[2].name,'Màn hình khác');
+ assert.equal(groups[1].name,'Administration');assert.ok(groups[1].entries.some(screen=>screen.code==='WEB_CUSTOM'));assert.ok(!groups.some(group=>group.name==='Màn hình khác'));
  assert.equal(groups.flatMap(g=>g.entries).length,3);
 });
 test('patch sends changed screens, all six flags, false revocations, and preserves extended actions by omission',()=>{
@@ -74,16 +74,16 @@ test('role screen menu places organization catalogs and shifts under Master Data
  const catalog=[{id:1,code:'WEB_DEPARTMENTS',name:'Phòng ban',platform:'WEB'},{id:2,code:'WEB_POSITIONS',name:'Chức vụ',platform:'WEB'},{id:3,code:'WEB_TEAMS',name:'Teams',platform:'WEB'},{id:4,code:'WEB_SHIFTS',name:'Ca làm việc',platform:'WEB'},{id:5,code:'WEB_SYSTEM_SETTINGS',name:'Cấu hình hệ thống',platform:'WEB'},{id:6,code:'WEB_ORGANIZATION',name:'Tổ chức',platform:'WEB'}];
  const groups=roleMenuGroups(catalog),admin=groups.find(group=>group.name==='Administration');
  assert.deepEqual(admin.entries.filter(screen=>screen.label.startsWith('Master Data')).map(screen=>screen.code),['WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_SHIFTS']);
- assert.deepEqual(admin.entries.filter(screen=>screen.label==='System Settings').map(screen=>screen.code),['WEB_SYSTEM_SETTINGS']);
+ assert.deepEqual(admin.entries.filter(screen=>screen.label.startsWith('System Settings')).map(screen=>screen.code),['WEB_SYSTEM_SETTINGS']);
  assert.deepEqual(groups.find(group=>group.name==='Human Resources').entries.map(screen=>screen.code),['WEB_ORGANIZATION']);
  const entries=groups.flatMap(group=>group.entries);assert.equal(new Set(entries.map(screen=>screen.id)).size,catalog.length);assert.equal(new Set(admin.entries.map(screen=>screen.label)).size,admin.entries.length);
 });
-test('Master Data exposes a nested screen submenu including shared attendance settings',()=>{
+test('Master Data submenu excludes attendance settings after moving to System Settings',()=>{
  const catalog=[['WEB_DEPARTMENTS','Phòng ban'],['WEB_POSITIONS','Chức vụ'],['WEB_TEAMS','Teams'],['WEB_SHIFTS','Ca làm việc'],['WEB_SYSTEM_SETTINGS','Cấu hình hệ thống']].map(([code,name],index)=>({id:index+1,code,name,platform:'WEB'}));
  const admin=roleMenuGroups(catalog).find(group=>group.name==='Administration');
  assert.equal(admin.subgroups[0].name,'Master Data');assert.equal(admin.subgroups[0].key,'Administration/Master Data');
- assert.deepEqual(admin.subgroups[0].entries.map(screen=>screen.label),['Phòng ban','Chức vụ','Teams','Chấm công','Ca làm việc']);
- assert.equal(admin.subgroups[0].entries.find(screen=>screen.label==='Chấm công').code,'WEB_SYSTEM_SETTINGS');
+ assert.deepEqual(admin.subgroups[0].entries.map(screen=>screen.label),['Phòng ban','Chức vụ','Teams','Ca làm việc']);
+ assert.ok(!admin.subgroups[0].entries.some(screen=>screen.code==='WEB_SYSTEM_SETTINGS'));
 });
 
 test('Master Data container does not create an overview child',()=>{
@@ -94,7 +94,7 @@ test('Master Data container does not create an overview child',()=>{
 });
 
 test('Contracts renders the same three data-scope choices as Employees for each permission',async()=>{
- const {roleScopeSelect}=await import('../assets/js/pages/roles.js');
+ const {roleScopeSelect}=await import('../assets/js/pages/administration/roles.js');
  for(const [flag,label] of roleFlags){
   const contracts=roleScopeSelect('WEB_CONTRACTS',flag,label,'DEPARTMENT');
   assert.equal(contracts,roleScopeSelect('WEB_EMPLOYEES',flag,label,'DEPARTMENT'));
@@ -106,7 +106,7 @@ test('Contracts renders the same three data-scope choices as Employees for each 
 });
 
 test('Permissions menu and Roles menu both mount the API permission editor',async()=>{
- const {adminPage}=await import('../assets/js/pages/operations.js');
+ const {adminPage}=await import('../assets/js/pages/shared/operations.js');
  for(const path of ['/admin/permissions','/admin/roles']){
   const html=adminPage({},path);
   assert.ok(html.includes('id="roles-api-root"'));assert.ok(!html.includes('Ma trận quyền'));
@@ -128,13 +128,13 @@ test('Contracts scope is saved independently of Employees scope with the role ve
 });
 
 test('Roles account display uses only authenticated API identity and roles',async()=>{
- const {roleSessionIdentity}=await import('../assets/js/pages/roles.js');
+ const {roleSessionIdentity}=await import('../assets/js/pages/administration/roles.js');
  assert.deepEqual(roleSessionIdentity({user:{userId:'real-user',fullName:'Nguyễn A'},roles:[{name:'Nhân sự'},{code:'CONTRACT_MANAGER'}]}),{id:'real-user',name:'Nguyễn A',role:'Nhân sự, CONTRACT_MANAGER'});
  assert.deepEqual(roleSessionIdentity(null),{id:'',name:'Tài khoản',role:''});
 });
 
 test('Roles never substitutes demo roles when unauthenticated or when the API fails',async()=>{
- const {mountRoles}=await import('../assets/js/pages/roles.js');
+ const {mountRoles}=await import('../assets/js/pages/administration/roles.js');
  const {login,apiLogout}=await import('../assets/js/api/client.js');
  const original=globalThis.fetch;let roleReads=0;
  const root={isConnected:true,innerHTML:'',querySelector:()=>({})};
@@ -148,4 +148,16 @@ test('Roles never substitutes demo roles when unauthenticated or when the API fa
   await login('real-user','test');await mountRoles(root,{});
   assert.equal(roleReads,1);assert.ok(root.innerHTML.includes('Không kết nối được dịch vụ vai trò'));assert.ok(root.innerHTML.includes('Thử lại'));assert.ok(!root.innerHTML.includes('<table'));assert.ok(!root.innerHTML.includes('demo'));
  }finally{apiLogout();globalThis.fetch=original;}
+});
+
+test('System Settings expands into its three tabs with stable backend screen identities',()=>{
+ const catalog=[{id:10,code:'WEB_SYSTEM_SETTINGS',name:'System Settings',platform:'WEB'},{id:11,code:'WEB_APPROVAL_SETTINGS',name:'Quy trình phê duyệt',platform:'WEB'}];
+ const admin=roleMenuGroups(catalog).find(group=>group.name==='Administration');
+ const submenu=admin.subgroups.find(group=>group.name==='System Settings');
+ assert.equal(submenu.key,'Administration/System Settings');
+ assert.deepEqual(submenu.entries.map(item=>item.label),['Chính sách mật khẩu','Chấm công','Quy trình phê duyệt']);
+ assert.deepEqual(submenu.entries.map(item=>item.id),[10,10,11]);assert.equal(new Set(submenu.entries.map(item=>item.menuKey)).size,3);
+ assert.equal(admin.entries.length,2);
+ const changed=new Set(submenu.entries.slice(0,2).map(item=>item.code));
+ assert.deepEqual(rolePermissionPatch(new Map([['WEB_SYSTEM_SETTINGS',{VIEW:true}]]),changed),[{screenCode:'WEB_SYSTEM_SETTINGS',standard:{VIEW:true}}]);
 });

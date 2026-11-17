@@ -1,7 +1,7 @@
-import {openDialog} from '../components/dialog.js';
-import {notificationService,notificationError} from '../services/notification-service.js';
-import {e} from '../utils.js';
-import {icon} from '../components/ui.js';
+import {openDialog} from '../../components/dialog.js';
+import {notificationService,notificationError} from '../../services/notification-service.js';
+import {e} from '../../utils.js';
+import {icon} from '../../components/ui.js';
 
 export const notificationTabs=[['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['system','Hệ thống']];
 export function notificationCategory(item){

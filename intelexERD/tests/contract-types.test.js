@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {apiContractTypes,apiContractType,apiSaveContractType,apiDeleteContractType} from '../assets/js/api/client.js';
-import {contractTypePayload,contractTypeGrant,mountContractTypes} from '../assets/js/pages/contract-types.js';
-import {masterDataTabs} from '../assets/js/pages/master-data.js';
+import {contractTypePayload,contractTypeGrant,mountContractTypes} from '../assets/js/pages/administration/master-data/contract-types.js';
+import {masterDataTabs} from '../assets/js/pages/administration/master-data/master-data.js';
 import {screenRoutes,roleScreenRoutes} from '../assets/js/permissions.js';
-import {roleMenuGroups} from '../assets/js/pages/roles.js';
+import {roleMenuGroups} from '../assets/js/pages/administration/roles.js';
 
 test('contract types appear under Master Data and in its permission submenu',()=>{
  assert.equal(masterDataTabs.contractTypes,'Loại hợp đồng');
@@ -49,13 +49,13 @@ test('contract type API preserves encoded legacy codes and sends correct CRUD me
 });
 
 test('permission menu retains a Contract Types entry even before backend registration without inventing grants',async()=>{
- const {roleScreenCatalog}=await import('../assets/js/pages/roles.js');
+ const {roleScreenCatalog}=await import('../assets/js/pages/administration/roles.js');
  const screens=roleScreenCatalog([]),entry=screens[0];
  assert.equal(entry.code,'WEB_CONTRACT_TYPES');assert.equal(entry.name,'Loại hợp đồng');assert.equal(entry.registrationRequired,true);
  const menu=roleMenuGroups(screens).find(group=>group.name==='Administration');
  assert.equal(menu.subgroups[0].entries[0].code,'WEB_CONTRACT_TYPES');
  const registered=roleScreenCatalog([{id:10,code:'WEB_CONTRACT_TYPES',name:'Contract Type',platform:'WEB',isActive:true}]);
- assert.equal(registered.length,1);assert.equal(registered[0].id,10);assert.equal(registered[0].name,'Loại hợp đồng');assert.equal(registered[0].registrationRequired,undefined);
+ assert.equal(registered.filter(screen=>screen.code==='WEB_CONTRACT_TYPES').length,1);assert.equal(registered[0].id,10);assert.equal(registered[0].name,'Loại hợp đồng');assert.equal(registered[0].registrationRequired,undefined);
 });
 test('screen registration uses screen API and does not assign any role permissions',async()=>{
  const {apiCreateScreen}=await import('../assets/js/api/client.js');const original=globalThis.fetch;const calls=[];

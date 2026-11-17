@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {contractPayload,contractListRows,contractGrant,contractAttachment,contractClosed,mountContracts} from '../assets/js/pages/contracts.js';
+import {contractPayload,contractListRows,contractGrant,contractAttachment,contractClosed,mountContracts} from '../assets/js/pages/human-resources/contracts.js';
 import {apiEmployeeContracts,apiEmployeeContract,apiSaveEmployeeContract,apiActiveContractTypes} from '../assets/js/api/client.js';
-import {roleUsesEmployeeScope,rolePermissionPatch} from '../assets/js/pages/roles.js';
+import {roleUsesEmployeeScope,rolePermissionPatch} from '../assets/js/pages/administration/roles.js';
 
 const draft={contractNo:' C001 ',contractType:'FIXED_TERM',startDate:'2024-01-01',endDate:'2027-01-01',status:'DRAFT',attachmentUrl:''};
 test('contract list combines employee, catalog type and dates with view actions',()=>{
@@ -62,14 +62,14 @@ test('contract permission editor supports independent per-action employee scopes
 });
 
 test('contract statistics validates real zero counts and rejects malformed/error responses',async()=>{
- const {contractStatisticsData}=await import('../assets/js/pages/contracts.js');
+ const {contractStatisticsData}=await import('../assets/js/pages/human-resources/contracts.js');
  const response={success:true,data:{active:0,expiringSoon:2,expired:1,expiringWithinDays:30,asOfDate:'2026-11-16'}};
  assert.deepEqual(contractStatisticsData(response),response.data);
  assert.equal(contractStatisticsData({...response,data:{...response.data,expiringSoon:0,expired:0}}).active,0);
  for(const invalid of [null,{success:false,data:response.data},{data:response.data},{success:true,data:{...response.data,active:'3'}},{success:true,data:{...response.data,expired:-1}},{success:true,data:{...response.data,expiringSoon:null}},{success:true,data:{...response.data,asOfDate:'2026-02-30'}},{success:true,data:{...response.data,expiringWithinDays:0}}])assert.throws(()=>contractStatisticsData(invalid),/không hợp lệ/);
 });
 test('contract classifications follow Vietnam statistics date and inclusive expiration boundaries',async()=>{
- const {contractCategory}=await import('../assets/js/pages/contracts.js');
+ const {contractCategory}=await import('../assets/js/pages/human-resources/contracts.js');
  const base={status:'ACTIVE',startDate:'2026-01-01',endDate:null},today='2026-11-16';
  assert.equal(contractCategory(base,today,30),'active');
  assert.equal(contractCategory({...base,endDate:'2026-11-16'},today,30),'expiringSoon');
@@ -93,7 +93,7 @@ test('contract statistics uses global scoped no-store endpoint and surfaces fail
  }finally{globalThis.fetch=original;}
 });
 test('contract writes accept CANCELLED drafts and use Vietnam business date near UTC midnight',async()=>{
- const {contractBusinessDate}=await import('../assets/js/pages/contracts.js');
+ const {contractBusinessDate}=await import('../assets/js/pages/human-resources/contracts.js');
  assert.equal(contractBusinessDate(new Date('2026-11-15T17:00:00Z')),'2026-11-16');
  assert.equal(contractBusinessDate(new Date('2026-11-15T16:59:59Z')),'2026-11-15');
  assert.equal(contractPayload({...draft,status:'CANCELLED'}).status,'CANCELLED');
@@ -101,7 +101,7 @@ test('contract writes accept CANCELLED drafts and use Vietnam business date near
 });
 
 test('unified contract search matches employee name, employee code or contract number and combines status',async()=>{
- const {searchContracts}=await import('../assets/js/pages/contracts.js');
+ const {searchContracts}=await import('../assets/js/pages/human-resources/contracts.js');
  const items=[{id:1,contractNo:'HD-2026-001',employeeName:'Nguyễn Hoàng Nam',employeeCode:'NV000002',status:'ACTIVE',startDate:'2025-01-01',endDate:'2026-11-30'},{id:2,contractNo:'HD-2026-002',employeeName:'Trần Đức Anh',employeeCode:'NV000001',status:'ACTIVE',startDate:'2025-01-01',endDate:null}];
  for(const query of ['nguyen hoang','NV000002','hd-2026-001'])assert.deepEqual(searchContracts(items,query,'','2026-11-16').map(item=>item.id),[1]);
  assert.deepEqual(searchContracts(items,' duc anh ','active','2026-11-16').map(item=>item.id),[2]);
@@ -111,7 +111,7 @@ test('unified contract search matches employee name, employee code or contract n
  assert.equal(searchContracts(items,'khong co').length,0);
 });
 test('contract directory loads all employee and contract pages and ignores only out-of-scope 404 groups',async()=>{
- const {loadVisibleContracts}=await import('../assets/js/pages/contracts.js');
+ const {loadVisibleContracts}=await import('../assets/js/pages/human-resources/contracts.js');
  const employeeCalls=[],contractCalls=[];
  const readEmployees=async query=>{
   const page=Number(new URLSearchParams(query).get('page'));employeeCalls.push(page);
@@ -127,7 +127,7 @@ test('contract directory loads all employee and contract pages and ignores only 
  assert.deepEqual(rows.map(item=>item.employeeName),['One','One','Three']);assert.ok(rows.every(item=>item.employeeName!=='Outside'));
 });
 test('contract directory limits concurrent employee reads and never substitutes partial results for errors',async()=>{
- const {loadVisibleContracts}=await import('../assets/js/pages/contracts.js');
+ const {loadVisibleContracts}=await import('../assets/js/pages/human-resources/contracts.js');
  let pending=0,peak=0;
  const readEmployees=async()=>({total:9,data:Array.from({length:9},(_,i)=>({id:i+1}))});
  const readContracts=async id=>{pending++;peak=Math.max(peak,pending);await new Promise(resolve=>setTimeout(resolve,1));pending--;return {total:1,data:[{id,contractNo:'C'+id}]};};
@@ -136,7 +136,7 @@ test('contract directory limits concurrent employee reads and never substitutes 
  await assert.rejects(loadVisibleContracts({canReadEmployees:false,ownEmployee:{id:1},readContracts:async()=>{throw Object.assign(Error('Missing permission'),{status:403});}}),/Missing permission/);
 });
 test('contract-only access uses linked employee without Employee VIEW and stops after navigation',async()=>{
- const {loadVisibleContracts}=await import('../assets/js/pages/contracts.js');
+ const {loadVisibleContracts}=await import('../assets/js/pages/human-resources/contracts.js');
  let employeesRead=false,contractsRead=false;
  const rows=await loadVisibleContracts({ownEmployee:{id:42,fullName:'Self',employeeCode:'NV42'},readEmployees:()=>{employeesRead=true;},readContracts:async id=>{contractsRead=true;assert.equal(id,42);return {total:1,data:[{id:1,contractNo:'SELF'}]};}});
  assert.equal(employeesRead,false);assert.equal(contractsRead,true);assert.equal(rows[0].employeeCode,'NV42');

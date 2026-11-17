@@ -1,10 +1,10 @@
-import {apiSession} from '../api/client.js';
-import {notificationService} from '../services/notification-service.js';
-import {notificationRows} from './notifications.js';
-import {state as s,user,attendanceStatus} from '../store.js';
-import * as scope from '../permissions.js';
-import {e,pct,dateLabel,timeLabel,hours,labels} from '../utils.js';
-import {icon,avatar,person,badge,card,kpi,link,table,empty,button,matches} from '../components/ui.js';
+import {apiSession} from '../../api/client.js';
+import {notificationService} from '../../services/notification-service.js';
+import {notificationRows} from '../notifications/notifications.js';
+import {state as s,user,attendanceStatus} from '../../store.js';
+import * as scope from '../../permissions.js';
+import {e,pct,dateLabel,timeLabel,hours,labels} from '../../utils.js';
+import {icon,avatar,person,badge,card,kpi,link,table,empty,button,matches} from '../../components/ui.js';
 export function teamOptions(f){return `<select data-filter="team" aria-label="Lọc team"><option value="">Tất cả team${user().role==='Manager'?' quản lý':''}</option>${s.teams.filter(t=>scope.scopedTeams(s,user()).includes(t.id)).map(t=>`<option value="${t.id}" ${f.team===t.id?'selected':''}>${e(t.name)}</option>`).join('')}</select>`;}
 export function visibleEmployees(f){return scope.employees(s,user()).filter(u=>(!f.team||u.teamId===f.team)&&u.status==='active');}
 export function visibleTasks(f){const people=new Set(visibleEmployees(f).map(u=>u.id));return scope.tasks(s,user()).filter(t=>!f.team||people.has(t.assigneeId));}

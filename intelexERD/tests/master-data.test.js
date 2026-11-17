@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {organizationPayload} from '../assets/js/pages/master-data.js';
+import {organizationPayload} from '../assets/js/pages/administration/master-data/master-data.js';
 import {apiOrganization} from '../assets/js/api/client.js';
 
 test('organization forms serialize all editable fields using each API contract',()=>{
@@ -24,13 +24,13 @@ test('organization list, detail, create and update use resource endpoints withou
  await assert.rejects(apiOrganization('positions',7,payload),/Mã đã tồn tại/);
 });
 
-test('Master Data owns attendance and shifts tabs and exposes their API permission aliases',async()=>{
- const {masterDataTabs}=await import('../assets/js/pages/master-data.js');
+test('attendance belongs to System Settings while shifts remain in Master Data',async()=>{
+ const {masterDataTabs}=await import('../assets/js/pages/administration/master-data/master-data.js');
  const {screenRoutes,roleScreenRoutes}=await import('../assets/js/permissions.js');
- assert.deepEqual(Object.keys(masterDataTabs),['departments','positions','teams','contractTypes','attendance','shifts']);
- assert.ok(screenRoutes['/admin/master-data'].includes('WEB_SYSTEM_SETTINGS'));
+ assert.deepEqual(Object.keys(masterDataTabs),['departments','positions','teams','contractTypes','leaveTypes','shifts']);
+ assert.ok(!screenRoutes['/admin/master-data'].includes('WEB_SYSTEM_SETTINGS'));
  assert.ok(screenRoutes['/admin/master-data'].includes('WEB_SHIFTS'));
- assert.deepEqual(screenRoutes['/admin/settings'],['WEB_SYSTEM_SETTINGS']);
+ assert.deepEqual(screenRoutes['/admin/settings'],['WEB_SYSTEM_SETTINGS','WEB_APPROVAL_SETTINGS']);
  assert.ok(roleScreenRoutes['/admin/master-data'].includes('WEB_SHIFTS'));
  assert.ok(!roleScreenRoutes['/admin/settings'].includes('WEB_SHIFTS'));
 });

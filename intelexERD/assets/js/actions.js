@@ -1,14 +1,14 @@
-import {openEmployeeCreation} from './pages/employees.js';
+import {openEmployeeCreation} from './pages/human-resources/employees.js';
 import {notificationService} from './services/notification-service.js';
 import {bindPasswordPolicy} from './password-policy.js';
-import {exportReport} from './pages/attendance-report.js';
+import {exportReport} from './pages/reports/attendance-report.js';
 import {DOCUMENT_CONTENTS} from './data/document-content.js';
 import {state as s,user,save,reset,log,demoNow,updateTask,createRequest,decideRequest,cancelRequest,attendanceStatus} from './store.js';
 import * as scope from './permissions.js';
 import {NOW,DEMO_DATE} from './data/seed.js';
 import {e,id,labels,dateLabel,timeLabel,csvDownload,hours} from './utils.js';
 import {icon,avatar,person,badge,button,field,selectField,notesField,formFooter,details,downloadLink} from './components/ui.js';
-import {attendanceRows,notifications} from './pages/dashboard.js';
+import {attendanceRows,notifications} from './pages/dashboard/dashboard.js';
 import {getPath} from './router.js';
 import {apiSession,apiLogout,login,apiUserDetail,apiResetUserPassword} from './api/client.js';
 const roles=['Admin','Dev','Leader','Manager','HR'];

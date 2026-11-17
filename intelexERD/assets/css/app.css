@@ -77,3 +77,22 @@ dialog:has(#employee-create-api){width:min(1000px,calc(100vw - 32px));max-width:
 dialog:has(#contract-create-popup){width:min(900px,calc(100vw - 32px));max-width:calc(100vw - 32px)}#contract-create-popup>.muted{margin-bottom:18px}.contract-popup-employee-search{margin-bottom:18px}#contract-create-form{margin:0;max-width:none}#contract-create-form .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#contract-create-form select{width:100%}#contract-create-catalog-feedback>span{display:block;margin-top:10px}@media(max-width:767px){#contract-create-form .form-grid{grid-template-columns:minmax(0,1fr)}}
 
 .api-notification-dot{width:10px;height:10px;flex:0 0 10px;align-self:center;margin:0 4px 0 8px;box-shadow:0 0 0 4px var(--primary-soft)}.api-notification-row{padding:16px 12px}.notification-detail-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-bottom:22px}.notification-detail-category{padding:4px 12px;border-radius:20px;background:var(--primary-soft);color:var(--primary);font-weight:500}#notification-detail h3{font-size:19px;line-height:1.5;margin-bottom:16px;overflow-wrap:anywhere}.notification-detail-content{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.8;color:var(--text)}#notification-detail-error:not(:empty){margin-top:18px}dialog:has(#notification-detail){width:min(760px,calc(100vw - 32px))}
+
+.role-scope>label{font-size:10px;color:var(--muted);font-weight:400;gap:5px}.role-scope>label select{font-size:12px;color:var(--text)}
+
+/* Override the default column layout inherited by labels in permission rows. */
+.role-toggles .role-permission-item>.role-toggle-row{display:flex;flex-direction:row;align-items:center;justify-content:space-between;text-align:left;min-width:0;gap:16px;margin:0;padding:18px 0}
+.role-toggles .role-toggle-row>.role-switch{flex:0 0 42px}
+.role-toggles:has(.role-scope) .role-permission-item{display:grid;grid-template-columns:minmax(0,1fr) 180px;align-items:center;gap:20px;min-height:78px}
+.role-toggles .role-permission-item>.role-scope{margin:0;min-width:0;align-self:center}
+.role-toggles .role-scope>label{width:100%;text-align:left}
+.role-toggles .role-scope select{width:100%;max-width:none}
+@media(max-width:520px){.role-toggles:has(.role-scope) .role-permission-item{grid-template-columns:minmax(0,1fr);gap:0}.role-toggles .role-permission-item>.role-scope{width:180px;max-width:100%;justify-self:end;padding-bottom:14px}}
+
+#leave-type-form .role-toggle-row{flex-direction:row;text-align:left}#leave-type-form .role-switch{flex-shrink:0}
+
+.approval-route{padding:20px;border:1px solid var(--border);border-radius:12px;margin:18px 0}.approval-route-heading,.approval-step-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.approval-route-steps{list-style:none;padding:0;margin:18px 0}.approval-route-steps>li{padding:16px;background:var(--bg);border:1px solid var(--border);border-radius:10px;margin-bottom:12px}.approval-step-heading>div{display:flex;gap:8px;flex-wrap:wrap}.approval-self-toggle{flex-direction:row;align-items:center;justify-content:space-between;gap:16px}.approval-self-toggle .role-switch{flex-shrink:0}#approval-settings-form>.muted{margin:8px 0 16px}@media(max-width:600px){.approval-route{padding:14px}.approval-route-steps>li{padding:12px}}
+
+.approval-employee-picker{display:grid;gap:10px;min-width:0}.approval-employee-picker input,.approval-employee-picker select{width:100%}
+
+.role-nav-group-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.role-nav-group-copy small{font-size:11px;font-weight:400;color:var(--muted)}

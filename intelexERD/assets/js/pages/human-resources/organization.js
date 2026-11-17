@@ -1,5 +1,5 @@
-import {apiSession,apiOrganizationTree,apiOrganizationMembers} from '../api/client.js';
-import {e} from '../utils.js';
+import {apiSession,apiOrganizationTree,apiOrganizationMembers} from '../../api/client.js';
+import {e} from '../../utils.js';
 
 const organizationSearchText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLocaleLowerCase('vi').trim();
 export function organizationMatches(department,query,kind='all'){

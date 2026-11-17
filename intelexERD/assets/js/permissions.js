@@ -16,37 +16,39 @@ export function routeAllowed(s,u,path){if(apiSession())return path==='/notificat
 // Explicit aliases for screen codes supplied by the backend. Unknown codes deny access.
 export const screenRoutes={
  '/dashboard':['WEB_DASHBOARD'],
- '/workspace/tasks':['WEB_MY_TASKS'], 
+ '/workspace/tasks':['WEB_MY_TASKS'],
  '/workspace/projects':['WEB_MY_PROJECTS'],
- '/workspace/attendance':['WEB_MY_ATTENDANCE'], 
+ '/workspace/attendance':['WEB_MY_ATTENDANCE'],
  '/workspace/leave':['WEB_MY_LEAVE'],
- '/projects':['WEB_PROJECTS'], 
- '/approvals':['WEB_APPROVALS'], 
+ '/projects':['WEB_PROJECTS'],
+ '/approvals':['WEB_APPROVALS','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
  '/reports':['WEB_REPORTS'],
- '/documents':['WEB_DOCUMENTS'], 
+ '/documents':['WEB_DOCUMENTS'],
  '/notifications':['WEB_NOTIFICATIONS'],
- '/hr/employees':['WEB_EMPLOYEES'], 
+ '/hr/employees':['WEB_EMPLOYEES'],
  '/hr/organization':['WEB_ORGANIZATION'],
- '/hr/contracts':['WEB_CONTRACTS'], 
+ '/hr/contracts':['WEB_CONTRACTS'],
  '/hr/attendance':['WEB_ATTENDANCE'],
- '/hr/attendance-reports':['WEB_ATTENDANCE_REPORTS'], 
+ '/hr/attendance-reports':['WEB_ATTENDANCE_REPORTS'],
  '/hr/leave':['WEB_LEAVE','WEB_LEAVE_MANAGEMENT'],
- '/hr/reports':['WEB_HR_REPORTS'], 
- '/admin/users':['WEB_USERS'], 
+ '/hr/reports':['WEB_HR_REPORTS'],
+ '/admin/users':['WEB_USERS'],
  '/admin/roles':['WEB_ROLES'],
- '/admin/permissions':['WEB_PERMISSIONS'], 
+ '/admin/permissions':['WEB_PERMISSIONS'],
  '/admin/audit-logs':['WEB_AUDIT_LOGS'],
- '/admin/settings':['WEB_SYSTEM_SETTINGS'], 
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_SYSTEM_SETTINGS','WEB_SHIFTS']
+ '/admin/settings':['WEB_SYSTEM_SETTINGS','WEB_APPROVAL_SETTINGS'],
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_LEAVE_TYPES','WEB_SHIFTS']
 };
 // Permission editor placement follows menu ownership, independently of route access aliases.
 export const roleScreenRoutes={...screenRoutes,
  '/hr/organization':['WEB_ORGANIZATION'],
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_SHIFTS']
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_LEAVE_TYPES','WEB_SHIFTS']
 };
 export function screenAllowed(path,flag='canView'){
  const current=apiSession();if(!current)return false;
  let route=path;
+ const dynamic=/^\/screens\/(WEB_[A-Z0-9_]+)$/.exec(path);
+ if(dynamic)return current.permissions.some(p=>p.platform==='WEB'&&p.code===dynamic[1]&&p.canView==='Y'&&p[flag]==='Y');
  if(/^\/hr\/employees\/.+/.test(path))route='/hr/employees';
  if(/^\/projects\/prj-/.test(path))route='/projects';
  const codes=screenRoutes[route]||(/^\/(team|projects)\//.test(route)?['WEB_'+route.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]:[]);

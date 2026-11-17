@@ -1,35 +1,55 @@
-import {apiCreateScreen,apiRoles,apiUpdateRole,apiAllScreens,apiRolePermissions,apiSaveRolePermissions,apiSession} from '../api/client.js';
-import {nav} from '../router.js';
-import {roleScreenRoutes} from '../permissions.js';
-import {e} from '../utils.js';
-import {icon} from '../components/ui.js';
+import {navigationForScreens} from '../../screen-navigation.js';
+import {apiCreateScreen,apiRoles,apiUpdateRole,apiAllScreens,apiRolePermissions,apiSaveRolePermissions,apiSession} from '../../api/client.js';
+import {nav} from '../../router.js';
+import {roleScreenRoutes} from '../../permissions.js';
+import {e} from '../../utils.js';
+import {icon} from '../../components/ui.js';
 
-export const roleUsesEmployeeScope=code=>['WEB_EMPLOYEES','WEB_CONTRACTS'].includes(code);
+const requestScopeScreens=['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'];
+export const roleUsesEmployeeScope=code=>['WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS',...requestScopeScreens].includes(code);
+export const roleHasScopeAction=(code,flag)=>requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):roleUsesEmployeeScope(code);
 
 export function roleScopeSelect(code,flag,label,value='SELF',disabled=false){
- if(!roleUsesEmployeeScope(code))return '';
- return `<div class="role-scope"><select data-role-scope="${e(flag)}" aria-label="Phạm vi ${e(label)}" ${disabled?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([scope,text])=>`<option value="${scope}" ${value===scope?'selected':''}>${text}</option>`).join('')}</select></div>`;
+ if(!roleHasScopeAction(code,flag))return '';
+ return `<div class="role-scope"><label>Phạm vi dữ liệu<select data-role-scope="${e(flag)}" aria-label="Phạm vi ${e(label)}" ${disabled?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([scope,text])=>`<option value="${scope}" ${value===scope?'selected':''}>${text}</option>`).join('')}</select></label></div>`;
 }
 
 export const roleFlags=[['NEW','Thêm mới','can_new'],['VIEW','Xem','can_view'],['UPDATE','Chỉnh sửa','can_update'],['DELETE','Xóa','can_delete'],['APPROVE','Phê duyệt','can_approve'],['EXPORT','Xuất dữ liệu','can_export']];
+export function roleScopeDraft(screens,matrixScreens){
+ const scopes=new Map();
+ for(const screen of screens){
+  if(!roleUsesEmployeeScope(screen.code))continue;
+  const original=matrixScreens.find(item=>item.screenCode===screen.code)?.dataScopes||{};
+  const values={...original};
+  for(const [flag] of roleFlags)if(roleHasScopeAction(screen.code,flag))values[flag]=['SELF','DEPARTMENT','ALL'].includes(original[flag])?original[flag]:'SELF';
+  scopes.set(screen.code,values);
+ }
+ return scopes;
+}
+
 export function roleScreenCatalog(catalog){
- const screens=catalog.map(screen=>screen.code==='WEB_CONTRACT_TYPES'?{...screen,name:'Loại hợp đồng'}:{...screen});
- if(!screens.some(screen=>screen.code==='WEB_CONTRACT_TYPES'))screens.push({id:'pending-WEB_CONTRACT_TYPES',code:'WEB_CONTRACT_TYPES',name:'Loại hợp đồng',platform:'WEB',isActive:true,registrationRequired:true});
+ const names={WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công'};
+ const screens=catalog.map(screen=>names[screen.code]?{...screen,name:names[screen.code]}:{...screen});
+ for(const [code,name] of Object.entries(names))if(!screens.some(screen=>screen.code===code))screens.push({id:'pending-'+code,code,name,platform:'WEB',isActive:true,registrationRequired:true});
  return screens;
 }
 export function roleMenuGroups(catalog,platform='WEB'){
  catalog=catalog.filter(screen=>!screen.platform||screen.platform===platform);
- const used=new Set();const groups=nav.map(group=>{
+ const used=new Set();const groups=navigationForScreens(nav,catalog,platform).map(group=>{
  const entries=(group.children||[[group.name,group.route]]).flatMap(([label,path])=>{
- const codes=(roleScreenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]).map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
- return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:codes.length>1?label+' · '+screen.name:label,...(path==='/admin/master-data'?{parentMenu:'Master Data'}:{})};}));
- });return {name:group.name,icon:group.icon,section:group.section,nested:!!group.children,entries};
+ const dynamic=/^\/screens\/([A-Z0-9_]+)$/.exec(path);
+ const codes=dynamic?[dynamic[1]]:(roleScreenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]).map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
+ return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:group.route==='/approvals'?(screen.code==='WEB_APPROVALS'?'Phê duyệt':screen.name):codes.length>1?label+' · '+screen.name:label,...(path==='/admin/master-data'?{parentMenu:'Master Data'}:path==='/admin/settings'?{parentMenu:'System Settings'}:{})};}));
+ });return {name:group.name,icon:group.icon,section:group.section,nested:!!group.children||group.route==='/approvals',entries};
  }).filter(group=>group.entries.length);
  for(const group of groups){
  const entries=group.entries.filter(screen=>screen.parentMenu==='Master Data'&&!screen.code.endsWith('_MASTER_DATA')).map(screen=>({...screen,label:screen.name}));
- const settings=catalog.find(screen=>screen.code===(platform==='MOBILE'?'MOBILE_SYSTEM_SETTINGS':'WEB_SYSTEM_SETTINGS'));
- if(entries.length&&settings)entries.splice(Math.max(0,entries.findIndex(screen=>screen.code.endsWith('_SHIFTS'))),0,{...settings,label:'Chấm công'});
  group.subgroups=entries.length?[{name:'Master Data',key:group.name+'/Master Data',entries}]:[];
+ const settingsEntries=group.entries.filter(screen=>screen.parentMenu==='System Settings').flatMap(screen=>screen.code.endsWith('_SYSTEM_SETTINGS')?[
+  {...screen,label:'Chính sách mật khẩu',menuKey:'system/password-policy'},
+  {...screen,label:'Chấm công',menuKey:'system/attendance'}
+ ]:[{...screen,label:'Quy trình phê duyệt',menuKey:'system/approval-workflow'}]);
+ if(settingsEntries.length)group.subgroups.push({name:'System Settings',key:group.name+'/System Settings',entries:settingsEntries});
  }
 
  const remaining=catalog.filter(screen=>!used.has(screen.id));
@@ -67,24 +87,30 @@ export async function mountRoles(root,filters={}){
  const mergedCatalog=[...catalog];for(const item of matrix.screens)if(!mergedCatalog.some(x=>x.code===item.screenCode))mergedCatalog.push({id:item.screenId,code:item.screenCode,name:item.name,platform:item.platform,isActive:false});
  const screens=roleScreenCatalog(mergedCatalog);
  const draft=new Map(screens.map(screen=>{const original=matrix.screens.find(x=>x.screenCode===screen.code);return [screen.code,Object.fromEntries(roleFlags.map(([flag])=>[flag,original?.standard?.[flag]===true]))];}));
- const scopes=new Map(matrix.screens.filter(item=>roleUsesEmployeeScope(item.screenCode)).map(item=>[item.screenCode,{...item.dataScopes}]));
+ const scopes=roleScopeDraft(screens,matrix.screens);
  const enabledScreens=new Set(matrix.screens.filter(item=>Object.values(item.standard||{}).some(value=>value===true)||item.extendedActions?.length).map(item=>item.screenCode));
  const disabledScreens=new Set();
  const changed=new Set();let activePlatform='WEB';
  const selectedByPlatform={WEB:screens.find(screen=>screen.platform==='WEB'),MOBILE:screens.find(screen=>screen.platform==='MOBILE')};
- let selected=selectedByPlatform.WEB;let saving=false;let nameDraft=role.name;
+ let selected=selectedByPlatform.WEB;
+ const menuKeyByPlatform={WEB:selected?.code==='WEB_SYSTEM_SETTINGS'?'system/password-policy':selected?.code==='WEB_APPROVAL_SETTINGS'?'system/approval-workflow':null,MOBILE:selectedByPlatform.MOBILE?.code==='MOBILE_SYSTEM_SETTINGS'?'system/password-policy':selectedByPlatform.MOBILE?.code==='MOBILE_APPROVAL_SETTINGS'?'system/approval-workflow':null};
+ const menuLabelByPlatform={WEB:selected?.code==='WEB_SYSTEM_SETTINGS'?'Chính sách mật khẩu':selected?.name,MOBILE:selectedByPlatform.MOBILE?.code==='MOBILE_SYSTEM_SETTINGS'?'Chính sách mật khẩu':selectedByPlatform.MOBILE?.name};
+ let saving=false;let nameDraft=role.name;
  const openByPlatform={WEB:new Set(),MOBILE:new Set()};
  for(const platform of ['WEB','MOBILE'])for(const group of roleMenuGroups(screens,platform)){
  if(group.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id))openByPlatform[platform].add(group.name);
  for(const subgroup of group.subgroups||[])if(subgroup.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id)){openByPlatform[platform].add(group.name);openByPlatform[platform].add(subgroup.key);}
  }
  const canSave=roleGrant('WEB_PERMISSIONS','canUpdate')&&roleGrant('WEB_PERMISSIONS','canApprove');
- function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||screen.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
+ function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" data-screen-menu-key="${e(screen.menuKey||'')}" data-screen-label="${e(screen.label||screen.name)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||screen.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
  function draw(){
  const menuGroups=roleMenuGroups(screens,activePlatform),openGroups=openByPlatform[activePlatform];
  root.innerHTML=`<button class="btn" id="role-back">← Danh sách role</button><h2 class="role-editor-title">Chỉnh sửa role</h2><form id="role-rename" class="role-name-editor"><label for="role-name">Tên role</label><input id="role-name" name="name" required maxlength="100" value="${e(nameDraft)}" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}><button class="btn" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}>Lưu tên role</button><span class="muted">${e(role.code)}</span></form><p class="muted">Chọn màn hình trong menu, sau đó bật các chức năng được phép.</p><div class="tabs role-platform-tabs" role="tablist" aria-label="Nền tảng phân quyền">${['WEB','MOBILE'].map(platform=>`<button type="button" role="tab" id="role-platform-${platform}" class="tab ${activePlatform===platform?'active':''}" aria-selected="${activePlatform===platform}" aria-controls="role-platform-panel" data-role-platform="${platform}">${icon(platform==='WEB'?'grid':'person',16)} ${platform}</button>`).join('')}</div><div class="role-editor" id="role-platform-panel" role="tabpanel" aria-labelledby="role-platform-${activePlatform}"><nav class="role-menu" aria-label="Màn hình phân quyền">${menuGroups.map(group=>{
  const active=group.entries.some(screen=>screen.id===selected?.id),open=openGroups.has(group.name);
- const screenButton=screen=>`<div class="role-screen-row"><button type="button" class="role-screen ${selected?.id===screen.id?'selected':''}" data-screen-id="${e(screen.id)}" ${selected?.id===screen.id?'aria-current="true"':''}><span>${e(screen.label)}</span>${changed.has(screen.code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(screen)}</div>`;
+ const screenButton=screen=>{
+ const selectedEntry=screen.menuKey?screen.menuKey===menuKeyByPlatform[activePlatform]:selected?.id===screen.id;
+ return `<div class="role-screen-row"><button type="button" class="role-screen ${selectedEntry?'selected':''}" data-screen-id="${e(screen.id)}" data-screen-menu-key="${e(screen.menuKey||'')}" data-screen-label="${e(screen.label)}" ${selectedEntry?'aria-current="true"':''}><span>${e(screen.label)}</span>${changed.has(screen.code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(screen)}</div>`;
+ };
  const renderedSubgroups=new Set();
  const menuEntries=group.entries.map(screen=>{
  if(!screen.parentMenu)return screenButton(screen);
@@ -94,18 +120,18 @@ export async function mountRoles(root,filters={}){
  const expanded=openGroups.has(subgroup.key),subActive=subgroup.entries.some(item=>item.id===selected?.id);
  return `<button type="button" class="role-subgroup-toggle ${subActive?'active':''}" data-role-group="${e(subgroup.key)}" aria-expanded="${expanded}"><span>${e(subgroup.name)}</span><span class="chev ${expanded?'role-chevron-open':''}">${icon('chevron',12)}</span>${subgroup.entries.some(item=>changed.has(item.code))?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${expanded?`<div class="submenu role-submenu role-subgroup-items">${subgroup.entries.map(screenButton).join('')}</div>`:''}`;
  }).join('');
- return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="nav-label">${e(group.name)}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${menuEntries}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
- }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.registrationRequired?`<p>Màn hình chưa được đăng ký trên hệ thống.</p><button type="button" class="btn primary" id="role-register-contract-types" ${!roleGrant('WEB_PERMISSIONS','canNew')||saving?'disabled':''}>Đăng ký màn hình Loại hợp đồng</button>${!roleGrant('WEB_PERMISSIONS','canNew')?'<p class="muted">Cần quyền thêm mới trong Phân quyền để đăng ký màn hình.</p>':''}`:''}${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu trong System Settings và cấu hình Chấm công trong Master Data theo API.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||selected.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${roleScopeSelect(selected.code,flag,label,scopes.get(selected.code)?.[flag]||'SELF',!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||selected.registrationRequired||saving)}</div>`).join('')}</div>${roleUsesEmployeeScope(selected.code)?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
- root.querySelector('#role-register-contract-types')?.addEventListener('click',async()=>{
+ return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="role-nav-group-copy"><span class="nav-label">${e(group.name)}</span>${group.description?`<small>${e(group.description)}</small>`:''}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${menuEntries}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
+ }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(menuLabelByPlatform[activePlatform]||selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.registrationRequired?`<p>Màn hình chưa được đăng ký trên hệ thống.</p><button type="button" class="btn primary" id="role-register-screen" ${!roleGrant('WEB_PERMISSIONS','canNew')||saving?'disabled':''}>Đăng ký màn hình ${e(selected.name)}</button>${!roleGrant('WEB_PERMISSIONS','canNew')?'<p class="muted">Cần quyền thêm mới trong Phân quyền để đăng ký màn hình.</p>':''}`:''}${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu và Chấm công trong System Settings.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||selected.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${roleScopeSelect(selected.code,flag,label,scopes.get(selected.code)?.[flag]||'SELF',!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||selected.registrationRequired||saving)}</div>`).join('')}</div>${requestScopeScreens.includes(selected.code)?'<p class="muted role-scope-note">Phạm vi áp dụng khi xem yêu cầu. Tạo và hủy đơn dùng nhân viên liên kết với tài khoản hiện tại.</p>':selected.code==='WEB_APPROVALS'?'<p class="muted role-scope-note">Phạm vi xem và duyệt được cấu hình riêng. Chỉ người được gán ở bước hiện tại mới có thể duyệt.</p>':roleUsesEmployeeScope(selected.code)?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
+ root.querySelector('#role-register-screen')?.addEventListener('click',async()=>{
  if(saving||!selected?.registrationRequired||!roleGrant('WEB_PERMISSIONS','canNew'))return;
  const target=selected;saving=true;draw();
  try{
   let registered;
-  try{registered=await apiCreateScreen({code:'WEB_CONTRACT_TYPES',name:'Loại hợp đồng',platform:'WEB',isActive:true});}
-  catch(err){if(err.status!==409)throw err;registered=(await apiAllScreens()).find(screen=>screen.code==='WEB_CONTRACT_TYPES');}
+  try{registered=await apiCreateScreen({code:target.code,name:target.name,platform:target.platform,isActive:true});}
+  catch(err){if(err.status!==409)throw err;registered=(await apiAllScreens()).find(screen=>screen.code===target.code);}
   if(!root.isConnected)return;
-  if(!registered?.id||registered.code!=='WEB_CONTRACT_TYPES')throw Error('Chưa nhận được màn hình đã đăng ký. Vui lòng mở lại role.');
-  Object.assign(target,registered,{name:'Loại hợp đồng',registrationRequired:false});
+  if(!registered?.id||registered.code!==target.code)throw Error('Chưa nhận được màn hình đã đăng ký. Vui lòng mở lại role.');
+  Object.assign(target,registered,{registrationRequired:false});
   saving=false;draw();root.querySelector('#role-feedback').textContent='Đã đăng ký màn hình. Bật màn hình và chọn các quyền cần cấp, sau đó lưu lại.';
  }catch(err){saving=false;if(root.isConnected){draw();root.querySelector('#role-feedback').textContent=err.message;}}
  });
@@ -122,19 +148,20 @@ export async function mountRoles(root,filters={}){
  root.querySelectorAll('[data-role-platform]').forEach(el=>el.onclick=()=>{selectedByPlatform[activePlatform]=selected;activePlatform=el.dataset.rolePlatform;selected=selectedByPlatform[activePlatform];draw();root.querySelector(`[data-role-platform="${activePlatform}"]`)?.focus();});
  root.querySelectorAll('[data-role-group]').forEach(el=>el.onclick=()=>{const name=el.dataset.roleGroup;openGroups.has(name)?openGroups.delete(name):openGroups.add(name);draw();root.querySelectorAll('[data-role-group]').forEach(button=>{if(button.dataset.roleGroup===name)button.focus();});});
  root.querySelector('#role-back').onclick=()=>{if(saving)return;if((!changed.size&&nameDraft===role.name)||confirm('Bỏ các thay đổi chưa lưu?'))list();};
- root.querySelectorAll('[data-screen-id]').forEach(el=>el.onclick=()=>{selected=screens.find(x=>String(x.id)===el.dataset.screenId);draw();});
+ root.querySelectorAll('[data-screen-id]').forEach(el=>el.onclick=()=>{selected=screens.find(x=>String(x.id)===el.dataset.screenId);menuKeyByPlatform[activePlatform]=el.dataset.screenMenuKey||null;menuLabelByPlatform[activePlatform]=el.dataset.screenLabel||selected?.name;draw();});
  root.querySelectorAll('[data-screen-enabled]').forEach(el=>el.onchange=()=>{
  const screen=screens.find(item=>String(item.id)===el.dataset.screenEnabled);
  if(!screen||!canSave||screen.isActive===false||screen.registrationRequired||saving)return;
- selected=screen;
+ selected=screen;menuKeyByPlatform[activePlatform]=el.dataset.screenMenuKey||null;menuLabelByPlatform[activePlatform]=el.dataset.screenLabel||screen.name;
  if(el.checked){enabledScreens.add(screen.code);draft.get(screen.code).VIEW=true;if(roleUsesEmployeeScope(screen.code)){if(!scopes.has(screen.code))scopes.set(screen.code,{});scopes.get(screen.code).VIEW??='SELF';}}
  else{enabledScreens.delete(screen.code);disabledScreens.add(screen.code);roleFlags.forEach(([flag])=>{draft.get(screen.code)[flag]=false;});}
- changed.add(screen.code);draw();root.querySelector(`[data-screen-enabled="${screen.id}"]`)?.focus();
+ changed.add(screen.code);draw();root.querySelector(`[data-screen-enabled="${screen.id}"][data-screen-menu-key="${menuKeyByPlatform[activePlatform]||''}"]`)?.focus();
  });
- root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(roleUsesEmployeeScope(selected.code)&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
+ root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(roleHasScopeAction(selected.code,el.dataset.roleFlag)&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
  root.querySelectorAll('[data-role-scope]').forEach(el=>el.onchange=()=>{
- if(!canSave||saving||selected.isActive===false)return;
+ if(!canSave||saving||selected.isActive===false||selected.registrationRequired)return;
  const flag=el.dataset.roleScope;
+ if(!roleHasScopeAction(selected.code,flag)||!['SELF','DEPARTMENT','ALL'].includes(el.value))return;
  if(!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag])return;
  if(!scopes.has(selected.code))scopes.set(selected.code,{});
  scopes.get(selected.code)[flag]=el.value;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {passwordPolicyErrors,passwordPolicyRules} from '../assets/js/password-policy.js';
-import {passwordPolicySelect} from '../assets/js/pages/system-settings.js';
+import {passwordPolicySelect} from '../assets/js/pages/administration/system-settings/system-settings.js';
 const policy={minimumLength:8,maximumLength:32,requireUppercase:true,requireLowercase:true,requireDigit:true,requireSpecialCharacter:true,disallowUsernameInPassword:true,passwordHistoryCount:5};
 test('password validation follows loaded length and character requirements',()=>{
  assert.deepEqual(passwordPolicyErrors('Abcdef1!','employee',policy),[]);

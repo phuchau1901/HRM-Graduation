@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {apiOrganizationTree,apiOrganizationMembers} from '../assets/js/api/client.js';
-import {mountOrganization} from '../assets/js/pages/organization.js';
+import {mountOrganization} from '../assets/js/pages/human-resources/organization.js';
 import {screenRoutes} from '../assets/js/permissions.js';
 
 test('organization tree and lazy member endpoints use no-store, pagination and cancellation',async()=>{
@@ -29,7 +29,7 @@ test('organization requires its own view grant and denied mount never fetches',(
 });
 
 test('organization search matches department or team names without accents and respects type',async()=>{
- const {organizationMatches}=await import('../assets/js/pages/organization.js');
+ const {organizationMatches}=await import('../assets/js/pages/human-resources/organization.js');
  const department={departmentName:'Phòng Kỹ thuật',teams:[{teamName:'Đội phát triển'},{teamName:'QA'}]};
  assert.equal(organizationMatches(department,'ky thuat').departmentMatch,true);
  assert.deepEqual(organizationMatches(department,'doi phat').teams,[true,false]);

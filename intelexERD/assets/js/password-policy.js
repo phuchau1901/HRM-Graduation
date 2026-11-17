@@ -1,5 +1,5 @@
 import {apiSystemSettings} from './api/client.js';
-import {validateSystemSettings} from './pages/system-settings.js';
+import {validateSystemSettings} from './pages/administration/system-settings/system-settings.js';
 import {e} from './utils.js';
 
 export function passwordPolicyRules(password,username,policy){

@@ -1,8 +1,9 @@
-import {apiSystemSettings,apiSession} from '../api/client.js';
-import {e} from '../utils.js';
-import {field,icon} from '../components/ui.js';
+import {mountApprovalWorkflowSettings} from './approval-workflow-settings.js';
+import {apiSystemSettings,apiSession} from '../../../api/client.js';
+import {e} from '../../../utils.js';
+import {field,icon} from '../../../components/ui.js';
 
-const systemSettingTabs={'password-policy':'Chính sách mật khẩu'};
+export const systemSettingTabs={'password-policy':'Chính sách mật khẩu',attendance:'Chấm công','approval-workflow':'Quy trình phê duyệt'};
 const passwordSettingFlags=[['requireUppercase','Yêu cầu chữ hoa'],['requireLowercase','Yêu cầu chữ thường'],['requireDigit','Yêu cầu chữ số'],['requireSpecialCharacter','Yêu cầu ký tự đặc biệt'],['disallowUsernameInPassword','Không cho chứa tên đăng nhập']];
 const attendanceSettingFlags=[['requireQr','Yêu cầu mã QR'],['requireGps','Yêu cầu vị trí GPS'],['allowOvernightShifts','Cho phép ca qua đêm']];
 const attendanceSettingNumbers=[['checkInBeforeStartMinutes','Cho phép check-in trước giờ bắt đầu (phút)',1440],['checkInAfterStartMinutes','Cho phép check-in sau giờ bắt đầu (phút)',1440],['checkOutBeforeEndMinutes','Cho phép check-out trước giờ kết thúc (phút)',1440],['checkOutAfterEndMinutes','Cho phép check-out sau giờ kết thúc (phút)',1440],['lateGraceMinutes','Thời gian đi trễ được bỏ qua (phút)',240],['earlyLeaveGraceMinutes','Thời gian về sớm được bỏ qua (phút)',240]];
@@ -43,13 +44,14 @@ export function passwordPolicySelect(label,key,value,choices,unit){
 export async function mountSystemSettings(root,filters={},options={}){
  if(!root)return;
  const tabs=options.embedded?{attendance:'Chấm công'}:systemSettingTabs;
- let tab=tabs[filters.tab]?filters.tab:Object.keys(tabs)[0],generation=0,saving=false,dirty=false;
+ let tab=tabs[filters.tab]?filters.tab:Object.keys(tabs).find(key=>apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===(key==='approval-workflow'?'WEB_APPROVAL_SETTINGS':'WEB_SYSTEM_SETTINGS')&&p.canView==='Y'))||Object.keys(tabs)[0],generation=0,saving=false,dirty=false;
  async function load(){
  const current=++generation,kind=tab;dirty=false;options.onDirty?.(false);
  root.innerHTML=`<div class="tabs" role="tablist" aria-label="Cấu hình hệ thống">${Object.entries(tabs).map(([key,label])=>`<button type="button" role="tab" class="tab ${key===kind?'active':''}" aria-selected="${key===kind}" data-system-tab="${key}">${label}</button>`).join('')}</div><div id="system-settings-panel" role="tabpanel"><p role="status">Đang tải cấu hình…</p></div>`;
  root.querySelectorAll('[data-system-tab]').forEach(button=>button.onclick=()=>{if(saving||button.dataset.systemTab===tab)return;if(dirty&&!confirm('Bỏ các thay đổi cấu hình chưa lưu?'))return;tab=button.dataset.systemTab;load();});
  if(options.embedded)root.querySelector('[role=tablist]').remove();
  const panel=root.querySelector('#system-settings-panel');
+ if(kind==='approval-workflow'){await mountApprovalWorkflowSettings(panel,{onDirty:value=>{if(panel.isConnected){dirty=value;options.onDirty?.(value);}},onSaving:value=>{if(panel.isConnected){saving=value;options.onSaving?.(value);root.querySelectorAll('[data-system-tab]').forEach(button=>button.disabled=value);}}});return;}
 
  try{
  if(!systemSettingsGrant('canView'))throw Error('Bạn chưa có quyền xem WEB_SYSTEM_SETTINGS.');

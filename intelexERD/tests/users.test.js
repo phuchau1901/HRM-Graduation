@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {apiUsers,apiAllRoles,apiActiveDepartments} from '../assets/js/api/client.js';
-import {registerSystemUser} from '../assets/js/pages/users.js';
+import {registerSystemUser} from '../assets/js/pages/administration/users.js';
 const ok=body=>({ok:true,json:async()=>body});
 test('users list uses server paging and encoded search',async()=>{
  let seen;globalThis.fetch=async(url,options)=>{seen={url,options};return ok({data:[],total:0});};
@@ -36,7 +36,7 @@ test('account only registration omits employee object and supports an existing e
  assert.deepEqual(bodies,[{roleIds:[],createEmployee:false,employeeId:null},{roleIds:[],createEmployee:false,employeeId:12}]);
 });
 test('editing metadata and roles uses the latest aggregate version and supports unlinking',async()=>{
- const {saveSystemUserChanges}=await import('../assets/js/pages/users.js');const calls=[];
+ const {saveSystemUserChanges}=await import('../assets/js/pages/administration/users.js');const calls=[];
  const current={userId:'user/name',email:'old@example.com',employeeId:7,roles:[{id:1}],version:'old'};
  globalThis.fetch=async(url,options)=>{calls.push({url,options});
  if(options.method==='PUT'&&!url.endsWith('/roles'))return ok({...current,email:'new@example.com',employeeId:null,version:'after-profile'});
@@ -50,7 +50,7 @@ test('editing metadata and roles uses the latest aggregate version and supports 
  assert.equal(current.version,'after-roles');
 });
 test('role failure retains saved metadata for retry, and empty role list removes all assignments',async()=>{
- const {saveSystemUserChanges}=await import('../assets/js/pages/users.js');let puts=0;let fail=true;const bodies=[];
+ const {saveSystemUserChanges}=await import('../assets/js/pages/administration/users.js');let puts=0;let fail=true;const bodies=[];
  const current={userId:'target',email:'old@example.com',employeeId:null,roles:[{id:1}],version:'v1'};
  globalThis.fetch=async(url,options)=>{
  if(options.method==='PUT'&&!url.endsWith('/roles')){puts++;return ok({...current,email:'new@example.com',employeeId:12,version:'v2'});}
@@ -83,7 +83,7 @@ test('self password change posts old password without requiring an admin version
 });
 
 test('admin reset omits old password and runs only when a new password is supplied',async()=>{
- const {saveSystemUserChanges}=await import('../assets/js/pages/users.js');
+ const {saveSystemUserChanges}=await import('../assets/js/pages/administration/users.js');
  const current={userId:'target',email:'x@example.com',employeeId:null,roles:[],version:'v1'},calls=[];
  globalThis.fetch=async(url,options)=>{calls.push({url,options});return ok({...current,version:options.method==='POST'?'v3':'v2'});};
  await saveSystemUserChanges(current,{newPassword:''});assert.equal(calls.length,0);
@@ -122,7 +122,7 @@ test('registration sends selected position in the nested employee DTO',async()=>
 });
 
 test('registration dates accept manual day/month/year and reject impossible dates',async()=>{
- const {registrationDateValue}=await import('../assets/js/pages/users.js');
+ const {registrationDateValue}=await import('../assets/js/pages/administration/users.js');
  assert.equal(registrationDateValue('14/11/2026'),'2026-11-14');
  assert.equal(registrationDateValue('29/02/2024'),'2024-02-29');
  assert.equal(registrationDateValue('29/02/2025'),null);

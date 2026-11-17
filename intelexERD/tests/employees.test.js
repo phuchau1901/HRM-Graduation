@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {employeeListRows} from '../assets/js/pages/employees.js';
+import {employeeListRows} from '../assets/js/pages/human-resources/employees.js';
 import {apiEmployees,apiEmployeeDetail} from '../assets/js/api/client.js';
 
 test('employee rows display backend names, status, and API employee profile link',()=>{
@@ -26,7 +26,7 @@ test('employee list and detail use separate API endpoints with server query filt
 });
 
 test('employee creation payload follows profile contract without accepting client employee code',async()=>{
- const {employeeCreationPayload}=await import('../assets/js/pages/employees.js');
+ const {employeeCreationPayload}=await import('../assets/js/pages/human-resources/employees.js');
  const input={fullName:' Nguyen A ',email:' a@example.com ',phoneNumber:' ',dateOfBirth:'1995-01-01',hireDate:'2026-01-01',departmentId:'2',positionId:'3',teamId:'4',employmentStatus:'ACTIVE',employeeCode:'FAKE',departmentName:'Fake'};
  assert.deepEqual(employeeCreationPayload(input),{fullName:'Nguyen A',email:'a@example.com',phoneNumber:null,dateOfBirth:'1995-01-01',hireDate:'2026-01-01',departmentId:2,positionId:3,teamId:4,employmentStatus:'ACTIVE'});
  const optional=employeeCreationPayload({...input,dateOfBirth:'',teamId:'',positionId:''});
@@ -47,13 +47,13 @@ test('creating an employee posts once to profiles endpoint and surfaces duplicat
 });
 
 test('profile edit access requires WEB_EMPLOYEES canUpdate Y on WEB',async()=>{
- const {employeeCanUpdate}=await import('../assets/js/pages/employees.js');
+ const {employeeCanUpdate}=await import('../assets/js/pages/human-resources/employees.js');
  const permission={platform:'WEB',code:'WEB_EMPLOYEES',canView:'Y',canUpdate:'Y'};
  assert.equal(employeeCanUpdate({permissions:[permission]}),true);
  for(const session of [null,{permissions:[]},{permissions:[{...permission,canUpdate:'N'}]},{permissions:[{...permission,code:'WEB_ORGANIZATION'}]},{permissions:[{...permission,platform:'MOBILE'}]}])assert.equal(employeeCanUpdate(session),false);
 });
 test('profile update sends editable fields and preserves assigned ids without writable identity fields',async()=>{
- const {employeeUpdatePayload}=await import('../assets/js/pages/employees.js');
+ const {employeeUpdatePayload}=await import('../assets/js/pages/human-resources/employees.js');
  const employee={id:42,employeeCode:'NV000042',departmentId:2,hireDate:'2024-01-01'};
  const values={fullName:' Updated ',email:'updated@example.com',phoneNumber:'',dateOfBirth:'1990-01-01',employmentStatus:'INACTIVE',positionId:'3',teamId:'4',employeeCode:'FAKE',departmentId:'999',hireDate:'2099-01-01'};
  const payload=employeeUpdatePayload(values,employee);
@@ -70,7 +70,7 @@ test('profile update sends editable fields and preserves assigned ids without wr
 });
 
 test('create and update accept explicit manager flags, preserve omitted roles and require a team for lead',async()=>{
- const {employeeCreationPayload,employeeUpdatePayload}=await import('../assets/js/pages/employees.js');
+ const {employeeCreationPayload,employeeUpdatePayload}=await import('../assets/js/pages/human-resources/employees.js');
  const values={fullName:'Manager',email:'manager@example.com',hireDate:'2020-01-01',departmentId:1,teamId:2,positionId:null,employmentStatus:'ACTIVE'};
  assert.equal(employeeCreationPayload({...values,isDepartmentManager:true,isTeamLead:true}).isTeamLead,true);
  assert.equal(employeeCreationPayload({...values,isDepartmentManager:false,isTeamLead:false}).isDepartmentManager,false);
@@ -88,7 +88,7 @@ test('create and update accept explicit manager flags, preserve omitted roles an
 });
 
 test('department transfer uses PATCH independently of profile PUT and validates date and target',async()=>{
- const {employeeTransferPayload}=await import('../assets/js/pages/employees.js');
+ const {employeeTransferPayload}=await import('../assets/js/pages/human-resources/employees.js');
  const {apiTransferEmployeeDepartment}=await import('../assets/js/api/client.js');
  const employee={id:42,departmentId:1,hireDate:'2020-01-01'};
  const values={departmentId:'2',teamId:'3',effectiveDate:'2025-01-01',transferReason:' New department '};

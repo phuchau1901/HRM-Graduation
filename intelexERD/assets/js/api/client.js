@@ -184,3 +184,18 @@ export async function apiActiveContractTypes(){
 export function apiContractStatistics(expiringWithinDays=30){return request('/api/contracts/statistics?'+new URLSearchParams({expiringWithinDays}),{cache:'no-store'});}
 
 export function apiCreateContract(payload){return request('/api/contracts',{method:'POST',body:JSON.stringify(payload)});}
+
+const workflowResources={leave:'leave-requests',overtime:'overtime-requests',adjustment:'attendance-adjustments',all:'approvals'};
+function workflowPath(kind,id=null){if(!workflowResources[kind])throw Error('Loại yêu cầu không hợp lệ.');return '/api/'+workflowResources[kind]+(id===null?'':`/${encodeURIComponent(id)}`);}
+export function apiWorkflowList(kind,query=''){return request(workflowPath(kind)+(query?`?${query}`:''),{cache:'no-store'});}
+export function apiWorkflowDetail(kind,id){if(kind==='adjustment')throw Error('API điều chỉnh công không có endpoint chi tiết.');return request(workflowPath(kind,id),{cache:'no-store'});}
+export function apiCreateWorkflow(kind,payload){if(kind==='all')throw Error('Chọn loại yêu cầu để tạo.');return request(workflowPath(kind),{method:'POST',body:JSON.stringify(payload)});}
+export function apiWorkflowAction(kind,id,action,payload){if(kind==='all'?!['approve','reject'].includes(action):action!=='cancel')throw Error('Thao tác yêu cầu không hợp lệ.');return request(workflowPath(kind,id)+'/'+action,{method:'POST',body:JSON.stringify(payload)});}
+export function apiWorkflowLeaveTypes(query=''){return request('/api/leave-types'+(query?`?${query}`:''),{cache:'no-store'});}
+
+export function apiSaveLeaveType(id,payload){return request('/api/leave-types'+(id===null?'':`/${encodeURIComponent(id)}`),{method:id===null?'POST':'PUT',body:JSON.stringify(payload)});}
+
+export function apiApprovalWorkflowSettings(payload=null){
+ if(payload!==null&&(!Number.isSafeInteger(payload.version)||payload.version<0))throw Error('Thiếu phiên bản cấu hình quy trình hợp lệ.');
+ return request('/api/approval-workflow-settings',payload===null?{cache:'no-store'}:{method:'PUT',body:JSON.stringify(payload)});
+}

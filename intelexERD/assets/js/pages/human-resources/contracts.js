@@ -1,7 +1,7 @@
-import {openDialog,closeDialog,toast} from '../components/dialog.js';
-import {apiCreateContract,apiContractStatistics,apiSession,apiEmployees,apiEmployeeContracts,apiEmployeeContract,apiSaveEmployeeContract,apiActiveContractTypes} from '../api/client.js';
-import {e,dateLabel} from '../utils.js';
-import {field,details,icon} from '../components/ui.js';
+import {openDialog,closeDialog,toast} from '../../components/dialog.js';
+import {apiCreateContract,apiContractStatistics,apiSession,apiEmployees,apiEmployeeContracts,apiEmployeeContract,apiSaveEmployeeContract,apiActiveContractTypes} from '../../api/client.js';
+import {e,dateLabel} from '../../utils.js';
+import {field,details,icon} from '../../components/ui.js';
 
 export const contractStatuses={DRAFT:'Bản nháp',ACTIVE:'Đang hiệu lực',EXPIRED:'Hết hạn',TERMINATED:'Đã chấm dứt',CANCELLED:'Đã hủy'};
 export function contractGrant(flag,session=apiSession()){

@@ -1,3 +1,5 @@
+import {apiSession} from './api/client.js';
+import {navigationForScreens} from './screen-navigation.js';
 export const nav=[
  {name:'Dashboard',icon:'grid',route:'/dashboard',section:'TỔNG QUAN'},
  {name:'My Workspace',icon:'briefcase',route:'/workspace/tasks',children:[['My Tasks','/workspace/tasks'],['My Projects','/workspace/projects'],['My Attendance','/workspace/attendance'],['My Leave','/workspace/leave']]},
@@ -10,6 +12,7 @@ export const nav=[
  {name:'Notifications',icon:'bell',route:'/notifications'},
  {name:'Administration',icon:'settings',route:'/admin/users',children:[['Users','/admin/users'],['Roles','/admin/roles'],['Permissions','/admin/permissions'],['Audit Logs','/admin/audit-logs'],['System Settings','/admin/settings'],['Master Data','/admin/master-data']]}
 ];
+export function mainNavigation(){return navigationForScreens(nav,apiSession()?.permissions||[]);}
 export function getPath(){return (location.hash.slice(1).split('?')[0]||'/dashboard').replace(/\/$/,'')||'/dashboard';}
-export function groupFor(path){if(path==='/admin/users/register')return nav.find(n=>n.name==='Administration');return nav.find(n=>n.route===path||n.children?.some(c=>c[1]===path))||nav.find(n=>path.startsWith('/projects/')&&n.route==='/projects'||path.startsWith('/hr/employees/')&&n.route==='/hr/employees');}
+export function groupFor(path){if(path==='/admin/users/register')return nav.find(n=>n.name==='Administration');return mainNavigation().find(n=>n.route===path||n.children?.some(c=>c[1]===path))||nav.find(n=>path.startsWith('/projects/')&&n.route==='/projects'||path.startsWith('/hr/employees/')&&n.route==='/hr/employees');}
 export function isKnown(path){return !!groupFor(path)||/^\/projects\/prj-[\w-]+$/.test(path)||/^\/hr\/employees\/[\w-]+$/.test(path);}

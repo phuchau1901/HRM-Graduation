@@ -189,6 +189,21 @@ function apiContractStatistics(expiringWithinDays=30){return request('/api/contr
 
 function apiCreateContract(payload){return request('/api/contracts',{method:'POST',body:JSON.stringify(payload)});}
 
+const workflowResources={leave:'leave-requests',overtime:'overtime-requests',adjustment:'attendance-adjustments',all:'approvals'};
+function workflowPath(kind,id=null){if(!workflowResources[kind])throw Error('Loại yêu cầu không hợp lệ.');return '/api/'+workflowResources[kind]+(id===null?'':`/${encodeURIComponent(id)}`);}
+function apiWorkflowList(kind,query=''){return request(workflowPath(kind)+(query?`?${query}`:''),{cache:'no-store'});}
+function apiWorkflowDetail(kind,id){if(kind==='adjustment')throw Error('API điều chỉnh công không có endpoint chi tiết.');return request(workflowPath(kind,id),{cache:'no-store'});}
+function apiCreateWorkflow(kind,payload){if(kind==='all')throw Error('Chọn loại yêu cầu để tạo.');return request(workflowPath(kind),{method:'POST',body:JSON.stringify(payload)});}
+function apiWorkflowAction(kind,id,action,payload){if(kind==='all'?!['approve','reject'].includes(action):action!=='cancel')throw Error('Thao tác yêu cầu không hợp lệ.');return request(workflowPath(kind,id)+'/'+action,{method:'POST',body:JSON.stringify(payload)});}
+function apiWorkflowLeaveTypes(query=''){return request('/api/leave-types'+(query?`?${query}`:''),{cache:'no-store'});}
+
+function apiSaveLeaveType(id,payload){return request('/api/leave-types'+(id===null?'':`/${encodeURIComponent(id)}`),{method:id===null?'POST':'PUT',body:JSON.stringify(payload)});}
+
+function apiApprovalWorkflowSettings(payload=null){
+ if(payload!==null&&(!Number.isSafeInteger(payload.version)||payload.version<0))throw Error('Thiếu phiên bản cấu hình quy trình hợp lệ.');
+ return request('/api/approval-workflow-settings',payload===null?{cache:'no-store'}:{method:'PUT',body:JSON.stringify(payload)});
+}
+
 
 const {HubConnectionBuilder,LogLevel}=globalThis.signalR||{};
 
@@ -360,37 +375,39 @@ function routeAllowed(s,u,path){if(apiSession())return path==='/notifications'?t
 // Explicit aliases for screen codes supplied by the backend. Unknown codes deny access.
 const screenRoutes={
  '/dashboard':['WEB_DASHBOARD'],
- '/workspace/tasks':['WEB_MY_TASKS'], 
+ '/workspace/tasks':['WEB_MY_TASKS'],
  '/workspace/projects':['WEB_MY_PROJECTS'],
- '/workspace/attendance':['WEB_MY_ATTENDANCE'], 
+ '/workspace/attendance':['WEB_MY_ATTENDANCE'],
  '/workspace/leave':['WEB_MY_LEAVE'],
- '/projects':['WEB_PROJECTS'], 
- '/approvals':['WEB_APPROVALS'], 
+ '/projects':['WEB_PROJECTS'],
+ '/approvals':['WEB_APPROVALS','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
  '/reports':['WEB_REPORTS'],
- '/documents':['WEB_DOCUMENTS'], 
+ '/documents':['WEB_DOCUMENTS'],
  '/notifications':['WEB_NOTIFICATIONS'],
- '/hr/employees':['WEB_EMPLOYEES'], 
+ '/hr/employees':['WEB_EMPLOYEES'],
  '/hr/organization':['WEB_ORGANIZATION'],
- '/hr/contracts':['WEB_CONTRACTS'], 
+ '/hr/contracts':['WEB_CONTRACTS'],
  '/hr/attendance':['WEB_ATTENDANCE'],
- '/hr/attendance-reports':['WEB_ATTENDANCE_REPORTS'], 
+ '/hr/attendance-reports':['WEB_ATTENDANCE_REPORTS'],
  '/hr/leave':['WEB_LEAVE','WEB_LEAVE_MANAGEMENT'],
- '/hr/reports':['WEB_HR_REPORTS'], 
- '/admin/users':['WEB_USERS'], 
+ '/hr/reports':['WEB_HR_REPORTS'],
+ '/admin/users':['WEB_USERS'],
  '/admin/roles':['WEB_ROLES'],
- '/admin/permissions':['WEB_PERMISSIONS'], 
+ '/admin/permissions':['WEB_PERMISSIONS'],
  '/admin/audit-logs':['WEB_AUDIT_LOGS'],
- '/admin/settings':['WEB_SYSTEM_SETTINGS'], 
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_SYSTEM_SETTINGS','WEB_SHIFTS']
+ '/admin/settings':['WEB_SYSTEM_SETTINGS','WEB_APPROVAL_SETTINGS'],
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_LEAVE_TYPES','WEB_SHIFTS']
 };
 // Permission editor placement follows menu ownership, independently of route access aliases.
 const roleScreenRoutes={...screenRoutes,
  '/hr/organization':['WEB_ORGANIZATION'],
- '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_SHIFTS']
+ '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_LEAVE_TYPES','WEB_SHIFTS']
 };
 function screenAllowed(path,flag='canView'){
  const current=apiSession();if(!current)return false;
  let route=path;
+ const dynamic=/^\/screens\/(WEB_[A-Z0-9_]+)$/.exec(path);
+ if(dynamic)return current.permissions.some(p=>p.platform==='WEB'&&p.code===dynamic[1]&&p.canView==='Y'&&p[flag]==='Y');
  if(/^\/hr\/employees\/.+/.test(path))route='/hr/employees';
  if(/^\/projects\/prj-/.test(path))route='/projects';
  const codes=screenRoutes[route]||(/^\/(team|projects)\//.test(route)?['WEB_'+route.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]:[]);
@@ -399,6 +416,43 @@ function screenAllowed(path,flag='canView'){
 
 
 const scope=Object.freeze({scopedTeams,employees,projects,tasks,documents,requests,can,routeAllowed});
+
+// Source: screen-navigation.js
+
+const screenLabels={SALARY:'Thiết lập lương nhân viên',EMPLOYEE_SALARIES:'Thiết lập lương nhân viên',PAYROLLS:'Quản lý bảng lương',KPI_CRITERIA:'Thiết lập KPI',SALARY_PROFILES:'Thiết lập lương nhân viên',SALARY_PROFILE:'Thiết lập lương nhân viên',SALARY_SETTINGS:'Thiết lập lương nhân viên',SALARY_SETUP:'Thiết lập lương nhân viên',PAYROLL:'Quản lý bảng lương',PAYROLL_PERIODS:'Quản lý bảng lương',PAYROLL_MANAGEMENT:'Quản lý bảng lương',KPI_TEMPLATES:'Thiết lập KPI',KPI_SETTINGS:'Thiết lập KPI',KPI_SETUP:'Thiết lập KPI',KPI_TARGETS:'Mục tiêu KPI',KPI_RESULTS:'Đánh giá KPI',KPI_REVIEWS:'Đánh giá KPI',KPI_EVALUATIONS:'Đánh giá KPI',PERFORMANCE_REVIEWS:'Đánh giá hiệu suất'};
+function screenNavigationLabel(screen){const short=String(screen.code||'').replace(/^(WEB|MOBILE)_/,'');return screen.name||screen.screenName||screenLabels[short]||short.replaceAll('_',' ');}
+function screenNavigationGroup(code){
+ const short=String(code||'').replace(/^(WEB|MOBILE)_/,'');
+ if(/(^|_)(SALARY|SALARIES|PAYROLL|PAYROLLS|COMPENSATION|TIMESHEET|TIMESHEETS)(_|$)/.test(short))return {name:'Payroll & Compensation',icon:'briefcase',description:'Quản lý tiền lương'};
+ if(/(^|_)(KPI|PERFORMANCE)(_|$)/.test(short))return {name:'Performance Management',icon:'chart',description:'Quản lý hiệu suất'};
+ if(/^MY_/.test(short))return {name:'My Workspace',icon:'briefcase'};
+ if(/^TEAM_/.test(short))return {name:'Team Management',icon:'users'};
+ if(/^(PROJECT|TASK|MILESTONE)(_|$)/.test(short))return {name:'Project Management',icon:'folder'};
+ if(/^APPROVAL/.test(short))return {name:'Approval Center',icon:'approval'};
+ if(/^(EMPLOYEE|ATTENDANCE|WORK_SCHEDULE|LEAVE|CONTRACT|DEPARTMENT|POSITION|SHIFT)(_|S_|S$|$)/.test(short))return {name:'Human Resources',icon:'person'};
+ if(/^REPORT/.test(short))return {name:'Reports & Analytics',icon:'chart'};
+ return {name:'Administration',icon:'settings'};
+}
+function navigationForScreens(base,catalog,platform='WEB'){
+ const groups=base.map(group=>({...group,children:group.children?.map(child=>[...child])}));
+ const assigned=new Set(Object.values(screenRoutes).flat().map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code));
+ for(const group of base)for(const [,path] of group.children||[[group.name,group.route]]){
+  const codes=screenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()];
+  for(const code of codes)assigned.add(platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
+ }
+ const seen=new Set();
+ for(const screen of catalog){
+  if(screen.platform&&screen.platform!==platform||!new RegExp('^'+platform+'_[A-Z0-9_]+$').test(screen.code||'')||assigned.has(screen.code)||seen.has(screen.code))continue;
+  seen.add(screen.code);
+  const metadata=screenNavigationGroup(screen.code),path='/screens/'+screen.code;
+  let group=groups.find(group=>group.name===metadata.name);
+  if(!group){group={...metadata,route:path,children:[]};const insertion=groups.findIndex(item=>item.name==='Approval Center');groups.splice(insertion<0?groups.length:insertion,0,group);}
+  if(!group.children)group.children=[[group.name,group.route]];
+  group.children.push([screenNavigationLabel(screen),path]);
+ }
+ return groups;
+}
+
 
 // Source: store.js
 const KEY='intelex-erp-demo:v1';
@@ -455,7 +509,7 @@ let timer;
 function toast(text){const el=document.getElementById('toast');el.textContent=text;el.classList.add('show');clearTimeout(timer);timer=setTimeout(()=>el.classList.remove('show'),3500);}
 
 
-// Source: pages/dashboard.js
+// Source: pages/dashboard/dashboard.js
 function teamOptions(f){return `<select data-filter="team" aria-label="Lọc team"><option value="">Tất cả team${user().role==='Manager'?' quản lý':''}</option>${s.teams.filter(t=>scope.scopedTeams(s,user()).includes(t.id)).map(t=>`<option value="${t.id}" ${f.team===t.id?'selected':''}>${e(t.name)}</option>`).join('')}</select>`;}
 function visibleEmployees(f){return scope.employees(s,user()).filter(u=>(!f.team||u.teamId===f.team)&&u.status==='active');}
 function visibleTasks(f){const people=new Set(visibleEmployees(f).map(u=>u.id));return scope.tasks(s,user()).filter(t=>!f.team||people.has(t.assigneeId));}
@@ -469,7 +523,7 @@ function activityList(f,limit=6){const us=new Set(visibleEmployees(f).map(u=>u.i
 function dashboard(f){const u=user(),us=visibleEmployees(f),ps=scope.projects(s,u).filter(p=>!f.team||p.teamIds.includes(f.team)),ts=visibleTasks(f),done=ts.filter(t=>t.status==='done').length,ars=attendanceRows({...f,search:'',status:''}),check=ars.filter(({a})=>!!a?.checkIn).length;const admin=u.role==='Admin',hr=u.role==='HR';let metrics=admin?kpi('Tài khoản hoạt động',s.users.filter(x=>x.status==='active').length,'users','Toàn bộ hệ thống','users','blue')+kpi('Nhóm quyền',5,'roles','Phân quyền theo phạm vi','shield','purple')+kpi('Nhật ký thao tác',s.auditLogs.length,'','Ghi nhận trong bản demo','file','orange')+kpi('Phòng ban',s.departments.length,'','Engineering & People','briefcase','teal'):hr?kpi('Nhân sự công ty',us.length,'người','Đang làm việc tại Intelex','users','blue')+kpi('Hợp đồng sắp hết',s.contracts.filter(c=>c.endDate<'2026-11-19').length,'','Trong 30 ngày tới','file','purple')+kpi('Yêu cầu cần xử lý',s.requests.filter(r=>r.currentApproverId===u.id).length,'','Đang chờ HR phê duyệt','approval','orange')+kpi('Chấm công hôm nay',check,`/ ${us.length}`,'Có mặt trong ngày','clock','teal'):kpi(u.role==='Dev'?'Thành viên':'Nhân sự quản lý',us.length,'người',u.role==='Dev'?'Không gian cá nhân':`${new Set(us.map(x=>x.teamId)).size} team trong phạm vi`,'users','blue')+kpi('Dự án đang chạy',ps.length,'dự án','Đang trong giai đoạn triển khai','folder','purple')+kpi('Task hoàn thành',done,`/ ${ts.length}`,`${pct(done,ts.length)}% công việc đã hoàn tất`,'check','orange')+kpi('Chấm công hôm nay',check,`/ ${us.length}`,'Nhân sự đã check-in','clock','teal');return `<div class="welcome-banner"><div class="welcome-icon">${icon('sun',21)}</div><div><strong>Một tuần mới, những ý tưởng mới.</strong><p>${u.role==='Dev'?'Sẵn sàng cùng Intelex tạo nên những điều có ý nghĩa.':`Bạn có ${scope.requests(s,u).filter(r=>r.currentApproverId===u.id).length} yêu cầu đang chờ xử lý. Cùng giữ nhịp làm việc của đội ngũ nhé!`}</p></div><a href="#/approvals" class="btn small">Xem yêu cầu ${icon('arrow',13)}</a></div><div class="kpis">${metrics}</div><div class="dashboard-grid">${hr||admin?card('Nhịp làm việc Intelex','Hoạt động mới nhất trong công ty',activityList(f,5),link('Xem nhân sự','/hr/employees')):card('Tiến độ dự án','Tổng quan tiến độ các dự án đang triển khai',projectChart(f),`<div class="chart-meta"><span class="legend-key blue">Đúng kế hoạch</span><span class="legend-key orange">Có nguy cơ</span></div>`)}${card('Chấm công hôm nay','Tình hình hiện diện của đội ngũ',attendanceChart(f),button('','refresh','refresh','text','aria-label="Làm mới chấm công"'))}</div><div class="dashboard-grid">${card('Báo cáo chấm công',`${dateLabel(f.date)} · Theo dõi check-in của đội ngũ`,`<div class="table-toolbar"><input placeholder="Tìm nhân viên…" aria-label="Tìm nhân viên chấm công" data-filter="search" value="${e(f.search)}"><select data-filter="status" aria-label="Lọc chấm công"><option value="">Tất cả trạng thái</option>${['ontime','late','leave','absent'].map(k=>`<option value="${k}" ${f.status===k?'selected':''}>${labels[k]}</option>`).join('')}</select></div>${attendanceTable(f,true)}`,link('Xem tất cả',u.role==='Dev'?'/workspace/attendance':'/reports'))}${hr||admin?card('Thông báo','Thông tin dành cho bạn',`<div class="card-body" style="padding-top:4px">${notifications(4)}</div>`,link('Tất cả','/notifications')):card('Task sắp đến hạn','Ưu tiên hôm nay và trong 7 ngày tới',taskList(f),link('Xem tất cả',u.role==='Dev'?'/workspace/tasks':'/projects/tasks'))}</div><div class="dashboard-grid">${card('Hoạt động gần đây','Những cập nhật mới nhất từ đội ngũ',activityList(f,5),`<span class="tag">Hôm nay</span>`)}${card('Bảng tin Intelex','Kết nối và cập nhật thông tin',`<div class="card-body" style="padding-top:4px">${notifications(3)}</div>`,link('Xem tất cả','/notifications'))}</div>`;}
 
 
-// Source: pages/organization.js
+// Source: pages/human-resources/organization.js
 
 const organizationSearchText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLocaleLowerCase('vi').trim();
 function organizationMatches(department,query,kind='all'){
@@ -552,13 +606,13 @@ function mountOrganization(root){
 }
 
 
-// Source: pages/attendance-report.js
+// Source: pages/reports/attendance-report.js
 function reportRows(f){const from=f.period==='month'?(f.month||'2026-10')+'-01':f.from||f.date;let to=f.period==='month'?(f.month||'2026-10')+'-31':f.to||f.date;if(f.period==='month'){const [y,m]=(f.month||'2026-10').split('-').map(Number);to=`${y}-${String(m).padStart(2,'0')}-${new Date(y,m,0).getDate()}`;}if(to>'2026-10-19')to='2026-10-19';return scope.employees(s,user()).filter(u=>(!f.team||u.teamId===f.team)&&(!f.department||u.departmentId===f.department)&&(!f.employee||u.id===f.employee)&&matches(u.name+u.employeeCode,f.search)).map(u=>{const records=s.attendance.filter(a=>a.userId===u.id&&a.date>=from&&a.date<=to),valid=records.filter(a=>a.checkIn&&a.checkOut);const worked=valid.reduce((sum,a)=>sum+workMinutes(a,s.settings)/60,0),late=records.filter(a=>attendanceStatus(a)==='late').length,early=valid.filter(a=>a.checkOut.slice(11,16)<s.settings.shiftEnd).length,leave=records.filter(a=>a.leaveRequestId).length;const overtime=s.requests.filter(r=>r.requesterId===u.id&&r.type==='overtime'&&r.status==='approved'&&r.startDate>=from&&r.endDate<=to).reduce((sum,r)=>sum+(Number(r.hours)||0),0);return {u,standard:to>=from?workDays(from,to):0,actual:(worked/8).toFixed(1),late,early,overtime,leave,worked:worked.toFixed(1)};});}
 function exportReport(f){csvDownload('intelex-bao-cao-cham-cong',['Mã NV','Nhân viên','Công chuẩn','Công thực tế','Đi trễ','Về sớm','Tăng ca (giờ)','Nghỉ phép','Giờ công'],reportRows(f).map(r=>[r.u.employeeCode,r.u.name,r.standard,r.actual,r.late,r.early,r.overtime,r.leave,r.worked]));}
 function attendanceReport(f){const rows=reportRows(f);return `<div class="toolbar"><select data-filter="period" aria-label="Kỳ báo cáo"><option value="day" ${f.period!=='month'&&f.period!=='range'?'selected':''}>Theo ngày</option><option value="month" ${f.period==='month'?'selected':''}>Theo tháng</option><option value="range" ${f.period==='range'?'selected':''}>Khoảng ngày</option></select>${f.period==='month'?`<input type="month" aria-label="Tháng báo cáo" data-filter="month" value="${f.month||'2026-10'}" max="2026-10">`:f.period==='range'?`<input type="date" aria-label="Từ ngày" data-filter="from" value="${f.from||f.date}" max="2026-10-19"><input type="date" aria-label="Đến ngày" data-filter="to" value="${f.to||f.date}" max="2026-10-19">`:`<input type="date" aria-label="Ngày báo cáo" data-filter="date" value="${f.date}" max="2026-10-19">`}${teamOptions(f)}<select data-filter="department" aria-label="Phòng ban"><option value="">Tất cả phòng ban</option>${s.departments.map(d=>`<option value="${d.id}" ${f.department===d.id?'selected':''}>${e(d.name)}</option>`).join('')}</select><select data-filter="employee" aria-label="Nhân viên"><option value="">Tất cả nhân viên</option>${scope.employees(s,user()).filter(u=>!f.team||u.teamId===f.team).map(u=>`<option value="${u.id}" ${f.employee===u.id?'selected':''}>${e(u.name)}</option>`).join('')}</select>${button('Xuất CSV','export-report','download')}${button('In / PDF','print','print')}</div><div class="kpis">${kpi('Nhân sự',rows.length,'người','Theo phạm vi & bộ lọc','users','blue')}${kpi('Tổng giờ công',rows.reduce((n,r)=>n+Number(r.worked),0).toLocaleString('vi-VN'),'giờ','Chỉ tính các ca đã check-out','clock','teal')}${kpi('Lượt đi trễ',rows.reduce((n,r)=>n+r.late,0),'lượt','Theo giờ bắt đầu ca','calendar','orange')}${kpi('Ngày phép',rows.reduce((n,r)=>n+r.leave,0),'ngày','Theo lịch nghỉ đã duyệt','sun','purple')}</div>${card('Báo cáo chấm công chi tiết','Công thực tế = giờ công hợp lệ / 8 · Ngày chưa kết thúc chỉ ghi nhận giờ vào',table(['Nhân viên','Công chuẩn','Công thực tế','Đi trễ','Về sớm','Tăng ca (giờ)','Nghỉ phép','Giờ công'],rows.map(r=>[person(r.u),r.standard,r.actual,r.late,r.early,r.overtime,r.leave,r.worked]),{page:f.page,size:Number(f.size)||10}),`<select aria-label="Số dòng mỗi trang" data-filter="size">${[10,20,50].map(n=>`<option value="${n}" ${Number(f.size)===n?'selected':''}>${n} dòng</option>`).join('')}</select>`)}<p class="muted" style="font-size:11px;margin-top:14px">Số liệu đến ngày demo 19/10/2026. Ca mẫu 8 giờ/ngày, không tính ngày lễ. Ngày chưa có dữ liệu không được tính là vắng không phép.</p>`;}
 
 
-// Source: pages/notifications.js
+// Source: pages/notifications/notifications.js
 
 const notificationTabs=[['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['system','Hệ thống']];
 function notificationCategory(item){
@@ -663,7 +717,7 @@ function mountNotifications(root,service=notificationService){
 }
 
 
-// Source: pages/audit-logs.js
+// Source: pages/administration/audit-logs.js
 
 const auditActionNames={SETTINGS_UPDATED:'Cập nhật cấu hình',SHIFT_SAVED:'Lưu ca làm việc',SCHEDULE_SAVED:'Lưu lịch phân ca',SCHEDULE_CANCELLED:'Hủy lịch phân ca',CHECK_IN:'Chấm công vào',CHECK_OUT:'Chấm công ra',ATTENDANCE_CLOSED:'Chốt chấm công',QR_SESSION_CREATED:'Tạo phiên QR',USER_CREATE:'Tạo tài khoản',USER_UPDATE:'Cập nhật tài khoản',USER_STATUS:'Đổi trạng thái tài khoản',USER_ROLES:'Cập nhật vai trò tài khoản',PASSWORD_RESET:'Đổi/đặt lại mật khẩu',ROLE_SAVE:'Lưu vai trò',ROLE_DELETE:'Xóa vai trò',PERMISSIONS_UPDATE:'Cập nhật phân quyền',SCREEN_SAVE:'Lưu màn hình',EMPLOYEE_CREATED:'Tạo hồ sơ nhân viên',EMPLOYEE_UPDATED:'Cập nhật hồ sơ nhân viên',EMPLOYEE_DEACTIVATED:'Ngừng hoạt động nhân viên',EMPLOYEE_DEPARTMENT_CHANGED:'Chuyển phòng ban',EMPLOYEE_TEAM_CHANGED:'Đổi team nhân viên',CONTRACT_CREATED:'Tạo hợp đồng',CONTRACT_UPDATED:'Cập nhật hợp đồng',TEAM_CREATED:'Tạo team',TEAM_UPDATED:'Cập nhật team',TEAM_DELETED:'Xóa team'};
 const auditModules={System:'Hệ thống',User:'Tài khoản',Role:'Vai trò',Screen:'Màn hình',Employee:'Nhân viên',Contract:'Hợp đồng',Team:'Teams'};
@@ -758,9 +812,130 @@ async function mountAuditLogs(root){
 }
 
 
-// Source: pages/system-settings.js
+// Source: pages/administration/system-settings/approval-workflow-settings.js
 
-const systemSettingTabs={'password-policy':'Chính sách mật khẩu'};
+const workflowRouteTypes={LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công'};
+const workflowApprovers={TEAM_LEAD:'Trưởng team',DEPARTMENT_MANAGER:'Quản lý phòng ban',USER:'Nhân viên được chỉ định',HR:'HR (tương thích cũ)'};
+function approvalSettingsGrant(flag,session=apiSession()){return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_APPROVAL_SETTINGS'&&p.canView==='Y'&&p[flag]==='Y');}
+function approvalSettingsPayload(version,routes){
+ if(!Number.isSafeInteger(version)||version<0)throw Error('Phiên bản cấu hình không hợp lệ.');
+ if(!Array.isArray(routes)||routes.length<1||routes.length>4)throw Error('Cần từ 1 đến 4 loại quy trình.');
+ const used=new Set();
+ const normalized=routes.map(route=>{
+  if(!Object.hasOwn(workflowRouteTypes,route.requestType)||used.has(route.requestType))throw Error('Loại yêu cầu không hợp lệ hoặc bị trùng.');used.add(route.requestType);
+  if(typeof route.allowSelfApproval!=='boolean')throw Error('Cho phép tự duyệt phải là giá trị bật/tắt.');
+  if(!Array.isArray(route.steps)||route.steps.length<1||route.steps.length>10)throw Error('Mỗi quy trình cần từ 1 đến 10 bước duyệt.');
+  return {requestType:route.requestType,allowSelfApproval:route.allowSelfApproval,steps:route.steps.map(step=>{
+   if(!Object.hasOwn(workflowApprovers,step.approverType))throw Error('Loại người duyệt không hợp lệ.');
+   if(step.approverType==='USER'){
+    const employeeId=Number(step.employeeId);
+    if(!Number.isSafeInteger(employeeId)||employeeId<=0)throw Error('Bước chỉ định cần chọn nhân viên duyệt hợp lệ, không dùng User ID.');
+    return {approverType:'USER',employeeId};
+   }
+   if(step.approverType==='HR'){
+    const userId=String(step.userId||'').trim(),roleCode=String(step.roleCode??'HR').trim();
+    if(!userId||userId.length>100||!roleCode||roleCode.length>50)throw Error('Bước HR cần tài khoản duyệt (tối đa 100 ký tự) và mã role (tối đa 50 ký tự).');
+    return {approverType:'HR',userId,roleCode};
+   }
+   return {approverType:step.approverType};
+  })};
+ });
+ return {version,routes:normalized};
+}
+
+function approvalStepForType(step,type){
+ if(type==='USER')return {approverType:type,employeeId:step.employeeId??null};
+ if(type==='HR')return {approverType:type,userId:step.userId||'',roleCode:step.roleCode||'HR'};
+ return {approverType:type};
+}
+const approvalEmployeeSearchText=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/g,'d').toLocaleLowerCase('vi').trim();
+function approvalEmployeeOptions(employees,employeeId,query=''){
+ const term=approvalEmployeeSearchText(query);
+ const available=employees.filter(item=>String(item.id)===String(employeeId)||!term||[item.fullName,item.employeeCode].some(value=>approvalEmployeeSearchText(value).includes(term)));
+ if(employeeId&&!available.some(item=>String(item.id)===String(employeeId)))available.unshift({id:employeeId,fullName:`Nhân viên #${employeeId} (đã cấu hình)`,employeeCode:''});
+ return '<option value="">Chọn nhân viên duyệt</option>'+available.map(item=>`<option value="${e(item.id)}" ${String(item.id)===String(employeeId)?'selected':''}>${e(item.fullName)}${item.employeeCode?` · ${e(item.employeeCode)}`:''}</option>`).join('')+(available.length?'':'<option value="" disabled>Không tìm thấy nhân viên phù hợp</option>');
+}
+function approvalStepFields(step,i,j,employees=null,employeeQuery=''){
+ const attrs=`data-route="${i}" data-step="${j}"`;
+ const selector=`<label>Người duyệt<select ${attrs} data-step-field="approverType">${Object.entries(workflowApprovers).map(([value,label])=>`<option value="${value}" ${value===step.approverType?'selected':''}>${label}</option>`).join('')}</select></label>`;
+ if(step.approverType==='TEAM_LEAD'||step.approverType==='DEPARTMENT_MANAGER')return selector+`<p class="muted approval-step-hint">${step.approverType==='TEAM_LEAD'?'Tự lấy trưởng team của nhân viên gửi đơn.':'Tự lấy quản lý phòng ban của nhân viên gửi đơn.'}</p>`;
+ if(step.approverType==='USER'){
+  let input;
+  if(employees){
+   input=`<div class="approval-employee-picker"><label>Tìm nhân viên<input type="search" maxlength="150" value="${e(employeeQuery)}" ${attrs} data-approval-employee-search placeholder="Tìm tên hoặc mã nhân viên" aria-label="Tìm nhân viên duyệt bước ${j+1}"></label><label>Nhân viên duyệt<select ${attrs} data-step-field="employeeId" required>${approvalEmployeeOptions(employees,step.employeeId,employeeQuery)}</select></label></div>`;
+  }else input=`<input type="number" min="1" step="1" required value="${e(step.employeeId??'')}" ${attrs} data-step-field="employeeId" placeholder="ID nhân viên duyệt">`;
+  return selector+`${employees?input:`<label>Nhân viên duyệt${input}</label>`}<p class="muted approval-step-hint">Nhân viên phải đang làm việc và có tài khoản đang hoạt động.${!step.employeeId&&step.userId?' Cấu hình cũ cần chọn lại nhân viên duyệt trước khi lưu.':''}</p>`;
+ }
+ return selector+`<label>Tài khoản HR (User ID)<input type="text" maxlength="100" required value="${e(step.userId||'')}" ${attrs} data-step-field="userId"></label><label>Mã role HR<input type="text" maxlength="50" required value="${e(step.roleCode??'HR')}" ${attrs} data-step-field="roleCode"></label>`;
+}
+
+async function mountApprovalWorkflowSettings(root,{onDirty=()=>{},onSaving=()=>{}}={}){
+ if(!root)return;
+ let generation=0,saving=false;
+ async function load(){
+  const current=++generation;onDirty(false);
+  if(!approvalSettingsGrant('canView')){root.innerHTML='<p>Bạn chưa có quyền xem quy trình phê duyệt.</p>';return;}
+  root.innerHTML='<p role="status">Đang tải quy trình phê duyệt…</p>';
+  try{
+   const result=await apiApprovalWorkflowSettings();if(!root.isConnected||generation!==current)return;
+   if(!Number.isSafeInteger(result?.version)||result.version<0||!Array.isArray(result.routes))throw Error('Cấu hình quy trình hoặc phiên bản không hợp lệ.');
+   let employees=null;const employeeSearches=new WeakMap();
+   let version=result.version,routes=result.routes.map(route=>({...route,steps:(route.steps||[]).map(step=>({...step}))}));
+   const editable=approvalSettingsGrant('canUpdate');
+   root.innerHTML=`<form id="approval-settings-form" class="user-registration"><h2>Quy trình phê duyệt</h2><p class="muted">Cấu hình các bước duyệt theo thứ tự cho từng loại yêu cầu. Áp dụng cho đơn gửi sau khi lưu.</p><fieldset class="user-edit-fieldset" ${editable?'':'disabled'}><div id="approval-settings-employee-feedback" role="status"></div><div id="approval-settings-routes"></div><button type="button" class="btn" id="approval-settings-add">Thêm quy trình</button>${editable?'<div class="form-actions"><button type="submit" class="btn primary">Lưu quy trình</button></div>':''}</fieldset><p id="approval-settings-feedback" role="status">${editable?'':'Bạn có quyền xem; cần quyền cập nhật để lưu.'}</p></form>`;
+   const form=root.querySelector('form'),container=root.querySelector('#approval-settings-routes'),fieldset=form.querySelector('fieldset'),feedback=root.querySelector('#approval-settings-feedback');
+   const changed=()=>onDirty(true);
+   function drawRoutes(){
+    container.innerHTML=routes.map((route,i)=>`<section class="approval-route"><div class="approval-route-heading"><h3>Quy trình ${i+1}</h3><button type="button" class="btn danger small" data-route-remove="${i}">Xóa quy trình</button></div><div class="form-grid"><label>Loại yêu cầu<select data-route="${i}" data-route-field="requestType">${Object.entries(workflowRouteTypes).map(([value,label])=>`<option value="${value}" ${value===route.requestType?'selected':''}>${label}</option>`).join('')}</select></label><label class="approval-self-toggle"><span>Cho phép người gửi tự duyệt</span><span class="role-switch"><input type="checkbox" role="switch" data-route="${i}" data-route-field="allowSelfApproval" ${route.allowSelfApproval?'checked':''}><span class="role-switch-track" aria-hidden="true"></span></span></label></div><ol class="approval-route-steps">${route.steps.map((step,j)=>`<li><div class="approval-step-heading"><strong>Bước ${j+1}</strong><div><button type="button" class="btn small" data-route="${i}" data-step-up="${j}" ${j===0?'disabled':''}>Lên</button><button type="button" class="btn small" data-route="${i}" data-step-down="${j}" ${j===route.steps.length-1?'disabled':''}>Xuống</button><button type="button" class="btn danger small" data-route="${i}" data-step-remove="${j}" ${route.steps.length<=1?'disabled':''}>Xóa bước</button></div></div><div class="form-grid">${approvalStepFields(step,i,j,employees,employeeSearches.get(step)||'')}</div></li>`).join('')}</ol><button type="button" class="btn" data-step-add="${i}" ${route.steps.length>=10?'disabled':''}>Thêm bước duyệt</button></section>`).join('')||'<p>Chưa cấu hình quy trình. Thêm quy trình để bắt đầu.</p>';
+    root.querySelector('#approval-settings-add').disabled=routes.length>=4;
+    container.querySelectorAll('[data-route-field]').forEach(input=>input.onchange=()=>{if(saving)return;routes[Number(input.dataset.route)][input.dataset.routeField]=input.type==='checkbox'?input.checked:input.value;changed();});
+    container.querySelectorAll('[data-step-field]').forEach(input=>{
+ const update=()=>{if(saving)return;const route=routes[Number(input.dataset.route)],j=Number(input.dataset.step),key=input.dataset.stepField;
+ if(key==='approverType'){route.steps[j]=approvalStepForType(route.steps[j],input.value);changed();drawRoutes();}
+ else{route.steps[j][key]=input.value;changed();}
+ };
+ input.onchange=update;if(input.tagName==='INPUT')input.oninput=update;
+ });
+    container.querySelectorAll('[data-approval-employee-search]').forEach(input=>{
+     input.oninput=()=>{if(saving)return;const step=routes[Number(input.dataset.route)].steps[Number(input.dataset.step)];employeeSearches.set(step,input.value);input.closest('.approval-employee-picker').querySelector('select').innerHTML=approvalEmployeeOptions(employees||[],step.employeeId,input.value);};
+     input.onkeydown=event=>{if(event.key==='Enter')event.preventDefault();};
+    });
+    container.querySelectorAll('[data-route-remove]').forEach(button=>button.onclick=()=>{if(saving)return;routes.splice(Number(button.dataset.routeRemove),1);changed();drawRoutes();});
+    container.querySelectorAll('[data-step-add]').forEach(button=>button.onclick=()=>{if(saving)return;const steps=routes[Number(button.dataset.stepAdd)].steps;if(steps.length<10){steps.push({approverType:'USER',employeeId:null});changed();drawRoutes();}});
+    for(const operation of ['remove','up','down'])container.querySelectorAll(`[data-step-${operation}]`).forEach(button=>button.onclick=()=>{if(saving)return;const steps=routes[Number(button.dataset.route)].steps,index=Number(button.dataset['step'+operation[0].toUpperCase()+operation.slice(1)]);if(operation==='remove'){if(steps.length<=1)return;steps.splice(index,1);}else{const target=index+(operation==='up'?-1:1);if(target<0||target>=steps.length)return;[steps[index],steps[target]]=[steps[target],steps[index]];}changed();drawRoutes();});
+   }
+   drawRoutes();
+   async function loadEmployees(){
+    const canView=apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_EMPLOYEES'&&p.canView==='Y');if(!canView)return;
+    const feedback=root.querySelector('#approval-settings-employee-feedback');feedback.textContent='Đang tải danh sách nhân viên duyệt…';
+    try{
+     const items=[];let page=1,total=Infinity;
+     while(items.length<total){const response=await apiEmployees(new URLSearchParams({page,pageSize:100,employmentStatus:'ACTIVE'}).toString());if(!form.isConnected)return;if(!Array.isArray(response?.data)||!Number.isInteger(response.total))throw Error('Danh sách nhân viên không hợp lệ.');items.push(...response.data);total=response.total;if(!response.data.length)break;page++;}
+     employees=items.filter(item=>item.employmentStatus==='ACTIVE');feedback.textContent='';drawRoutes();
+    }catch(err){if(form.isConnected){feedback.innerHTML=`${e(err.message)}. Bạn có thể nhập ID nhân viên. <button type="button" class="btn">Thử lại</button>`;feedback.querySelector('button').onclick=loadEmployees;}}
+   }
+   loadEmployees();
+   root.querySelector('#approval-settings-add').onclick=()=>{if(saving||routes.length>=4)return;const requestType=Object.keys(workflowRouteTypes).find(type=>!routes.some(route=>route.requestType===type));if(requestType){routes.push({requestType,allowSelfApproval:false,steps:[{approverType:'TEAM_LEAD'}]});changed();drawRoutes();}};
+   form.onsubmit=async event=>{
+    event.preventDefault();event.stopPropagation();if(saving||!editable)return;
+    try{
+     if(!approvalSettingsGrant('canUpdate'))throw Error('Bạn không có quyền cập nhật quy trình phê duyệt.');
+     const payload=approvalSettingsPayload(version,routes);saving=true;onSaving(true);fieldset.disabled=true;feedback.textContent='Đang lưu quy trình…';
+     const saved=await apiApprovalWorkflowSettings(payload);if(!form.isConnected)return;
+     if(!Number.isSafeInteger(saved?.version)||saved.version<0||!Array.isArray(saved.routes))throw Error('Chưa nhận cấu hình mới. Hãy tải lại để xác nhận trước khi lưu tiếp.');
+     version=saved.version;routes=saved.routes.map(route=>({...route,steps:route.steps.map(step=>({...step}))}));onDirty(false);drawRoutes();feedback.textContent='Đã lưu quy trình phê duyệt.';
+    }catch(err){if(form.isConnected)feedback.textContent=err.message;}
+    finally{saving=false;onSaving(false);if(form.isConnected)fieldset.disabled=!editable;}
+   };
+  }catch(err){if(root.isConnected&&generation===current){root.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn">Thử lại</button>`;root.querySelector('button').onclick=load;}}
+ }
+ await load();
+}
+
+
+// Source: pages/administration/system-settings/system-settings.js
+
+const systemSettingTabs={'password-policy':'Chính sách mật khẩu',attendance:'Chấm công','approval-workflow':'Quy trình phê duyệt'};
 const passwordSettingFlags=[['requireUppercase','Yêu cầu chữ hoa'],['requireLowercase','Yêu cầu chữ thường'],['requireDigit','Yêu cầu chữ số'],['requireSpecialCharacter','Yêu cầu ký tự đặc biệt'],['disallowUsernameInPassword','Không cho chứa tên đăng nhập']];
 const attendanceSettingFlags=[['requireQr','Yêu cầu mã QR'],['requireGps','Yêu cầu vị trí GPS'],['allowOvernightShifts','Cho phép ca qua đêm']];
 const attendanceSettingNumbers=[['checkInBeforeStartMinutes','Cho phép check-in trước giờ bắt đầu (phút)',1440],['checkInAfterStartMinutes','Cho phép check-in sau giờ bắt đầu (phút)',1440],['checkOutBeforeEndMinutes','Cho phép check-out trước giờ kết thúc (phút)',1440],['checkOutAfterEndMinutes','Cho phép check-out sau giờ kết thúc (phút)',1440],['lateGraceMinutes','Thời gian đi trễ được bỏ qua (phút)',240],['earlyLeaveGraceMinutes','Thời gian về sớm được bỏ qua (phút)',240]];
@@ -801,13 +976,14 @@ function passwordPolicySelect(label,key,value,choices,unit){
 async function mountSystemSettings(root,filters={},options={}){
  if(!root)return;
  const tabs=options.embedded?{attendance:'Chấm công'}:systemSettingTabs;
- let tab=tabs[filters.tab]?filters.tab:Object.keys(tabs)[0],generation=0,saving=false,dirty=false;
+ let tab=tabs[filters.tab]?filters.tab:Object.keys(tabs).find(key=>apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===(key==='approval-workflow'?'WEB_APPROVAL_SETTINGS':'WEB_SYSTEM_SETTINGS')&&p.canView==='Y'))||Object.keys(tabs)[0],generation=0,saving=false,dirty=false;
  async function load(){
  const current=++generation,kind=tab;dirty=false;options.onDirty?.(false);
  root.innerHTML=`<div class="tabs" role="tablist" aria-label="Cấu hình hệ thống">${Object.entries(tabs).map(([key,label])=>`<button type="button" role="tab" class="tab ${key===kind?'active':''}" aria-selected="${key===kind}" data-system-tab="${key}">${label}</button>`).join('')}</div><div id="system-settings-panel" role="tabpanel"><p role="status">Đang tải cấu hình…</p></div>`;
  root.querySelectorAll('[data-system-tab]').forEach(button=>button.onclick=()=>{if(saving||button.dataset.systemTab===tab)return;if(dirty&&!confirm('Bỏ các thay đổi cấu hình chưa lưu?'))return;tab=button.dataset.systemTab;load();});
  if(options.embedded)root.querySelector('[role=tablist]').remove();
  const panel=root.querySelector('#system-settings-panel');
+ if(kind==='approval-workflow'){await mountApprovalWorkflowSettings(panel,{onDirty:value=>{if(panel.isConnected){dirty=value;options.onDirty?.(value);}},onSaving:value=>{if(panel.isConnected){saving=value;options.onSaving?.(value);root.querySelectorAll('[data-system-tab]').forEach(button=>button.disabled=value);}}});return;}
 
  try{
  if(!systemSettingsGrant('canView'))throw Error('Bạn chưa có quyền xem WEB_SYSTEM_SETTINGS.');
@@ -911,7 +1087,96 @@ function bindPasswordPolicy(form,{passwordName,confirmName=null,username,optiona
 }
 
 
-// Source: pages/contracts.js
+// Source: pages/approval-center/approvals.js
+
+const approvalTabs={all:{label:'Tất cả',screen:'WEB_APPROVALS'},leave:{label:'Nghỉ phép',screen:'WEB_LEAVE_REQUESTS'},overtime:{label:'Tăng ca',screen:'WEB_OVERTIME_REQUESTS'},adjustment:{label:'Điều chỉnh công',screen:'WEB_ATTENDANCE_ADJUSTMENTS'}};
+const workflowStatuses={PENDING:'Chờ duyệt',APPROVED:'Đã duyệt',REJECTED:'Từ chối',CANCELLED:'Đã hủy',CANCELLATION_PENDING:'Chờ duyệt hủy'};
+function workflowGrant(kind,flag='canView',session=apiSession()){
+ const code=approvalTabs[kind]?.screen;
+ return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p.canView==='Y'&&p[flag]==='Y');
+}
+function visibleApprovalTabs(session=apiSession()){return Object.keys(approvalTabs).filter(kind=>workflowGrant(kind,'canView',session));}
+const workflowTime=value=>{if(!value)return '—';const text=String(value),date=new Date(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(text)?text:text+'Z');return Number.isNaN(date.getTime())?'—':new Intl.DateTimeFormat('vi-VN',{timeZone:'Asia/Ho_Chi_Minh',dateStyle:'short',timeStyle:'short',hour12:false}).format(date);};
+function workflowCreatePayload(kind,values){
+ const reason=String(values.reason||'').trim();if(!reason||reason.length>1000)throw Error('Lý do bắt buộc, tối đa 1000 ký tự.');
+ const positive=value=>{const number=Number(value);if(!Number.isSafeInteger(number)||number<=0)throw Error('Vui lòng chọn bản ghi hợp lệ.');return number;};
+ const date=value=>{if(!/^\d{4}-\d{2}-\d{2}$/.test(value)||Number.isNaN(Date.parse(value))||new Date(value).toISOString().slice(0,10)!==value)throw Error('Ngày không hợp lệ.');return value;};
+ const time=value=>{if(!value)return null;if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(value))throw Error('Ngày giờ không hợp lệ.');date(value.slice(0,10));const match=value.slice(11).split(':').map(Number);if(match[0]>23||match[1]>59||(match[2]||0)>59)throw Error('Ngày giờ không hợp lệ.');return value+(value.length===16?':00':'')+'+07:00';};
+ if(kind==='leave'){const fromDate=date(values.fromDate),toDate=date(values.toDate);if(toDate<fromDate)throw Error('Ngày kết thúc không được trước ngày bắt đầu.');return {leaveTypeId:positive(values.leaveTypeId),fromDate,toDate,reason};}
+ if(kind==='overtime'){const startAt=time(values.startAt),endAt=time(values.endAt);if(!startAt||!endAt||Date.parse(endAt)<=Date.parse(startAt))throw Error('Giờ kết thúc phải sau giờ bắt đầu.');return {startAt,endAt,reason};}
+ if(kind==='adjustment'){const proposedCheckIn=time(values.proposedCheckIn),proposedCheckOut=time(values.proposedCheckOut);if(!proposedCheckIn&&!proposedCheckOut)throw Error('Nhập ít nhất một giờ chấm công đề nghị.');if(proposedCheckIn&&proposedCheckOut&&Date.parse(proposedCheckOut)<=Date.parse(proposedCheckIn))throw Error('Giờ ra phải sau giờ vào.');return {attendanceId:positive(values.attendanceId),proposedCheckIn,proposedCheckOut,reason};}
+ throw Error('Loại yêu cầu không hợp lệ.');
+}
+function workflowCanCancel(kind,item,session=apiSession()){
+ return !!session?.user?.employeeId&&kind!=='all'&&workflowGrant(kind,'canUpdate',session)&&String(item.employeeId)===String(session?.user?.employeeId)&&((kind==='leave'&&item.status==='APPROVED')||item.status==='PENDING');
+}
+function workflowPeriod(kind,item){return kind==='leave'?`${dateLabel(item.fromDate)} – ${dateLabel(item.toDate)}`:kind==='overtime'?`${workflowTime(item.startAt)} – ${workflowTime(item.endAt)}`:kind==='adjustment'?`${workflowTime(item.proposedCheckIn)} – ${workflowTime(item.proposedCheckOut)}`:workflowTime(item.createdAt);}
+function workflowRows(kind,items){return items.map((item,index)=>`<tr><td>${e(item.employeeName||`Nhân viên #${item.employeeId||'—'}`)}</td><td>${e(kind==='leave'?item.leaveTypeName:kind==='all'?({LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công'})[item.requestType]||item.requestType:approvalTabs[kind].label)}</td><td class="organization-description">${e(item.reason||'—')}</td><td>${e(workflowPeriod(kind,item))}</td><td><span class="badge ${item.status==='APPROVED'?'active':''}">${e(workflowStatuses[item.status]||item.status)}</span></td><td><button type="button" class="btn small" data-workflow-detail="${index}">Chi tiết</button></td></tr>`).join('');}
+
+async function mountApprovals(root,filters={}){
+ if(!root)return;
+ const tabs=visibleApprovalTabs();if(!tabs.length){root.innerHTML='<p>Bạn chưa có quyền xem yêu cầu hoặc phê duyệt.</p>';return;}
+ let kind=tabs.includes(filters.tab)?filters.tab:tabs[0],page=1,status='',view='ALL',generation=0;
+ async function list(){
+  const current=++generation;root.innerHTML='<p role="status">Đang tải yêu cầu…</p>';
+  try{
+   if(!workflowGrant(kind))throw Error('Bạn chưa có quyền xem loại yêu cầu này.');
+   const query=new URLSearchParams({page,pageSize:20,view});if(status)query.set('status',status);
+   const result=await apiWorkflowList(kind,query.toString());if(!root.isConnected||current!==generation)return;
+   if(!Array.isArray(result?.data))throw Error('Danh sách yêu cầu không hợp lệ.');
+   root.innerHTML=`<div class="tabs" role="tablist" aria-label="Loại yêu cầu">${tabs.map(key=>`<button type="button" role="tab" aria-selected="${key===kind}" class="tab ${key===kind?'active':''}" data-workflow-tab="${key}">${approvalTabs[key].label}</button>`).join('')}</div><form class="toolbar" id="workflow-filters"><select name="view" aria-label="Phạm vi yêu cầu">${[['ALL','Trong phạm vi được phép'],['MY','Của tôi'],['TEAM','Cùng phòng ban']].map(([value,label])=>`<option value="${value}" ${value===view?'selected':''}>${label}</option>`).join('')}</select><select name="status" aria-label="Trạng thái yêu cầu"><option value="">Tất cả trạng thái</option>${Object.entries(workflowStatuses).map(([value,label])=>`<option value="${value}" ${value===status?'selected':''}>${label}</option>`).join('')}</select><button class="btn">Lọc</button>${kind!=='all'&&workflowGrant(kind,'canNew')?'<button type="button" class="btn primary" id="workflow-create">Tạo yêu cầu</button>':''}</form><div class="table-wrap"><table><thead><tr><th>Người gửi</th><th>Loại yêu cầu</th><th>Lý do</th><th>Thời gian</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${workflowRows(kind,result.data)}</tbody></table></div>${result.data.length?'':'<p>Không có yêu cầu phù hợp.</p>'}<div class="toolbar user-pagination"><button type="button" class="btn" id="workflow-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} yêu cầu</span><button type="button" class="btn" id="workflow-next" ${page*20>=result.total?'disabled':''}>Trang sau</button></div>`;
+   root.querySelectorAll('[data-workflow-tab]').forEach(button=>button.onclick=()=>{kind=button.dataset.workflowTab;page=1;status='';view='ALL';list();});
+   const form=root.querySelector('#workflow-filters');form.onsubmit=event=>{event.preventDefault();event.stopPropagation();view=form.elements.view.value;status=form.elements.status.value;page=1;list();};
+   root.querySelector('#workflow-prev').onclick=()=>{page--;list();};root.querySelector('#workflow-next').onclick=()=>{page++;list();};
+   root.querySelector('#workflow-create')?.addEventListener('click',()=>create(kind));
+   root.querySelectorAll('[data-workflow-detail]').forEach(button=>button.onclick=()=>detail(kind,result.data[Number(button.dataset.workflowDetail)]));
+  }catch(err){if(root.isConnected&&current===generation){root.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn">Thử lại</button>`;root.querySelector('button').onclick=list;}}
+ }
+ function create(type){
+  if(!workflowGrant(type,'canNew'))return;
+  openDialog('Tạo yêu cầu '+approvalTabs[type].label.toLowerCase(),`<form id="workflow-create-form" class="user-registration"><fieldset class="user-edit-fieldset"><div class="form-grid">${type==='leave'?`<label>Loại nghỉ phép<select name="leaveTypeId" required disabled><option value="">Đang tải loại nghỉ phép…</option></select></label>${field('Từ ngày','fromDate','date','','required')}${field('Đến ngày','toDate','date','','required')}`:type==='overtime'?`${field('Bắt đầu tăng ca','startAt','datetime-local','','required')}${field('Kết thúc tăng ca','endAt','datetime-local','','required')}`:`${field('ID bản ghi chấm công','attendanceId','number','','required min="1" step="1"')}${field('Giờ vào đề nghị','proposedCheckIn','datetime-local','')}${field('Giờ ra đề nghị','proposedCheckOut','datetime-local','')}`}<label class="full">Lý do<textarea name="reason" required maxlength="1000"></textarea></label></div><div class="form-actions"><button type="button" class="btn" data-workflow-cancel>Hủy</button><button class="btn primary" type="submit">Gửi yêu cầu</button></div></fieldset><p id="workflow-create-error" role="alert"></p></form>`);
+  const form=document.getElementById('workflow-create-form'),feedback=form.querySelector('[role=alert]'),fieldset=form.querySelector('fieldset');let busy=false,types=[];
+  form.querySelector('[data-workflow-cancel]').onclick=()=>{if(!busy)closeDialog();};
+  if(type==='leave'){
+   const canTypes=apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_LEAVE_TYPES'&&p.canView==='Y');
+   const loadTypes=async()=>{try{if(!canTypes)throw Error('Cần quyền xem WEB_LEAVE_TYPES để chọn loại nghỉ phép.');let page=1,total=Infinity;types=[];while(types.length<total){const response=await apiWorkflowLeaveTypes(new URLSearchParams({page,pageSize:100}).toString());if(!form.isConnected)return;if(!Array.isArray(response?.data))throw Error('Danh sách loại nghỉ phép không hợp lệ.');types.push(...response.data);total=response.total;if(!response.data.length)break;page++;}const select=form.elements.leaveTypeId;select.innerHTML='<option value="">Chọn loại nghỉ phép</option>'+types.filter(item=>item.isActive).map(item=>`<option value="${e(item.id)}">${e(item.name)}</option>`).join('');select.disabled=false;feedback.textContent='';}catch(err){if(form.isConnected){feedback.innerHTML=`${e(err.message)}${canTypes?' <button type="button" class="btn">Thử lại</button>':''}`;feedback.querySelector('button')?.addEventListener('click',loadTypes);}}};
+   loadTypes();
+  }
+  form.onsubmit=async event=>{
+   event.preventDefault();event.stopPropagation();if(busy)return;
+   try{if(!workflowGrant(type,'canNew'))throw Error('Bạn không có quyền tạo yêu cầu này.');const payload=workflowCreatePayload(type,Object.fromEntries(new FormData(form)));if(type==='leave'&&!types.some(item=>item.isActive&&Number(item.id)===payload.leaveTypeId))throw Error('Chọn loại nghỉ phép đang hoạt động.');busy=true;fieldset.disabled=true;await apiCreateWorkflow(type,payload);if(form.isConnected&&root.isConnected){closeDialog();toast('Đã gửi yêu cầu');await list();}}
+   catch(err){if(form.isConnected)feedback.textContent=err.message;}
+   finally{busy=false;if(form.isConnected)fieldset.disabled=false;}
+  };
+ }
+ async function detail(type,row){
+  if(!workflowGrant(type))return;
+  openDialog('Chi tiết yêu cầu','<div id="workflow-detail"><p role="status">Đang tải…</p></div>');const panel=document.getElementById('workflow-detail');
+  try{
+   const data=type==='adjustment'?row:await apiWorkflowDetail(type,row.id);if(!panel.isConnected)return;
+   const item=type==='all'?data.request:data;
+   const pairs=[['Người gửi',e(item.employeeName||`Nhân viên #${item.employeeId||'—'}`)],['Trạng thái',e(workflowStatuses[item.status]||item.status)],['Lý do',e(item.reason||data.details?.reason||'—')],['Thời gian',e(workflowPeriod(type,item))]];
+   if(type==='leave')pairs.push(['Loại nghỉ phép',e(item.leaveTypeName)],['Số ngày',e(item.requestedDays)]);
+   if(type==='overtime')pairs.push(['Số giờ đề nghị',e(item.requestedHours)],['Số giờ được duyệt',e(item.approvedHours??'—')]);
+   if(type==='adjustment')pairs.push(['ID chấm công',e(item.attendanceId)]);
+   const currentStep=type==='all'?data.steps?.find(step=>Number(step.stepNo)===Number(item.currentStepNo)&&step.approverUserId===apiSession()?.user?.userId&&step.decision==='PENDING'):null;
+   const canDecide=type==='all'&&workflowGrant('all','canApprove')&&currentStep&&['PENDING','CANCELLATION_PENDING'].includes(item.status),canCancel=workflowCanCancel(type,item);
+   panel.innerHTML=`${details(pairs)}${type==='all'?`<h3>Tiến trình duyệt</h3>${(data.steps||[]).map(step=>`<p>Bước ${e(step.stepNo)} · ${e(step.approverUserId)} · ${e(workflowStatuses[step.decision]||step.decision)}${step.comment?` · ${e(step.comment)}`:''}</p>`).join('')}`:''}${canCancel||canDecide?`<form id="workflow-action-form"><label>Lý do<textarea name="reason" required maxlength="1000"></textarea></label><div class="form-actions">${canCancel?'<button class="btn danger" name="action" value="cancel">Hủy yêu cầu</button>':'<button class="btn danger" name="action" value="reject">Từ chối</button><button class="btn primary" name="action" value="approve">Phê duyệt</button>'}</div><p role="alert"></p></form>`:''}`;
+   const form=panel.querySelector('form');if(!form)return;let busy=false;
+   form.onsubmit=async event=>{
+    event.preventDefault();event.stopPropagation();if(busy)return;
+    const feedback=form.querySelector('[role=alert]');
+    try{const action=event.submitter?.value;if(action==='cancel'?!workflowCanCancel(type,item):!canDecide||!workflowGrant('all','canApprove'))throw Error('Bạn không có quyền thực hiện thao tác này.');const reason=form.elements.reason.value.trim();if(!reason)throw Error('Vui lòng nhập lý do.');busy=true;form.querySelectorAll('button,textarea').forEach(control=>control.disabled=true);await apiWorkflowAction(type,item.id,action,{version:item.version,reason});if(panel.isConnected&&root.isConnected){closeDialog();toast('Đã cập nhật yêu cầu');await list();}}
+    catch(err){if(panel.isConnected)feedback.textContent=err.message;}
+    finally{busy=false;if(panel.isConnected)form.querySelectorAll('button,textarea').forEach(control=>control.disabled=false);}
+   };
+  }catch(err){if(panel.isConnected)panel.innerHTML=`<p role="alert">${e(err.message)}</p>`;}
+ }
+ await list();
+}
+
+
+// Source: pages/human-resources/contracts.js
 
 const contractStatuses={DRAFT:'Bản nháp',ACTIVE:'Đang hiệu lực',EXPIRED:'Hết hạn',TERMINATED:'Đã chấm dứt',CANCELLED:'Đã hủy'};
 function contractGrant(flag,session=apiSession()){
@@ -1146,7 +1411,58 @@ function openContractCreation({onSaved=()=>{},isPageCurrent=()=>true}={}){
 }
 
 
-// Source: pages/contract-types.js
+// Source: pages/administration/master-data/leave-types.js
+
+function leaveTypeGrant(flag,session=apiSession()){return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_LEAVE_TYPES'&&p.canView==='Y'&&p[flag]==='Y');}
+function leaveTypePayload(values){
+ const code=String(values.code||'').trim(),name=String(values.name||'').trim();
+ if(!/^[A-Z0-9][A-Z0-9_-]{0,29}$/.test(code))throw Error('Mã gồm 1–30 chữ hoa, số, gạch dưới hoặc gạch ngang; bắt đầu bằng chữ hoặc số.');
+ if(!name||name.length>100)throw Error('Tên loại nghỉ phép bắt buộc, tối đa 100 ký tự.');
+ for(const key of ['paid','requiresBalance','isActive'])if(typeof values[key]!=='boolean')throw Error('Trạng thái loại nghỉ phép không hợp lệ.');
+ return {code,name,paid:values.paid,requiresBalance:values.requiresBalance,isActive:values.isActive};
+}
+const leaveTypeSwitch=(name,label,value)=>`<label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input name="${name}" type="checkbox" role="switch" ${value?'checked':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>`;
+async function mountLeaveTypes(root,{onDirty=()=>{},onSaving=()=>{}}={}){
+ if(!root)return;
+ let page=1,search='',generation=0,busy=false;
+ const current=id=>root.isConnected&&id===generation;
+ async function list(){
+  const id=++generation;onDirty(false);
+  if(!leaveTypeGrant('canView')){root.innerHTML='<p>Bạn chưa có quyền xem loại nghỉ phép.</p>';return;}
+  root.innerHTML='<p role="status">Đang tải loại nghỉ phép…</p>';
+  try{
+   const result=await apiWorkflowLeaveTypes(new URLSearchParams({page,pageSize:20,search}).toString());if(!current(id))return;
+   if(!Array.isArray(result?.data))throw Error('Danh sách loại nghỉ phép không hợp lệ.');
+   root.innerHTML=`<form class="toolbar" id="leave-type-search"><input name="search" maxlength="150" value="${e(search)}" placeholder="Tìm mã hoặc tên loại nghỉ phép" aria-label="Tìm loại nghỉ phép"><button class="btn">Tìm kiếm</button>${leaveTypeGrant('canNew')?'<button type="button" class="btn primary" id="leave-type-create">Thêm loại nghỉ phép</button>':''}</form><div class="table-wrap"><table><thead><tr><th>Mã</th><th>Tên loại nghỉ phép</th><th>Hưởng lương</th><th>Trừ số dư phép</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${result.data.map((item,index)=>`<tr><td>${e(item.code)}</td><td>${e(item.name)}</td><td>${item.paid?'Có':'Không'}</td><td>${item.requiresBalance?'Có':'Không'}</td><td>${item.isActive?'Hoạt động':'Ngừng hoạt động'}</td><td><button type="button" class="btn" data-leave-type-edit="${index}">${leaveTypeGrant('canUpdate')?'Chỉnh sửa':'Chi tiết'}</button></td></tr>`).join('')}</tbody></table></div>${result.data.length?'':'<p>Không có loại nghỉ phép phù hợp.</p>'}<div class="toolbar user-pagination"><button type="button" class="btn" id="leave-type-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} loại nghỉ phép</span><button type="button" class="btn" id="leave-type-next" ${page*20>=result.total?'disabled':''}>Trang sau</button></div>`;
+   const form=root.querySelector('#leave-type-search');form.onsubmit=event=>{event.preventDefault();event.stopPropagation();search=form.elements.search.value.trim();page=1;list();};
+   root.querySelector('#leave-type-create')?.addEventListener('click',()=>edit());
+   root.querySelectorAll('[data-leave-type-edit]').forEach(button=>button.onclick=()=>edit(result.data[Number(button.dataset.leaveTypeEdit)]));
+   root.querySelector('#leave-type-prev').onclick=()=>{page--;list();};root.querySelector('#leave-type-next').onclick=()=>{page++;list();};
+  }catch(err){if(current(id)){root.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn">Thử lại</button>`;root.querySelector('button').onclick=list;}}
+ }
+ function edit(item=null){
+  if(busy||!leaveTypeGrant(item?'canView':'canNew'))return;
+  const canSave=leaveTypeGrant(item?'canUpdate':'canNew');++generation;
+  root.innerHTML=`<button type="button" class="btn" id="leave-type-back">← Danh sách loại nghỉ phép</button><h2 class="role-editor-title">${item?'Chi tiết':'Thêm'} loại nghỉ phép</h2><form id="leave-type-form" class="user-registration"><fieldset class="user-edit-fieldset" ${canSave?'':'disabled'}><div class="form-grid">${field('Mã loại nghỉ phép','code','text',item?.code||'','required maxlength="30" pattern="[A-Z0-9][A-Z0-9_-]*"')}${field('Tên loại nghỉ phép','name','text',item?.name||'','required maxlength="100"')}</div><div class="role-toggles">${leaveTypeSwitch('paid','Hưởng lương',item?.paid??false)}${leaveTypeSwitch('requiresBalance','Trừ số dư phép',item?.requiresBalance??true)}${leaveTypeSwitch('isActive','Hoạt động',item?.isActive??true)}</div>${canSave?'<div class="form-actions"><button type="submit" class="btn primary">Lưu lại</button></div>':''}</fieldset><p id="leave-type-feedback" role="alert"></p></form>`;
+  const form=root.querySelector('#leave-type-form'),fieldset=form.querySelector('fieldset'),feedback=root.querySelector('#leave-type-feedback');
+  form.oninput=form.onchange=()=>{if(canSave)onDirty(true);};
+  root.querySelector('#leave-type-back').onclick=()=>{if(!busy)list();};
+  form.onsubmit=async event=>{
+   event.preventDefault();event.stopPropagation();if(busy||!canSave)return;
+   try{
+    if(!leaveTypeGrant(item?'canUpdate':'canNew'))throw Error('Bạn không có quyền lưu loại nghỉ phép.');
+    const payload=leaveTypePayload({code:form.elements.code.value,name:form.elements.name.value,paid:form.elements.paid.checked,requiresBalance:form.elements.requiresBalance.checked,isActive:form.elements.isActive.checked});
+    busy=true;onSaving(true);fieldset.disabled=true;feedback.textContent='Đang lưu…';
+    await apiSaveLeaveType(item?.id??null,payload);if(form.isConnected){onDirty(false);await list();}
+   }catch(err){if(form.isConnected)feedback.textContent=err.message;}
+   finally{busy=false;onSaving(false);if(form.isConnected)fieldset.disabled=!canSave;}
+  };
+ }
+ await list();
+}
+
+
+// Source: pages/administration/master-data/contract-types.js
 
 function contractTypeGrant(flag,session=apiSession()){
  return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_CONTRACT_TYPES'&&p.canView==='Y'&&p[flag]==='Y');
@@ -1222,7 +1538,7 @@ async function mountContractTypes(root,{onDirty=()=>{},onSaving=()=>{}}={}){
 }
 
 
-// Source: pages/master-data.js
+// Source: pages/administration/master-data/master-data.js
 
 const organizationCatalogs={
  departments:{label:'Phòng ban',screen:'WEB_DEPARTMENTS',code:'departmentCode',name:'departmentName',max:20,description:true},
@@ -1286,17 +1602,17 @@ async function mountOrganizationData(root,filters={},options={}){
  await list();
 }
 
-const masterDataTabs={departments:'Phòng ban',positions:'Chức vụ',teams:'Teams',contractTypes:'Loại hợp đồng',attendance:'Chấm công',shifts:'Ca làm việc'};
+const masterDataTabs={departments:'Phòng ban',positions:'Chức vụ',teams:'Teams',contractTypes:'Loại hợp đồng',leaveTypes:'Loại nghỉ phép',shifts:'Ca làm việc'};
 async function mountMasterData(root,filters={}){
  if(!root)return;
- const screens={departments:'WEB_DEPARTMENTS',positions:'WEB_POSITIONS',teams:'WEB_TEAMS',contractTypes:'WEB_CONTRACT_TYPES',attendance:'WEB_SYSTEM_SETTINGS',shifts:'WEB_SHIFTS'};
+ const screens={departments:'WEB_DEPARTMENTS',positions:'WEB_POSITIONS',teams:'WEB_TEAMS',contractTypes:'WEB_CONTRACT_TYPES',leaveTypes:'WEB_LEAVE_TYPES',shifts:'WEB_SHIFTS'};
  let tab=masterDataTabs[filters.tab]?filters.tab:Object.keys(masterDataTabs).find(key=>apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===screens[key]&&p.canView==='Y'))||'departments',dirty=false,saving=false;
  async function draw(){
  dirty=false;
  root.innerHTML=`<div class="tabs" role="tablist" aria-label="Master Data">${Object.entries(masterDataTabs).map(([key,label])=>`<button type="button" role="tab" aria-selected="${key===tab}" class="tab ${key===tab?'active':''}" data-master-tab="${key}">${label}</button>`).join('')}</div><div id="master-data-panel" role="tabpanel"></div>`;
  root.querySelectorAll('[data-master-tab]').forEach(button=>button.onclick=()=>{if(saving||button.dataset.masterTab===tab)return;if(dirty&&!confirm('Bỏ các thay đổi chưa lưu?'))return;tab=button.dataset.masterTab;draw();});
  const panel=root.querySelector('#master-data-panel'),options={onDirty:value=>{if(panel.isConnected)dirty=value;},onSaving:value=>{if(!panel.isConnected)return;saving=value;root.querySelectorAll('[data-master-tab]').forEach(button=>button.disabled=value);}};
- if(tab==='attendance')await mountSystemSettings(panel,{tab:'attendance'},{...options,embedded:true});
+ if(tab==='leaveTypes')await mountLeaveTypes(panel,options);
  else if(tab==='contractTypes')await mountContractTypes(panel,options);
  else if(tab==='shifts')await mountShifts(panel,options);
  else await mountOrganizationData(panel,{tab},options);
@@ -1358,7 +1674,7 @@ async function mountShifts(root,{onDirty=()=>{},onSaving=()=>{}}={}){
 }
 
 
-// Source: pages/employees.js
+// Source: pages/human-resources/employees.js
 
 const employeeStatuses={ACTIVE:'Đang làm việc',INACTIVE:'Ngừng hoạt động',TERMINATED:'Đã nghỉ việc'};
 const employeeValue=value=>e(value||'—');
@@ -1580,34 +1896,53 @@ function employeeTransferPayload(values,employee){
 }
 
 
-// Source: pages/roles.js
+// Source: pages/administration/roles.js
 
-const roleUsesEmployeeScope=code=>['WEB_EMPLOYEES','WEB_CONTRACTS'].includes(code);
+const requestScopeScreens=['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'];
+const roleUsesEmployeeScope=code=>['WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS',...requestScopeScreens].includes(code);
+const roleHasScopeAction=(code,flag)=>requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):roleUsesEmployeeScope(code);
 
 function roleScopeSelect(code,flag,label,value='SELF',disabled=false){
- if(!roleUsesEmployeeScope(code))return '';
- return `<div class="role-scope"><select data-role-scope="${e(flag)}" aria-label="Phạm vi ${e(label)}" ${disabled?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([scope,text])=>`<option value="${scope}" ${value===scope?'selected':''}>${text}</option>`).join('')}</select></div>`;
+ if(!roleHasScopeAction(code,flag))return '';
+ return `<div class="role-scope"><label>Phạm vi dữ liệu<select data-role-scope="${e(flag)}" aria-label="Phạm vi ${e(label)}" ${disabled?'disabled':''}>${[['SELF','Chính mình'],['DEPARTMENT','Cùng phòng ban'],['ALL','Tất cả']].map(([scope,text])=>`<option value="${scope}" ${value===scope?'selected':''}>${text}</option>`).join('')}</select></label></div>`;
 }
 
 const roleFlags=[['NEW','Thêm mới','can_new'],['VIEW','Xem','can_view'],['UPDATE','Chỉnh sửa','can_update'],['DELETE','Xóa','can_delete'],['APPROVE','Phê duyệt','can_approve'],['EXPORT','Xuất dữ liệu','can_export']];
+function roleScopeDraft(screens,matrixScreens){
+ const scopes=new Map();
+ for(const screen of screens){
+  if(!roleUsesEmployeeScope(screen.code))continue;
+  const original=matrixScreens.find(item=>item.screenCode===screen.code)?.dataScopes||{};
+  const values={...original};
+  for(const [flag] of roleFlags)if(roleHasScopeAction(screen.code,flag))values[flag]=['SELF','DEPARTMENT','ALL'].includes(original[flag])?original[flag]:'SELF';
+  scopes.set(screen.code,values);
+ }
+ return scopes;
+}
+
 function roleScreenCatalog(catalog){
- const screens=catalog.map(screen=>screen.code==='WEB_CONTRACT_TYPES'?{...screen,name:'Loại hợp đồng'}:{...screen});
- if(!screens.some(screen=>screen.code==='WEB_CONTRACT_TYPES'))screens.push({id:'pending-WEB_CONTRACT_TYPES',code:'WEB_CONTRACT_TYPES',name:'Loại hợp đồng',platform:'WEB',isActive:true,registrationRequired:true});
+ const names={WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công'};
+ const screens=catalog.map(screen=>names[screen.code]?{...screen,name:names[screen.code]}:{...screen});
+ for(const [code,name] of Object.entries(names))if(!screens.some(screen=>screen.code===code))screens.push({id:'pending-'+code,code,name,platform:'WEB',isActive:true,registrationRequired:true});
  return screens;
 }
 function roleMenuGroups(catalog,platform='WEB'){
  catalog=catalog.filter(screen=>!screen.platform||screen.platform===platform);
- const used=new Set();const groups=nav.map(group=>{
+ const used=new Set();const groups=navigationForScreens(nav,catalog,platform).map(group=>{
  const entries=(group.children||[[group.name,group.route]]).flatMap(([label,path])=>{
- const codes=(roleScreenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]).map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
- return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:codes.length>1?label+' · '+screen.name:label,...(path==='/admin/master-data'?{parentMenu:'Master Data'}:{})};}));
- });return {name:group.name,icon:group.icon,section:group.section,nested:!!group.children,entries};
+ const dynamic=/^\/screens\/([A-Z0-9_]+)$/.exec(path);
+ const codes=dynamic?[dynamic[1]]:(roleScreenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]).map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
+ return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:group.route==='/approvals'?(screen.code==='WEB_APPROVALS'?'Phê duyệt':screen.name):codes.length>1?label+' · '+screen.name:label,...(path==='/admin/master-data'?{parentMenu:'Master Data'}:path==='/admin/settings'?{parentMenu:'System Settings'}:{})};}));
+ });return {name:group.name,icon:group.icon,section:group.section,nested:!!group.children||group.route==='/approvals',entries};
  }).filter(group=>group.entries.length);
  for(const group of groups){
  const entries=group.entries.filter(screen=>screen.parentMenu==='Master Data'&&!screen.code.endsWith('_MASTER_DATA')).map(screen=>({...screen,label:screen.name}));
- const settings=catalog.find(screen=>screen.code===(platform==='MOBILE'?'MOBILE_SYSTEM_SETTINGS':'WEB_SYSTEM_SETTINGS'));
- if(entries.length&&settings)entries.splice(Math.max(0,entries.findIndex(screen=>screen.code.endsWith('_SHIFTS'))),0,{...settings,label:'Chấm công'});
  group.subgroups=entries.length?[{name:'Master Data',key:group.name+'/Master Data',entries}]:[];
+ const settingsEntries=group.entries.filter(screen=>screen.parentMenu==='System Settings').flatMap(screen=>screen.code.endsWith('_SYSTEM_SETTINGS')?[
+  {...screen,label:'Chính sách mật khẩu',menuKey:'system/password-policy'},
+  {...screen,label:'Chấm công',menuKey:'system/attendance'}
+ ]:[{...screen,label:'Quy trình phê duyệt',menuKey:'system/approval-workflow'}]);
+ if(settingsEntries.length)group.subgroups.push({name:'System Settings',key:group.name+'/System Settings',entries:settingsEntries});
  }
 
  const remaining=catalog.filter(screen=>!used.has(screen.id));
@@ -1645,24 +1980,30 @@ async function mountRoles(root,filters={}){
  const mergedCatalog=[...catalog];for(const item of matrix.screens)if(!mergedCatalog.some(x=>x.code===item.screenCode))mergedCatalog.push({id:item.screenId,code:item.screenCode,name:item.name,platform:item.platform,isActive:false});
  const screens=roleScreenCatalog(mergedCatalog);
  const draft=new Map(screens.map(screen=>{const original=matrix.screens.find(x=>x.screenCode===screen.code);return [screen.code,Object.fromEntries(roleFlags.map(([flag])=>[flag,original?.standard?.[flag]===true]))];}));
- const scopes=new Map(matrix.screens.filter(item=>roleUsesEmployeeScope(item.screenCode)).map(item=>[item.screenCode,{...item.dataScopes}]));
+ const scopes=roleScopeDraft(screens,matrix.screens);
  const enabledScreens=new Set(matrix.screens.filter(item=>Object.values(item.standard||{}).some(value=>value===true)||item.extendedActions?.length).map(item=>item.screenCode));
  const disabledScreens=new Set();
  const changed=new Set();let activePlatform='WEB';
  const selectedByPlatform={WEB:screens.find(screen=>screen.platform==='WEB'),MOBILE:screens.find(screen=>screen.platform==='MOBILE')};
- let selected=selectedByPlatform.WEB;let saving=false;let nameDraft=role.name;
+ let selected=selectedByPlatform.WEB;
+ const menuKeyByPlatform={WEB:selected?.code==='WEB_SYSTEM_SETTINGS'?'system/password-policy':selected?.code==='WEB_APPROVAL_SETTINGS'?'system/approval-workflow':null,MOBILE:selectedByPlatform.MOBILE?.code==='MOBILE_SYSTEM_SETTINGS'?'system/password-policy':selectedByPlatform.MOBILE?.code==='MOBILE_APPROVAL_SETTINGS'?'system/approval-workflow':null};
+ const menuLabelByPlatform={WEB:selected?.code==='WEB_SYSTEM_SETTINGS'?'Chính sách mật khẩu':selected?.name,MOBILE:selectedByPlatform.MOBILE?.code==='MOBILE_SYSTEM_SETTINGS'?'Chính sách mật khẩu':selectedByPlatform.MOBILE?.name};
+ let saving=false;let nameDraft=role.name;
  const openByPlatform={WEB:new Set(),MOBILE:new Set()};
  for(const platform of ['WEB','MOBILE'])for(const group of roleMenuGroups(screens,platform)){
  if(group.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id))openByPlatform[platform].add(group.name);
  for(const subgroup of group.subgroups||[])if(subgroup.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id)){openByPlatform[platform].add(group.name);openByPlatform[platform].add(subgroup.key);}
  }
  const canSave=roleGrant('WEB_PERMISSIONS','canUpdate')&&roleGrant('WEB_PERMISSIONS','canApprove');
- function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||screen.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
+ function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" data-screen-menu-key="${e(screen.menuKey||'')}" data-screen-label="${e(screen.label||screen.name)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||screen.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
  function draw(){
  const menuGroups=roleMenuGroups(screens,activePlatform),openGroups=openByPlatform[activePlatform];
  root.innerHTML=`<button class="btn" id="role-back">← Danh sách role</button><h2 class="role-editor-title">Chỉnh sửa role</h2><form id="role-rename" class="role-name-editor"><label for="role-name">Tên role</label><input id="role-name" name="name" required maxlength="100" value="${e(nameDraft)}" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}><button class="btn" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}>Lưu tên role</button><span class="muted">${e(role.code)}</span></form><p class="muted">Chọn màn hình trong menu, sau đó bật các chức năng được phép.</p><div class="tabs role-platform-tabs" role="tablist" aria-label="Nền tảng phân quyền">${['WEB','MOBILE'].map(platform=>`<button type="button" role="tab" id="role-platform-${platform}" class="tab ${activePlatform===platform?'active':''}" aria-selected="${activePlatform===platform}" aria-controls="role-platform-panel" data-role-platform="${platform}">${icon(platform==='WEB'?'grid':'person',16)} ${platform}</button>`).join('')}</div><div class="role-editor" id="role-platform-panel" role="tabpanel" aria-labelledby="role-platform-${activePlatform}"><nav class="role-menu" aria-label="Màn hình phân quyền">${menuGroups.map(group=>{
  const active=group.entries.some(screen=>screen.id===selected?.id),open=openGroups.has(group.name);
- const screenButton=screen=>`<div class="role-screen-row"><button type="button" class="role-screen ${selected?.id===screen.id?'selected':''}" data-screen-id="${e(screen.id)}" ${selected?.id===screen.id?'aria-current="true"':''}><span>${e(screen.label)}</span>${changed.has(screen.code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(screen)}</div>`;
+ const screenButton=screen=>{
+ const selectedEntry=screen.menuKey?screen.menuKey===menuKeyByPlatform[activePlatform]:selected?.id===screen.id;
+ return `<div class="role-screen-row"><button type="button" class="role-screen ${selectedEntry?'selected':''}" data-screen-id="${e(screen.id)}" data-screen-menu-key="${e(screen.menuKey||'')}" data-screen-label="${e(screen.label)}" ${selectedEntry?'aria-current="true"':''}><span>${e(screen.label)}</span>${changed.has(screen.code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(screen)}</div>`;
+ };
  const renderedSubgroups=new Set();
  const menuEntries=group.entries.map(screen=>{
  if(!screen.parentMenu)return screenButton(screen);
@@ -1672,18 +2013,18 @@ async function mountRoles(root,filters={}){
  const expanded=openGroups.has(subgroup.key),subActive=subgroup.entries.some(item=>item.id===selected?.id);
  return `<button type="button" class="role-subgroup-toggle ${subActive?'active':''}" data-role-group="${e(subgroup.key)}" aria-expanded="${expanded}"><span>${e(subgroup.name)}</span><span class="chev ${expanded?'role-chevron-open':''}">${icon('chevron',12)}</span>${subgroup.entries.some(item=>changed.has(item.code))?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${expanded?`<div class="submenu role-submenu role-subgroup-items">${subgroup.entries.map(screenButton).join('')}</div>`:''}`;
  }).join('');
- return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="nav-label">${e(group.name)}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${menuEntries}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
- }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.registrationRequired?`<p>Màn hình chưa được đăng ký trên hệ thống.</p><button type="button" class="btn primary" id="role-register-contract-types" ${!roleGrant('WEB_PERMISSIONS','canNew')||saving?'disabled':''}>Đăng ký màn hình Loại hợp đồng</button>${!roleGrant('WEB_PERMISSIONS','canNew')?'<p class="muted">Cần quyền thêm mới trong Phân quyền để đăng ký màn hình.</p>':''}`:''}${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu trong System Settings và cấu hình Chấm công trong Master Data theo API.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||selected.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${roleScopeSelect(selected.code,flag,label,scopes.get(selected.code)?.[flag]||'SELF',!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||selected.registrationRequired||saving)}</div>`).join('')}</div>${roleUsesEmployeeScope(selected.code)?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
- root.querySelector('#role-register-contract-types')?.addEventListener('click',async()=>{
+ return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="role-nav-group-copy"><span class="nav-label">${e(group.name)}</span>${group.description?`<small>${e(group.description)}</small>`:''}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${menuEntries}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
+ }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(menuLabelByPlatform[activePlatform]||selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.registrationRequired?`<p>Màn hình chưa được đăng ký trên hệ thống.</p><button type="button" class="btn primary" id="role-register-screen" ${!roleGrant('WEB_PERMISSIONS','canNew')||saving?'disabled':''}>Đăng ký màn hình ${e(selected.name)}</button>${!roleGrant('WEB_PERMISSIONS','canNew')?'<p class="muted">Cần quyền thêm mới trong Phân quyền để đăng ký màn hình.</p>':''}`:''}${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu và Chấm công trong System Settings.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||selected.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${roleScopeSelect(selected.code,flag,label,scopes.get(selected.code)?.[flag]||'SELF',!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||selected.registrationRequired||saving)}</div>`).join('')}</div>${requestScopeScreens.includes(selected.code)?'<p class="muted role-scope-note">Phạm vi áp dụng khi xem yêu cầu. Tạo và hủy đơn dùng nhân viên liên kết với tài khoản hiện tại.</p>':selected.code==='WEB_APPROVALS'?'<p class="muted role-scope-note">Phạm vi xem và duyệt được cấu hình riêng. Chỉ người được gán ở bước hiện tại mới có thể duyệt.</p>':roleUsesEmployeeScope(selected.code)?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
+ root.querySelector('#role-register-screen')?.addEventListener('click',async()=>{
  if(saving||!selected?.registrationRequired||!roleGrant('WEB_PERMISSIONS','canNew'))return;
  const target=selected;saving=true;draw();
  try{
   let registered;
-  try{registered=await apiCreateScreen({code:'WEB_CONTRACT_TYPES',name:'Loại hợp đồng',platform:'WEB',isActive:true});}
-  catch(err){if(err.status!==409)throw err;registered=(await apiAllScreens()).find(screen=>screen.code==='WEB_CONTRACT_TYPES');}
+  try{registered=await apiCreateScreen({code:target.code,name:target.name,platform:target.platform,isActive:true});}
+  catch(err){if(err.status!==409)throw err;registered=(await apiAllScreens()).find(screen=>screen.code===target.code);}
   if(!root.isConnected)return;
-  if(!registered?.id||registered.code!=='WEB_CONTRACT_TYPES')throw Error('Chưa nhận được màn hình đã đăng ký. Vui lòng mở lại role.');
-  Object.assign(target,registered,{name:'Loại hợp đồng',registrationRequired:false});
+  if(!registered?.id||registered.code!==target.code)throw Error('Chưa nhận được màn hình đã đăng ký. Vui lòng mở lại role.');
+  Object.assign(target,registered,{registrationRequired:false});
   saving=false;draw();root.querySelector('#role-feedback').textContent='Đã đăng ký màn hình. Bật màn hình và chọn các quyền cần cấp, sau đó lưu lại.';
  }catch(err){saving=false;if(root.isConnected){draw();root.querySelector('#role-feedback').textContent=err.message;}}
  });
@@ -1700,19 +2041,20 @@ async function mountRoles(root,filters={}){
  root.querySelectorAll('[data-role-platform]').forEach(el=>el.onclick=()=>{selectedByPlatform[activePlatform]=selected;activePlatform=el.dataset.rolePlatform;selected=selectedByPlatform[activePlatform];draw();root.querySelector(`[data-role-platform="${activePlatform}"]`)?.focus();});
  root.querySelectorAll('[data-role-group]').forEach(el=>el.onclick=()=>{const name=el.dataset.roleGroup;openGroups.has(name)?openGroups.delete(name):openGroups.add(name);draw();root.querySelectorAll('[data-role-group]').forEach(button=>{if(button.dataset.roleGroup===name)button.focus();});});
  root.querySelector('#role-back').onclick=()=>{if(saving)return;if((!changed.size&&nameDraft===role.name)||confirm('Bỏ các thay đổi chưa lưu?'))list();};
- root.querySelectorAll('[data-screen-id]').forEach(el=>el.onclick=()=>{selected=screens.find(x=>String(x.id)===el.dataset.screenId);draw();});
+ root.querySelectorAll('[data-screen-id]').forEach(el=>el.onclick=()=>{selected=screens.find(x=>String(x.id)===el.dataset.screenId);menuKeyByPlatform[activePlatform]=el.dataset.screenMenuKey||null;menuLabelByPlatform[activePlatform]=el.dataset.screenLabel||selected?.name;draw();});
  root.querySelectorAll('[data-screen-enabled]').forEach(el=>el.onchange=()=>{
  const screen=screens.find(item=>String(item.id)===el.dataset.screenEnabled);
  if(!screen||!canSave||screen.isActive===false||screen.registrationRequired||saving)return;
- selected=screen;
+ selected=screen;menuKeyByPlatform[activePlatform]=el.dataset.screenMenuKey||null;menuLabelByPlatform[activePlatform]=el.dataset.screenLabel||screen.name;
  if(el.checked){enabledScreens.add(screen.code);draft.get(screen.code).VIEW=true;if(roleUsesEmployeeScope(screen.code)){if(!scopes.has(screen.code))scopes.set(screen.code,{});scopes.get(screen.code).VIEW??='SELF';}}
  else{enabledScreens.delete(screen.code);disabledScreens.add(screen.code);roleFlags.forEach(([flag])=>{draft.get(screen.code)[flag]=false;});}
- changed.add(screen.code);draw();root.querySelector(`[data-screen-enabled="${screen.id}"]`)?.focus();
+ changed.add(screen.code);draw();root.querySelector(`[data-screen-enabled="${screen.id}"][data-screen-menu-key="${menuKeyByPlatform[activePlatform]||''}"]`)?.focus();
  });
- root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(roleUsesEmployeeScope(selected.code)&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
+ root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(roleHasScopeAction(selected.code,el.dataset.roleFlag)&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
  root.querySelectorAll('[data-role-scope]').forEach(el=>el.onchange=()=>{
- if(!canSave||saving||selected.isActive===false)return;
+ if(!canSave||saving||selected.isActive===false||selected.registrationRequired)return;
  const flag=el.dataset.roleScope;
+ if(!roleHasScopeAction(selected.code,flag)||!['SELF','DEPARTMENT','ALL'].includes(el.value))return;
  if(!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag])return;
  if(!scopes.has(selected.code))scopes.set(selected.code,{});
  scopes.get(selected.code)[flag]=el.value;
@@ -1734,7 +2076,7 @@ async function mountRoles(root,filters={}){
 }
 
 
-// Source: pages/users.js
+// Source: pages/administration/users.js
 
 function userApiGrant(code,flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p[flag]==='Y');}
 function registrationDateValue(value){
@@ -1912,7 +2254,7 @@ async function editSystemUser(root,userId,back){
 }
 
 
-// Source: pages/work.js
+// Source: pages/shared/work.js
 function taskPage(f,own=false){let ts=visibleTasks(f).filter(t=>(!own||t.assigneeId===user().id)&&(!f.status||t.status===f.status)&&matches(t.title+t.code,f.search));if(f.project)ts=ts.filter(t=>t.projectId===f.project);const view=f.view||'list';return `${searchToolbar(f,statusSelect(f,['todo','in_progress','review','done'])+`<select data-filter="project" aria-label="Lọc dự án"><option value="">Tất cả dự án</option>${scope.projects(s,user()).map(p=>`<option value="${p.id}" ${f.project===p.id?'selected':''}>${e(p.name)}</option>`).join('')}</select>`+button('Danh sách','list','menu',view==='list'?'primary':'')+button('Kanban','kanban','grid',view==='kanban'?'primary':''))}${view==='kanban'?`<div class="kanban">${['todo','in_progress','review','done'].map(st=>`<section class="kanban-column"><h3>${labels[st]} <span class="tag">${ts.filter(t=>t.status===st).length}</span></h3>${ts.filter(t=>t.status===st).map(t=>`<article class="kanban-card" tabindex="0" role="button" data-open="task" data-id="${t.id}"><small>${e(t.code)}</small><h3>${e(t.title)}</h3>${badge(t.priority)}<footer><span>${dateLabel(t.dueDate)}</span>${avatar(s.users.find(u=>u.id===t.assigneeId))}</footer></article>`).join('')}</section>`).join('')}</div>`:`<div class="card">${table(['Công việc','Dự án','Phụ trách','Ưu tiên','Trạng thái','Hạn hoàn thành'],ts.map(t=>[`<a href="#" data-open="task" data-id="${t.id}"><strong>${e(t.title)}</strong><div class="person-sub">${e(t.code)}</div></a>`,e(s.projects.find(p=>p.id===t.projectId)?.name),person(s.users.find(u=>u.id===t.assigneeId)),badge(t.priority),badge(t.status),dateLabel(t.dueDate)]),{page:f.page})}</div>`}`;}
 function projectCards(f,own=false){const ps=scope.projects(s,user()).filter(p=>(!own||p.memberIds.includes(user().id))&&matches(p.name+p.code,f.search));return `${searchToolbar(f)}<div class="project-grid">${ps.map(p=>{const ts=scope.tasks(s,user()).filter(t=>t.projectId===p.id),done=ts.filter(t=>t.status==='done').length;return `<article class="card project-card ${p.color}"><div class="project-card-top"><div class="icon-tile ${p.color}">${icon('folder',20)}</div>${badge(p.health,p.health==='review'?'Chờ nghiệm thu':null)}</div><div><h2><a href="#/projects/${p.id}" style="color:inherit">${e(p.name)}</a></h2><p style="margin-top:8px">${e(p.description)}</p></div>${user().role!=='HR'?`<div><div class="progress-info"><span>Tiến độ công việc</span><strong>${done}/${ts.length} · ${pct(done,ts.length)}%</strong></div>${progress(pct(done,ts.length))}</div>`:''}<div class="project-card-footer"><div class="avatar-group">${p.memberIds.slice(0,3).map(id=>avatar(s.users.find(u=>u.id===id))).join('')}<span class="avatar">+${Math.max(0,p.memberIds.length-3)}</span></div><span>${icon('calendar',11)} ${dateLabel(p.dueDate)}</span></div><a class="card-link" href="#/projects/${p.id}">Chi tiết dự án ${icon('arrow',13)}</a></article>`;}).join('')}</div>${!ps.length?empty():''}`;}
 function projectDetail(f,projectId){const p=scope.projects(s,user()).find(p=>p.id===projectId);if(!p)return empty('Không tìm thấy dự án','Dự án không tồn tại hoặc ngoài phạm vi của bạn.');const tab=f.tab||'overview',hr=user().role==='HR',ts=scope.tasks(s,user()).filter(t=>t.projectId===p.id),done=ts.filter(t=>t.status==='done').length;return `<div class="card mb"><div class="card-body"><div class="project-card-top"><div class="person"><div class="icon-tile ${p.color}">${icon('folder',22)}</div><h2>${e(p.name)}</h2></div>${badge(p.health)}</div><p class="muted" style="margin-top:16px">${e(p.description)}</p>${details([['Mã dự án',e(p.code)],['Quản lý',e(s.users.find(u=>u.id===p.managerId)?.name)],['Bắt đầu',dateLabel(p.startDate)],['Deadline',dateLabel(p.dueDate)]])}${scope.can(s,user(),'project.create')?button('Sửa dự án','edit-project','edit','','data-id="'+p.id+'"'):''}</div></div>${tabs(hr?[['overview','Tổng quan'],['members','Thành viên']]:[['overview','Tổng quan'],['tasks','Công việc'],['members','Thành viên'],['milestones','Milestones'],['timeline','Timeline'],['documents','Tài liệu']],tab)}${tab==='tasks'?taskPage({...f,project:p.id}):tab==='members'?peoplePage({...f,ids:p.memberIds}):tab==='documents'?documentsPage({...f,project:p.id}):tab==='milestones'||tab==='timeline'?timelinePage(f,[p]):`<div class="kpis">${kpi('Thành viên',p.memberIds.length,'người','Cùng phát triển sản phẩm','users','blue')}${!hr?kpi('Hoàn thành',done,`/ ${ts.length}`,`${pct(done,ts.length)}% tổng công việc`,'check','teal'):''}${kpi('Phạm vi',p.teamIds.length,'team','Hợp tác liên phòng ban','briefcase','purple')}</div>${!hr?card('Công việc dự án','Tiến độ và trạng thái mới nhất',`<div class="card-body">${progress(pct(done,ts.length))}</div>${taskPage({...f,project:p.id})}`):''}`}`;}
@@ -1926,7 +2268,7 @@ function documentsPage(f){const tab=f.tab||'all';const ds=scope.documents(s,user
 function reportsPage(f){if(f.tab==='attendance')return tabs(user().role==='HR'?[['employee','Nhân sự'],['attendance','Chấm công'],['leave','Nghỉ phép']]:[['management','Tổng quan'],['attendance','Chấm công'],['task','Công việc'],['project','Dự án']], 'attendance')+attendanceReport(f);const hr=user().role==='HR',tab=f.tab||(hr?'employee':'management'),options=hr?[['employee','Nhân sự'],['attendance','Chấm công'],['leave','Nghỉ phép']]:[['management','Tổng quan'],['attendance','Chấm công'],['task','Công việc'],['project','Dự án'],...(user().role==='Dev'?[]:[['team','Hiệu suất team']])];return `${tabs(options,tab)}<div class="toolbar">${teamOptions(f)}<input data-filter="date" aria-label="Ngày báo cáo" type="date" value="${f.date}" max="2026-10-19">${button('Xuất CSV','export-current','download')}${button('In báo cáo','print','print')}</div>${tab==='attendance'?`<div class="dashboard-grid">${card('Thống kê chấm công',dateLabel(f.date),attendanceChart(f))}${card('Tổng quan ngày làm việc','Ca chuẩn: 08:30–17:30',`<div class="card-body"><p class="muted">Báo cáo theo nhân viên thuộc phạm vi hiện tại. Nghỉ trưa 12:00–13:00. Giờ công được tính khi có đủ check-in và check-out.</p></div>`)}</div><div class="card">${attendanceTable(f)}</div>`:tab==='task'?taskPage(f):tab==='project'?projectCards(f):tab==='employee'?peoplePage(f):tab==='leave'?approvalPage(f):`<div class="dashboard-grid">${card('Tiến độ dự án','Theo số task hoàn thành',projectChart(f))}${card('Chấm công đội ngũ',dateLabel(f.date),attendanceChart(f))}</div>${workloadPage(f)}`}`;}
 
 
-// Source: pages/operations.js
+// Source: pages/shared/operations.js
 function hrPage(f,path){if(apiSession()&&path==='/hr/contracts')return '<section class="card contracts-page" id="contracts-api-root"></section>';if(path==='/hr/organization')return '<section id="organization-api-root"></section>';if(apiSession()&&(path==='/hr/employees'||path.startsWith('/hr/employees/')))return '<section class="card user-admin" id="employees-api-root"></section>';if(path==='/hr/employees')return peoplePage(f);if(path.startsWith('/hr/employees/')){const u=scope.employees(s,user()).find(u=>u.id===path.split('/').pop());if(!u)return empty('Không tìm thấy nhân viên','Hồ sơ nằm ngoài phạm vi của bạn.');return card('Hồ sơ nhân viên','Thông tin công việc tại Intelex',`<div class="card-body">${person(u)}${details([['Chức danh',e(u.position)],['Email',e(u.email)],['Team',e(s.teams.find(t=>t.id===u.teamId)?.name||'Office')],['Ngày gia nhập',dateLabel(u.joinedAt)]])}${scope.can(s,user(),'hr')?button('Sửa hồ sơ','edit-employee','edit','primary',`data-id="${u.id}"`):''}</div>`);}if(path==='/hr/attendance')return `${tabs([['company','Toàn công ty'],['adjustment','Điều chỉnh'],['shifts','Ca làm việc'],['late','Đi trễ / Về sớm'],['overtime','Tăng ca']],f.tab||'company')}${f.tab==='shifts'?card('Ca làm việc','Ca chuẩn toàn công ty',`<div class="card-body">${details([['Tên ca','Hành chính'],['Giờ làm',`${e(s.settings.shiftStart)}–${e(s.settings.shiftEnd)}`],['Nghỉ trưa','12:00–13:00'],['Ngày làm','Thứ Hai–Thứ Sáu']])}<a class="btn" href="#/admin/settings">Cấu hình ca (Admin)</a></div>`):['adjustment','overtime'].includes(f.tab)?approvalPage(f):attendancePage(f.tab==='late'?{...f,status:'late'}:f)}`;
  if(path.includes('attendance-reports')||path==='/hr/reports')return reportsPage({...f,tab:f.tab||'attendance'});if(path==='/hr/leave')return `${tabs([['requests','Đơn nghỉ phép'],['types','Loại nghỉ'],['balances','Số dư phép']],f.tab||'requests')}${f.tab==='types'?card('Danh mục loại phép','Quy định mô phỏng',`<div class="card-body">${s.leaveTypes.map(t=>`<p style="padding:12px;border-bottom:1px solid var(--border)">${e(t)}</p>`).join('')}</div>`):f.tab==='balances'?`<div class="card">${table(['Nhân viên','Định mức','Đã dùng','Còn lại'],s.leaveBalances.map(b=>[person(s.users.find(u=>u.id===b.userId)),b.allowanceDays+' ngày',b.usedDays+' ngày',(b.allowanceDays-b.usedDays)+' ngày']),{page:f.page})}</div>`:approvalPage({...f,tab:'leave'})}`;
  if(path==='/hr/contracts')return `<div class="toolbar">${button('Thêm hợp đồng','new-contract','plus','primary')}</div><div class="card">${table(['Nhân viên','Loại hợp đồng','Bắt đầu','Kết thúc','Trạng thái',''],s.contracts.map(c=>[person(s.users.find(u=>u.id===c.employeeId)),e(c.type),dateLabel(c.startDate),dateLabel(c.endDate),badge(c.endDate<'2026-11-19'?'high':'active',c.endDate<'2026-11-19'?'Sắp hết hạn':'Còn hiệu lực'),button('Sửa','edit-contract','edit','small',`data-id="${c.id}"`)]),{page:f.page})}</div>`;
@@ -1952,8 +2294,9 @@ const nav=[
  {name:'Notifications',icon:'bell',route:'/notifications'},
  {name:'Administration',icon:'settings',route:'/admin/users',children:[['Users','/admin/users'],['Roles','/admin/roles'],['Permissions','/admin/permissions'],['Audit Logs','/admin/audit-logs'],['System Settings','/admin/settings'],['Master Data','/admin/master-data']]}
 ];
+function mainNavigation(){return navigationForScreens(nav,apiSession()?.permissions||[]);}
 function getPath(){return (location.hash.slice(1).split('?')[0]||'/dashboard').replace(/\/$/,'')||'/dashboard';}
-function groupFor(path){if(path==='/admin/users/register')return nav.find(n=>n.name==='Administration');return nav.find(n=>n.route===path||n.children?.some(c=>c[1]===path))||nav.find(n=>path.startsWith('/projects/')&&n.route==='/projects'||path.startsWith('/hr/employees/')&&n.route==='/hr/employees');}
+function groupFor(path){if(path==='/admin/users/register')return nav.find(n=>n.name==='Administration');return mainNavigation().find(n=>n.route===path||n.children?.some(c=>c[1]===path))||nav.find(n=>path.startsWith('/projects/')&&n.route==='/projects'||path.startsWith('/hr/employees/')&&n.route==='/hr/employees');}
 function isKnown(path){return !!groupFor(path)||/^\/projects\/prj-[\w-]+$/.test(path)||/^\/hr\/employees\/[\w-]+$/.test(path);}
 
 
@@ -2048,23 +2391,23 @@ function setupActions(ctx){const {render,openDialog,closeDialog,toast}=ctx;const
 const newFilters=()=>({search:'',status:'',team:'',project:'',date:'2026-10-19',page:1,size:10,view:'',tab:'',sort:''});
 let filters=newFilters(),expanded=new Set(),lastPath='',searchTimer,disposeNotificationsPage=()=>{},disposeOrganizationPage=()=>{};
 const app=document.getElementById('app');
-function pageTitle(path){const titles={'/admin/users/register':'Đăng ký tài khoản','/dashboard':'Tổng quan quản lý','/workspace/tasks':'Công việc của tôi','/workspace/projects':'Dự án của tôi','/workspace/attendance':'Chấm công cá nhân','/workspace/leave':'Nghỉ phép của tôi','/team/overview':'Đội ngũ của bạn','/team/members':'Thành viên team','/team/tasks':'Công việc của team','/team/attendance':'Chấm công team','/team/leave':'Nghỉ phép team','/team/workload':'Phân bổ công việc','/team/reports':'Báo cáo team','/projects':'Quản lý dự án','/projects/tasks':'Tất cả công việc','/projects/milestones':'Milestones','/projects/members':'Thành viên dự án','/projects/workload':'Workload','/projects/timeline':'Timeline dự án','/projects/reports':'Báo cáo dự án','/hr/employees':'Quản lý nhân sự','/hr/organization':'Cơ cấu tổ chức','/hr/contracts':'Hợp đồng nhân sự','/hr/attendance':'Quản lý chấm công','/hr/attendance-reports':'Báo cáo chấm công','/hr/leave':'Quản lý nghỉ phép','/hr/reports':'Báo cáo nhân sự','/approvals':'Trung tâm phê duyệt','/reports':'Báo cáo & Phân tích','/documents':'Thư viện tài liệu','/notifications':'Thông báo','/admin/users':'Quản lý tài khoản','/admin/roles':'Vai trò hệ thống','/admin/permissions':'Phân quyền','/admin/audit-logs':'Nhật ký hệ thống','/admin/settings':'Cấu hình hệ thống','/admin/master-data':'Dữ liệu danh mục'};return path==='/dashboard'&&user().role!=='Manager'?`Tổng quan ${user().role==='Dev'?'cá nhân':user().role==='HR'?'nhân sự':user().role==='Admin'?'hệ thống':'team'}`:titles[path]||(path.startsWith('/projects/')?'Chi tiết dự án':path.startsWith('/hr/employees/')?'Hồ sơ nhân viên':'Không tìm thấy trang');}
+function pageTitle(path){const titles={'/admin/users/register':'Đăng ký tài khoản','/dashboard':'Tổng quan quản lý','/workspace/tasks':'Công việc của tôi','/workspace/projects':'Dự án của tôi','/workspace/attendance':'Chấm công cá nhân','/workspace/leave':'Nghỉ phép của tôi','/team/overview':'Đội ngũ của bạn','/team/members':'Thành viên team','/team/tasks':'Công việc của team','/team/attendance':'Chấm công team','/team/leave':'Nghỉ phép team','/team/workload':'Phân bổ công việc','/team/reports':'Báo cáo team','/projects':'Quản lý dự án','/projects/tasks':'Tất cả công việc','/projects/milestones':'Milestones','/projects/members':'Thành viên dự án','/projects/workload':'Workload','/projects/timeline':'Timeline dự án','/projects/reports':'Báo cáo dự án','/hr/employees':'Quản lý nhân sự','/hr/organization':'Cơ cấu tổ chức','/hr/contracts':'Hợp đồng nhân sự','/hr/attendance':'Quản lý chấm công','/hr/attendance-reports':'Báo cáo chấm công','/hr/leave':'Quản lý nghỉ phép','/hr/reports':'Báo cáo nhân sự','/approvals':'Trung tâm phê duyệt','/reports':'Báo cáo & Phân tích','/documents':'Thư viện tài liệu','/notifications':'Thông báo','/admin/users':'Quản lý tài khoản','/admin/roles':'Vai trò hệ thống','/admin/permissions':'Phân quyền','/admin/audit-logs':'Nhật ký hệ thống','/admin/settings':'Cấu hình hệ thống','/admin/master-data':'Dữ liệu danh mục'};return path==='/dashboard'&&user().role!=='Manager'?`Tổng quan ${user().role==='Dev'?'cá nhân':user().role==='HR'?'nhân sự':user().role==='Admin'?'hệ thống':'team'}`:titles[path]||(path.startsWith('/screens/')?screenNavigationLabel(apiSession()?.permissions?.find(p=>p.code===path.split('/').pop())||{code:path.split('/').pop()}):path.startsWith('/projects/')?'Chi tiết dự án':path.startsWith('/hr/employees/')?'Hồ sơ nhân viên':'Không tìm thấy trang');}
 function loginScreen(){
  disposeNotificationsPage();disposeNotificationsPage=()=>{};
  document.title='Đăng nhập · Intelex';
  app.innerHTML=`<main class="login-page"><form id="login-form" class="login-card"><img src="assets/images/logo.svg" alt="Intelex" width="48"><h1>Đăng nhập Intelex</h1><p>Đăng nhập bằng tài khoản được cấp để vào không gian làm việc.</p><label>User ID<input name="userId" autocomplete="username" required autofocus></label><label>Mật khẩu<input name="password" type="password" autocomplete="current-password" required></label><p id="login-error" role="alert"></p><button class="btn primary" type="submit">Đăng nhập</button></form></main>`;
  document.getElementById('login-form').addEventListener('submit',async ev=>{
  ev.preventDefault();const form=ev.currentTarget,submit=form.querySelector('button');submit.disabled=true;
- try{await login(form.elements.userId.value.trim(),form.elements.password.value);const destination=nav.flatMap(n=>n.children?n.children.map(c=>c[1]):[n.route]).find(p=>scope.routeAllowed(s,user(),p));location.hash=destination||'/dashboard';navigate();}
+ try{await login(form.elements.userId.value.trim(),form.elements.password.value);const destination=mainNavigation().flatMap(n=>n.children?n.children.map(c=>c[1]):[n.route]).find(p=>scope.routeAllowed(s,user(),p));location.hash=destination||'/dashboard';navigate();}
  catch(err){document.getElementById('login-error').textContent=err.message;submit.disabled=false;}
  });
 }
 function shell(){if(!apiSession()){loginScreen();return;}
-const path=getPath(),apiRolePage=path==='/admin/roles'||path==='/admin/permissions',u=apiRolePage?roleSessionIdentity():user();let unread=notificationService.snapshot().count||0,pending=apiRolePage?0:scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${nav.map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count" data-notification-nav-count>${unread}</span>`:n.name==='Notifications'?'<span class="badge count" data-notification-nav-count hidden></span>':n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${e(u.role)} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search" ${apiRolePage?'hidden':''}>${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><div id="notification-header" class="notification-header"></div><span class="top-divider"></span><div class="account-menu-wrap"><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Menu tài khoản" aria-expanded="false" aria-controls="top-account-menu">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${e(u.role)}</small></div>${icon('down',12)}</button><div class="account-dropdown" id="top-account-menu" hidden><button type="button" class="btn" data-action="self-password">Đổi mật khẩu</button><button type="button" class="btn" data-action="logout">Đăng xuất</button></div></div></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderNotificationHeader(document.getElementById('notification-header'));renderContent();}
+const path=getPath(),apiRolePage=path==='/admin/roles'||path==='/admin/permissions'||path==='/approvals'||path.startsWith('/screens/'),u=apiRolePage?roleSessionIdentity():user();let unread=notificationService.snapshot().count||0,pending=apiRolePage?0:scope.requests(s,u).filter(r=>r.currentApproverId===u.id&&r.status.startsWith('pending_')).length;app.innerHTML=`<div class="mobile-backdrop" data-action="toggle-sidebar"></div><aside class="sidebar" aria-label="Thanh điều hướng"><a class="brand" href="#/dashboard"><img src="assets/images/logo.svg" alt=""><div><div class="brand-name">intelex<span>.</span></div><small>PEOPLE & WORK</small></div></a><nav class="nav-scroll" aria-label="Menu chính">${mainNavigation().map(n=>{const children=n.children?.filter(([,p])=>scope.routeAllowed(s,u,p));return {...n,children,route:children?.[0]?.[1]||n.route};}).filter(n=>scope.routeAllowed(s,u,n.route)).map(n=>{const active=n.name===groupFor(path)?.name,open=expanded.has(n.name)&&n.children;return `${n.section?`<div class="nav-caption">${n.section}</div>`:''}<div style="position:relative"><a class="nav-item ${active?'active':''}" title="${n.name}" href="#${n.route}" ${active?'aria-current="page"':''}>${icon(n.icon,18)}<span class="nav-label">${n.name}</span>${n.name==='Approval Center'&&pending?`<span class="badge count">${pending}</span>`:n.name==='Notifications'&&unread?`<span class="badge count" data-notification-nav-count>${unread}</span>`:n.name==='Notifications'?'<span class="badge count" data-notification-nav-count hidden></span>':n.children?`<span class="chev">${icon('chevron',12)}</span>`:''}</a>${n.children?`<button class="icon-button nav-expand" style="position:absolute;right:0;top:8px;width:23px" data-expand="${n.name}" aria-label="Mở menu ${n.name}" aria-expanded="${!!open}"></button>`:''}</div>${open?`<div class="submenu">${n.children.filter(([,p])=>scope.routeAllowed(s,u,p)).map(([label,p])=>`<a href="#${p}" class="${p===path?'active':''}">${label}</a>`).join('')}</div>`:''}`;}).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-user">${avatar(u)}<div><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${e(u.role)} · Intelex</small></div><button class="icon-button" data-action="account" aria-label="Tài khoản">${icon('more')}</button></div></div></aside><header class="topbar"><div class="top-left"><button class="icon-button" data-action="toggle-sidebar" aria-label="Thu gọn hoặc mở menu">${icon('menu',18)}</button><div class="breadcrumb"><a href="#/dashboard" aria-label="Trang chủ">${icon('grid',14)}</a><span>/</span><strong>${e(groupFor(path)?.name||'Intelex')}</strong></div></div><div class="top-right"><div class="global-search" ${apiRolePage?'hidden':''}>${icon('search',17)}<input id="global-search" placeholder="Tìm kiếm mọi thứ…" aria-label="Tìm kiếm toàn cục" autocomplete="off"><span class="kbd">⌘ K</span><div id="search-results" class="search-results"></div></div><span class="top-divider"></span><div id="notification-header" class="notification-header"></div><span class="top-divider"></span><div class="account-menu-wrap"><button class="icon-button top-user" style="width:auto" data-action="account" aria-label="Menu tài khoản" aria-expanded="false" aria-controls="top-account-menu">${avatar(u)}<div style="text-align:left"><strong>${e(apiSession()?.user?.userId||u.name.split(' ').slice(-2).join(' '))}</strong><small>${e(u.role)}</small></div>${icon('down',12)}</button><div class="account-dropdown" id="top-account-menu" hidden><button type="button" class="btn" data-action="self-password">Đổi mật khẩu</button><button type="button" class="btn" data-action="logout">Đăng xuất</button></div></div></div></header><main class="main" id="main" tabindex="-1"><div class="content" id="content"></div></main>`;renderNotificationHeader(document.getElementById('notification-header'));renderContent();}
 function header(path){if(path==='/hr/contracts')return '';const u=user(),home=path==='/dashboard';const primary=(path.includes('tasks')&&scope.can(s,u,'task.create'))?button('Tạo công việc','new-task','plus','primary'):path==='/projects'&&scope.can(s,u,'project.create')?button('Tạo dự án','new-project','plus','primary'):path==='/hr/employees'&&scope.can(s,u,'hr')?button('Thêm nhân viên','new-employee','plus','primary'):path==='/workspace/leave'?button('Tạo đơn nghỉ','new-request','plus','primary'):'';return `<div class="page-heading"><div><div class="eyebrow">${home?'YOUR WORK, CONNECTED':'INTELEX WORKSPACE'}</div><h1>${pageTitle(path)}${home?'<span style="color:#d7aa64;font-weight:400;margin-left:9px">✦</span>':''}</h1><p>${home?`Chào ${e(u.name.split(' ').pop())}, cùng xem đội ngũ đang làm việc thế nào hôm nay.`:'Một không gian chung để kết nối con người và công việc.'}</p></div><div class="heading-actions">${home?`${teamOptions(filters)}<input type="date" aria-label="Ngày dashboard" data-filter="date" value="${filters.date}" max="2026-10-19">${button('','refresh','refresh','','aria-label="Làm mới dashboard"')}`:primary}</div></div>`;}
 function routeTabs(path){const group=groupFor(path);if(!group?.children||path.startsWith('/projects/prj-')||/^\/hr\/employees\/.+/.test(path))return '';return `<div class="tabs route-tabs">${group.children.filter(([,p])=>scope.routeAllowed(s,user(),p)).map(([name,p])=>`<a class="tab ${p===path?'active':''}" href="#${p}">${name}</a>`).join('')}</div>`;}
-function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn mục được cấp quyền trong menu.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return approvalPage(filters);if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return '<section class="card user-admin" id="notifications-api-root"></section>';if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
-function renderContent(){disposeOrganizationPage();disposeOrganizationPage=()=>{};disposeNotificationsPage();disposeNotificationsPage=()=>{};const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">${path==='/admin/roles'||path==='/admin/permissions'?'Vai trò và phân quyền từ API':path==='/hr/contracts'?'Hợp đồng từ API':path==='/hr/organization'?'Cơ cấu tổ chức từ API':path==='/notifications'?'Thông báo từ API · Giờ Việt Nam (UTC+7)':path==='/admin/audit-logs'?'Nhật ký từ API · Giờ Việt Nam (UTC+7)':'Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt'}</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/hr/contracts'&&scope.routeAllowed(s,user(),path))mountContracts(document.getElementById('contracts-api-root'));if(path==='/hr/organization'&&scope.routeAllowed(s,user(),path))disposeOrganizationPage=mountOrganization(document.getElementById('organization-api-root'));if(path==='/notifications')disposeNotificationsPage=mountNotifications(document.getElementById('notifications-api-root'));if(path==='/admin/audit-logs'&&scope.routeAllowed(s,user(),path))mountAuditLogs(document.getElementById('audit-logs-api-root'));if(path==='/admin/settings'&&scope.routeAllowed(s,user(),path))mountSystemSettings(document.getElementById('system-settings-api-root'),filters);if(path==='/admin/master-data'&&scope.routeAllowed(s,user(),path))mountMasterData(document.getElementById('master-data-api-root'),filters);if((path==='/admin/roles'||path==='/admin/permissions')&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
+function view(path){if(!scope.routeAllowed(s,user(),path))return empty('403 · Không có quyền truy cập','Chọn mục được cấp quyền trong menu.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(!isKnown(path))return empty('404 · Trang không tồn tại','Kiểm tra đường dẫn hoặc trở về Dashboard.')+'<a class="btn primary" href="#/dashboard">Về Dashboard</a>';if(path.startsWith('/screens/'))return `<section class="card user-admin"><h2>${e(pageTitle(path))}</h2><p class="muted">Màn hình này chưa tích hợp API nghiệp vụ.</p></section>`;if(path==='/dashboard')return dashboard(filters);if(path==='/workspace/tasks')return taskPage(filters,true);if(path==='/workspace/projects')return projectCards(filters,true);if(path==='/workspace/attendance')return attendancePage(filters,true);if(path==='/workspace/leave')return approvalPage(filters,true);if(path.startsWith('/team/'))return teamPage(filters,path);if(path==='/projects')return projectCards(filters);if(path==='/projects/tasks')return taskPage(filters);if(path==='/projects/members')return peoplePage(filters);if(path==='/projects/workload')return workloadPage(filters);if(path==='/projects/milestones'||path==='/projects/timeline')return timelinePage(filters);if(path==='/projects/reports'||path==='/reports')return reportsPage(filters);if(path.startsWith('/projects/'))return projectDetail(filters,path.split('/').pop());if(path.startsWith('/hr/'))return hrPage(filters,path);if(path==='/approvals')return '<section class="card user-admin" id="approvals-api-root"></section>';if(path==='/documents')return documentsPage(filters);if(path==='/notifications')return '<section class="card user-admin" id="notifications-api-root"></section>';if(path.startsWith('/admin/'))return adminPage(filters,path);return empty();}
+function renderContent(){disposeOrganizationPage();disposeOrganizationPage=()=>{};disposeNotificationsPage();disposeNotificationsPage=()=>{};const path=getPath();document.title=`${pageTitle(path)} · Intelex`;document.getElementById('content').innerHTML=header(path)+routeTabs(path)+view(path)+`<footer class="main-footer"><span>© 2026 Intelex. Built for our people.</span><span class="live-status">${path.startsWith('/screens/')?'Truy cập theo quyền màn hình':path==='/approvals'?'Yêu cầu và phê duyệt từ API':path==='/admin/roles'||path==='/admin/permissions'?'Vai trò và phân quyền từ API':path==='/hr/contracts'?'Hợp đồng từ API':path==='/hr/organization'?'Cơ cấu tổ chức từ API':path==='/notifications'?'Thông báo từ API · Giờ Việt Nam (UTC+7)':path==='/admin/audit-logs'?'Nhật ký từ API · Giờ Việt Nam (UTC+7)':'Dữ liệu demo · 19/10/2026 · Chỉ lưu trên trình duyệt'}</span><a href="#/documents">People first. Progress together.</a></footer>`;if((path==='/admin/users'||path==='/admin/users/register')&&scope.routeAllowed(s,user(),path))mountUsers(document.getElementById('users-api-root'),filters,path==='/admin/users/register');if(path==='/approvals'&&scope.routeAllowed(s,user(),path))mountApprovals(document.getElementById('approvals-api-root'),filters);if(path==='/hr/contracts'&&scope.routeAllowed(s,user(),path))mountContracts(document.getElementById('contracts-api-root'));if(path==='/hr/organization'&&scope.routeAllowed(s,user(),path))disposeOrganizationPage=mountOrganization(document.getElementById('organization-api-root'));if(path==='/notifications')disposeNotificationsPage=mountNotifications(document.getElementById('notifications-api-root'));if(path==='/admin/audit-logs'&&scope.routeAllowed(s,user(),path))mountAuditLogs(document.getElementById('audit-logs-api-root'));if(path==='/admin/settings'&&scope.routeAllowed(s,user(),path))mountSystemSettings(document.getElementById('system-settings-api-root'),filters);if(path==='/admin/master-data'&&scope.routeAllowed(s,user(),path))mountMasterData(document.getElementById('master-data-api-root'),filters);if((path==='/admin/roles'||path==='/admin/permissions')&&scope.routeAllowed(s,user(),path))mountRoles(document.getElementById('roles-api-root'),filters);if((path==='/hr/employees'||path.startsWith('/hr/employees/'))&&scope.routeAllowed(s,user(),path))mountEmployees(document.getElementById('employees-api-root'),filters,path==='/hr/employees'?null:decodeURIComponent(path.split('/').pop()));}
 function render(full=false){if(!apiSession()){loginScreen();return;}if(full)shell();else renderContent();}
 function navigate(){if(lastPath!==getPath()){filters=newFilters();document.body.classList.remove('mobile-open');lastPath=getPath();const g=groupFor(lastPath);if(g?.children)expanded.add(g.name);if(document.getElementById('modal').open)closeDialog();}shell();window.scrollTo(0,0);}
 window.addEventListener('hashchange',navigate);
@@ -2076,7 +2419,7 @@ window.addEventListener('online',()=>{void notificationService.syncAuth();void n
 setInterval(()=>{if(!apiSession()&&!document.getElementById('login-form'))loginScreen();},30000);
 app.addEventListener('click',ev=>{if(ev.target.closest('[data-action="logout"]')){apiLogout();return;}const exp=ev.target.closest('[data-expand]');if(exp){const n=exp.dataset.expand;expanded.has(n)?expanded.delete(n):expanded.add(n);shell();return;}const p=ev.target.closest('[data-page]');if(p){filters.page=Number(p.dataset.page);render();}const tab=ev.target.closest('[data-tab]');if(tab){filters.tab=tab.dataset.tab;filters.page=1;render();}const sort=ev.target.closest('[data-sort]');if(sort){filters.sort=sort.dataset.sort;render();}const nf=ev.target.closest('[data-notification]');if(nf){const n=s.notifications.find(x=>x.id===nf.dataset.notification&&x.recipientId===user().id);if(n){n.readAt='2026-10-19T10:00:00+07:00';save();}}});
 document.addEventListener('change',ev=>{const el=ev.target;if(el.matches('[data-filter]')){filters[el.dataset.filter]=el.value;filters.page=1;render();}if(el.id==='demo-user'){switchUser(el.value);filters=newFilters();closeDialog();if(getPath()==='/dashboard')shell();else location.hash='/dashboard';toast('Đã chuyển tài khoản demo');}});
-document.addEventListener('input',ev=>{const el=ev.target;if(el.matches('[data-filter="search"]')){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const cursor=el.selectionStart;filters.search=el.value;filters.page=1;render();const input=document.querySelector('[data-filter="search"]');input?.focus();input?.setSelectionRange(cursor,cursor);},220);}if(el.id==='global-search'){if(getPath()==='/admin/roles'||getPath()==='/admin/permissions')return;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const q=el.value.trim().toLowerCase();const entries=[...scope.projects(s,user()).map(p=>({name:p.name,type:'Dự án',route:'/projects/'+p.id})),...scope.tasks(s,user()).map(t=>({name:t.code+' · '+t.title,type:'Công việc',route:'/workspace/tasks',open:'task',id:t.id})),...scope.employees(s,user()).map(u=>({name:u.name,type:'Nhân viên',route:'/hr/employees/'+u.id,open:'employee',id:u.id}))].filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);document.getElementById('search-results').innerHTML=q?entries.map(x=>`<a href="#${x.route}" ${x.open?`data-open="${x.open}" data-id="${x.id}"`:''}>${e(x.name)}<small>${x.type}</small></a>`).join('')||'<div class="empty">Không tìm thấy kết quả</div>':'';},250);}});
+document.addEventListener('input',ev=>{const el=ev.target;if(el.matches('[data-filter="search"]')){clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const cursor=el.selectionStart;filters.search=el.value;filters.page=1;render();const input=document.querySelector('[data-filter="search"]');input?.focus();input?.setSelectionRange(cursor,cursor);},220);}if(el.id==='global-search'){if(getPath()==='/admin/roles'||getPath()==='/admin/permissions'||getPath().startsWith('/screens/'))return;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{const q=el.value.trim().toLowerCase();const entries=[...scope.projects(s,user()).map(p=>({name:p.name,type:'Dự án',route:'/projects/'+p.id})),...scope.tasks(s,user()).map(t=>({name:t.code+' · '+t.title,type:'Công việc',route:'/workspace/tasks',open:'task',id:t.id})),...scope.employees(s,user()).map(u=>({name:u.name,type:'Nhân viên',route:'/hr/employees/'+u.id,open:'employee',id:u.id}))].filter(x=>x.name.toLowerCase().includes(q)).slice(0,8);document.getElementById('search-results').innerHTML=q?entries.map(x=>`<a href="#${x.route}" ${x.open?`data-open="${x.open}" data-id="${x.id}"`:''}>${e(x.name)}<small>${x.type}</small></a>`).join('')||'<div class="empty">Không tìm thấy kết quả</div>':'';},250);}});
 document.addEventListener('click',ev=>{if(!notificationEventInside(ev,document.getElementById('notification-header')))closeNotificationHeader(document.getElementById('notification-header'));if(!ev.target.closest('.global-search'))(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();});
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){closeNotificationHeader(document.getElementById('notification-header'),true);}if(ev.key==='Escape')(()=>{const results=document.getElementById('search-results');if(results)results.innerHTML='';})();if((ev.ctrlKey||ev.metaKey)&&ev.key==='k'){ev.preventDefault();document.getElementById('global-search')?.focus();}if(ev.key==='Enter'&&ev.target.matches('.kanban-card'))ev.target.click();});
 document.addEventListener('click',ev=>{

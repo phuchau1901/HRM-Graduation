@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {NotificationService} from '../assets/js/services/notification-service.js';
-import {notificationRows,notificationTime,notificationEventInside,notificationTabs,filterNotificationItems} from '../assets/js/pages/notifications.js';
+import {notificationRows,notificationTime,notificationEventInside,notificationTabs,filterNotificationItems} from '../assets/js/pages/notifications/notifications.js';
 import {apiNotifications,apiNotificationUnreadCount,apiReadNotification,apiReadAllNotifications,login} from '../assets/js/api/client.js';
 
 const settle=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
@@ -105,7 +105,7 @@ test('restored notification categories filter API records without inferring cate
 });
 
 test('source classification places SYSTEM attendance in Attendance and WORKFLOW in Leave without overlap',async()=>{
- const {notificationCategory}=await import('../assets/js/pages/notifications.js');
+ const {notificationCategory}=await import('../assets/js/pages/notifications/notifications.js');
  const items=[{id:1,source:'SYSTEM',referenceType:null},{id:2,source:'SYSTEM',referenceType:'ATTENDANCE'},{id:3,source:'WORKFLOW',referenceType:'LEAVE_REQUEST'},{id:4,source:'WORKFLOW',referenceType:null},{id:5,source:'system',referenceType:'attendance'}];
  assert.deepEqual(filterNotificationItems(items,'system').map(item=>item.id),[1]);
  assert.deepEqual(filterNotificationItems(items,'attendance').map(item=>item.id),[2,5]);
@@ -114,7 +114,7 @@ test('source classification places SYSTEM attendance in Attendance and WORKFLOW 
  assert.equal(notificationCategory({source:'SYSTEM',referenceType:'TASK'}),'system');
 });
 test('notification popup renders category, full escaped content and timestamp without demo or connection notes',async()=>{
- const {notificationDetailMarkup}=await import('../assets/js/pages/notifications.js');
+ const {notificationDetailMarkup}=await import('../assets/js/pages/notifications/notifications.js');
  const base={title:'<img src=x>',content:'First line\n<script>bad</script>',publishedAt:'2026-11-16T03:00:00Z'};
  for(const [source,referenceType,label] of [['SYSTEM',null,'Thông báo chung'],['WORKFLOW',null,'Nghỉ phép'],['SYSTEM','ATTENDANCE','Chấm công']]){
   const html=notificationDetailMarkup({...base,source,referenceType});
@@ -122,7 +122,7 @@ test('notification popup renders category, full escaped content and timestamp wi
  }
 });
 test('opening unread notification calls the service API and already-read notifications only open detail',async()=>{
- const {openNotificationDetail}=await import('../assets/js/pages/notifications.js');
+ const {openNotificationDetail}=await import('../assets/js/pages/notifications/notifications.js');
  const calls=[],dialogs=[],service={snapshot:()=>({generation:1}),read:async id=>{calls.push(id);}};
  await openNotificationDetail({id:42,source:'SYSTEM',title:'Title',content:'Body',readAt:null},service,(...args)=>dialogs.push(args));
  assert.deepEqual(calls,[42]);assert.equal(dialogs[0][0],'Chi tiết thông báo');assert.ok(dialogs[0][1].includes('Thông báo chung'));
@@ -130,7 +130,7 @@ test('opening unread notification calls the service API and already-read notific
  assert.deepEqual(calls,[42]);assert.equal(dialogs.length,2);
 });
 test('notification read failure is shown in the popup without marking the item read locally',async()=>{
- const {openNotificationDetail}=await import('../assets/js/pages/notifications.js');
+ const {openNotificationDetail}=await import('../assets/js/pages/notifications/notifications.js');
  const original=globalThis.document,feedback={textContent:''},popup={isConnected:true,querySelector:()=>feedback},item={id:42,source:'SYSTEM',readAt:null};
  try{
   globalThis.document={getElementById:()=>popup};

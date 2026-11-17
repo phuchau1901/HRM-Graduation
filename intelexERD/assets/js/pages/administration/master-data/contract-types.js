@@ -1,6 +1,6 @@
-import {apiContractTypes,apiContractType,apiSaveContractType,apiDeleteContractType,apiSession} from '../api/client.js';
-import {e} from '../utils.js';
-import {field} from '../components/ui.js';
+import {apiContractTypes,apiContractType,apiSaveContractType,apiDeleteContractType,apiSession} from '../../../api/client.js';
+import {e} from '../../../utils.js';
+import {field} from '../../../components/ui.js';
 
 export function contractTypeGrant(flag,session=apiSession()){
  return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_CONTRACT_TYPES'&&p.canView==='Y'&&p[flag]==='Y');

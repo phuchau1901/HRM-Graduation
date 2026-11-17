@@ -1,6 +1,6 @@
-import {apiEmployees,apiEmployeeDetail,apiTransferEmployeeDepartment,apiUpdateEmployee,apiCreateEmployee,apiActiveDepartments,apiActivePositions,apiActiveTeams,apiSession} from '../api/client.js';
-import {e,dateLabel} from '../utils.js';
-import {details,field} from '../components/ui.js';
+import {apiEmployees,apiEmployeeDetail,apiTransferEmployeeDepartment,apiUpdateEmployee,apiCreateEmployee,apiActiveDepartments,apiActivePositions,apiActiveTeams,apiSession} from '../../api/client.js';
+import {e,dateLabel} from '../../utils.js';
+import {details,field} from '../../components/ui.js';
 
 const employeeStatuses={ACTIVE:'Đang làm việc',INACTIVE:'Ngừng hoạt động',TERMINATED:'Đã nghỉ việc'};
 const employeeValue=value=>e(value||'—');

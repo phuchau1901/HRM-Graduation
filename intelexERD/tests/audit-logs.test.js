@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {auditTime,auditQuery,auditChanges,auditPayloadView,redactAudit,auditActionNames} from '../assets/js/pages/audit-logs.js';
+import {auditTime,auditQuery,auditChanges,auditPayloadView,redactAudit,auditActionNames} from '../assets/js/pages/administration/audit-logs.js';
 import {apiAuditLogs,apiAuditLogDetail,login,apiSession} from '../assets/js/api/client.js';
 
 test('audit timestamps and local time filters explicitly use Vietnam and UTC',()=>{

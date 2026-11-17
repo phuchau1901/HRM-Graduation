@@ -4,10 +4,10 @@ globalThis.localStorage={data:new Map(),getItem(k){return this.data.get(k)||null
 const store=await import('../assets/js/store.js');
 const scope=await import('../assets/js/permissions.js');
 const utils=await import('../assets/js/utils.js');
-const dash=await import('../assets/js/pages/dashboard.js');
-const work=await import('../assets/js/pages/work.js');
-const ops=await import('../assets/js/pages/operations.js');
-const report=await import('../assets/js/pages/attendance-report.js');
+const dash=await import('../assets/js/pages/dashboard/dashboard.js');
+const work=await import('../assets/js/pages/shared/work.js');
+const ops=await import('../assets/js/pages/shared/operations.js');
+const report=await import('../assets/js/pages/reports/attendance-report.js');
 const {nav}=await import('../assets/js/router.js');
 const filters=()=>({search:'',status:'',team:'',project:'',date:'2026-10-19',page:1,size:10,view:'',tab:'',sort:''});
 test('Seed khớp KPI, quan hệ và trạng thái chấm công trong spec',()=>{

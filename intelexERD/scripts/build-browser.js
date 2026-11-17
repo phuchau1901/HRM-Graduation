@@ -8,8 +8,8 @@ import vm from 'node:vm';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const modules=[
  'api/client.js','services/notification-service.js','utils.js','data/seed.js','data/document-content.js','permissions.js',
- 'store.js','components/ui.js','components/dialog.js','pages/dashboard.js',
- 'pages/organization.js','pages/attendance-report.js','pages/notifications.js','pages/audit-logs.js','pages/system-settings.js','password-policy.js','pages/contracts.js','pages/contract-types.js','pages/master-data.js','pages/employees.js','pages/roles.js','pages/users.js','pages/work.js','pages/operations.js','router.js',
+ 'screen-navigation.js','store.js','components/ui.js','components/dialog.js','pages/dashboard/dashboard.js',
+ 'pages/human-resources/organization.js','pages/reports/attendance-report.js','pages/notifications/notifications.js','pages/administration/audit-logs.js','pages/administration/system-settings/approval-workflow-settings.js','pages/administration/system-settings/system-settings.js','password-policy.js','pages/approval-center/approvals.js','pages/human-resources/contracts.js','pages/administration/master-data/leave-types.js','pages/administration/master-data/contract-types.js','pages/administration/master-data/master-data.js','pages/human-resources/employees.js','pages/administration/roles.js','pages/administration/users.js','pages/shared/work.js','pages/shared/operations.js','router.js',
  'actions.js','app.js'
 ];
 const handbook=await readFile(path.join(root,'assets/documents/intelex-handbook.md'),'utf8');

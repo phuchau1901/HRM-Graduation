@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateShift} from '../assets/js/pages/master-data.js';
+import {validateShift} from '../assets/js/pages/administration/master-data/master-data.js';
 import {apiShifts,apiShiftDetail,apiSaveShift} from '../assets/js/api/client.js';
 const shift=()=>({code:'DAY',name:'Ca ngày',startTime:'08:00:00',endTime:'17:00:00',breakMinutes:60,lateGraceMinutes:5,isActive:true});
 test('shift validation accepts regular and overnight shifts, including default late grace',()=>{
