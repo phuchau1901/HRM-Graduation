@@ -9,6 +9,8 @@ public class LeaveBalance
     public long LeaveTypeID { get; set; }
     public short YearNo { get; set; }
     public decimal EntitledDays { get; set; }
+    public decimal CarriedOverDays { get; set; }
+    public decimal AdjustmentDays { get; set; }
     public decimal UsedDays { get; set; }
     public decimal ReservedDays { get; set; }
 }

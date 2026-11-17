@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "112 source-backed REST endpoints; 119 request examples. Leave/Overtime/Approval/Attendance adjustment APIs and configurable workflow. See docs/modules/Leave/API.md. Mutations are manual; no migrations/deployment are executed by this collection."
+    "description": "119 source-backed REST endpoints; 129 request examples. Leave/Overtime/Approval/Attendance adjustment APIs and configurable workflow. See docs/modules/Leave/API.md. Mutations are manual; no migrations/deployment are executed by this collection. Leave Balance Management: carried-over/adjustment/remaining/available amounts, scoped create-only bulk grants with operationId, adjustments with reason/version and balance audit history. See docs/modules/Leave/BALANCES_API.md. My leave balance and configurable monthly positional accrual/reset via System Settings; disabled sample policy. Approvals is now a parent module with Leave/Overtime/Attendance child examples; source endpoint count remains119."
   },
   "auth": {
     "type": "bearer",
@@ -237,6 +237,46 @@
     {
       "key": "approverEmployeeId",
       "value": "12",
+      "type": "string"
+    },
+    {
+      "key": "balanceId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "balanceVersion",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "balanceYear",
+      "value": "2027",
+      "type": "string"
+    },
+    {
+      "key": "balanceOperationId",
+      "value": "4d399a69-c94b-4615-b0bd-f0fb0ef3d62d",
+      "type": "string"
+    },
+    {
+      "key": "accrualSettingsVersion",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "accrualPositionId",
+      "value": "3",
+      "type": "string"
+    },
+    {
+      "key": "accrualEffectiveFrom",
+      "value": "2027-01-01",
+      "type": "string"
+    },
+    {
+      "key": "accrualResetOn",
+      "value": "2028-01-01",
       "type": "string"
     }
   ],
@@ -2524,7 +2564,7 @@
       ]
     },
     {
-      "name": "Leave, Overtime & Approval Workflow",
+      "name": "Leave / Overtime / Attendance Requests",
       "item": [
         {
           "name": "GET /leave-types",
@@ -2579,8 +2619,8 @@
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/leave-balances?page=1&pageSize=20&view=MY",
-            "description": "WEB_LEAVE_BALANCES / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+            "url": "{{baseUrl}}/api/leave-balances?page=1&pageSize=20&view=ALL&year={{balanceYear}}",
+            "description": "WEB_LEAVE_BALANCES/VIEW + employee scope. Optional departmentId,employeeId,leaveTypeId,search. Returns entitledDays,carriedOverDays,adjustmentDays,usedDays,reservedDays,remainingDays,availableDays,version. See docs/modules/Leave/BALANCES_API.md."
           },
           "response": []
         },
@@ -2590,10 +2630,10 @@
             "method": "PUT",
             "header": [],
             "url": "{{baseUrl}}/api/leave-balances",
-            "description": "WEB_LEAVE_BALANCES / UPDATE + scope DEPARTMENT/ALL. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "description": "WEB_LEAVE_BALANCES/UPDATE with DEPARTMENT/ALL; SELF denied. Version0 creates; use current balanceVersion when updating. Sets entitlement/carryover absolutely; does not change used/reserved/adjustment. Updates require reason. See docs/modules/Leave/BALANCES_API.md.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"employeeId\": {{employeeId}},\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"year\": 2027,\n  \"entitledDays\": 12,\n  \"version\": 0\n}",
+              "raw": "{\n  \"employeeId\": {{employeeId}},\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"year\": {{balanceYear}},\n  \"entitledDays\": 12,\n  \"carriedOverDays\": 2,\n  \"version\": {{balanceVersion}},\n  \"reason\": \"Annual allocation approved\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2768,35 +2808,15 @@
           "response": []
         },
         {
-          "name": "GET /approvals",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/api/approvals?page=1&pageSize=20&view=ALL",
-            "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
-          },
-          "response": []
-        },
-        {
-          "name": "GET /approvals/{id:long}",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/api/approvals/{{approvalId}}",
-            "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
-          },
-          "response": []
-        },
-        {
-          "name": "POST /approvals/{id:long}/approve",
+          "name": "POST /leave-balances/grants",
           "request": {
             "method": "POST",
             "header": [],
-            "url": "{{baseUrl}}/api/approvals/{{approvalId}}/approve",
-            "description": "WEB_APPROVALS / APPROVE + scope + assigned current step. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "url": "{{baseUrl}}/api/leave-balances/grants",
+            "description": "WEB_LEAVE_BALANCES/UPDATE + DEPARTMENT/ALL. Create-only batch; existing employee/type/year rows are skipped. Use EMPLOYEE with only employeeId, DEPARTMENT with only departmentId, or ALL with neither ID. Set balanceOperationId once for a new operation and preserve it with the same payload when retrying. Returns operationId,selected,created,skipped. Different payload/actor with same ID is409; narrowed scope replay is403. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+              "raw": "{\n  \"operationId\": \"{{balanceOperationId}}\",\n  \"target\": \"DEPARTMENT\",\n  \"departmentId\": {{departmentId}},\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"year\": {{balanceYear}},\n  \"entitledDays\": 12,\n  \"carriedOverDays\": 2,\n  \"reason\": \"Annual allocation approved\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2807,15 +2827,15 @@
           "response": []
         },
         {
-          "name": "POST /approvals/{id:long}/reject",
+          "name": "POST /leave-balances/{id:long}/adjustments",
           "request": {
             "method": "POST",
             "header": [],
-            "url": "{{baseUrl}}/api/approvals/{{approvalId}}/reject",
-            "description": "WEB_APPROVALS / APPROVE + scope + assigned current step. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "url": "{{baseUrl}}/api/leave-balances/{{balanceId}}/adjustments",
+            "description": "WEB_LEAVE_BALANCES/UPDATE + DEPARTMENT/ALL. Signed nonzero days, reason required, current version required. Cannot reduce available balance below0. Retrying old version is409, no duplicate adjustment. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+              "raw": "{\n  \"version\": {{balanceVersion}},\n  \"days\": -0.5,\n  \"reason\": \"Correct imported balance\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2826,35 +2846,45 @@
           "response": []
         },
         {
-          "name": "GET /approvals/{id:long}/history",
+          "name": "GET /leave-balances/{id:long}/history",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/approvals/{{approvalId}}/history?page=1&pageSize=20",
-            "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+            "url": "{{baseUrl}}/api/leave-balances/{{balanceId}}/history?page=1&pageSize=20",
+            "description": "WEB_LEAVE_BALANCES/VIEW + employee scope. Paginated latest-first audit history. Reason at afterJson.reason and updated balance at afterJson.balance; historical records may have older JSON shapes. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy."
           },
           "response": []
         },
         {
-          "name": "GET /approval-workflow-settings",
+          "name": "GET /leave-balances/me",
           "request": {
             "method": "GET",
             "header": [],
-            "url": "{{baseUrl}}/api/approval-workflow-settings",
-            "description": "WEB_APPROVAL_SETTINGS / VIEW. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+            "url": "{{baseUrl}}/api/leave-balances/me",
+            "description": "WEB_LEAVE_BALANCES/VIEW and linked Employee required. Defaults to current Asia/Ho_Chi_Minh year. Optional year,leaveTypeId. Always own employee even ALL; ignores attempts to select another employee. Response success/data with totalDays,usedDays,remainingDays,reservedDays,availableDays,balances. Missing linked employee403. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection."
           },
           "response": []
         },
         {
-          "name": "PUT /approval-workflow-settings",
+          "name": "GET /system-settings/leave-accrual",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/system-settings/leave-accrual",
+            "description": "WEB_SYSTEM_SETTINGS/VIEW. Returns version/settings; absent policy version0, enabledfalse. Read current version before saving. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /system-settings/leave-accrual",
           "request": {
             "method": "PUT",
             "header": [],
-            "url": "{{baseUrl}}/api/approval-workflow-settings",
-            "description": "WEB_APPROVAL_SETTINGS/UPDATE. USER selects an active employee by employeeId; backend resolves the active linked user and snapshots the employee/user assignment. Approve/reject recheck that the acting user is still linked to that employee. No HR role required for USER. HR legacy still uses userId/roleCode. Use current settings version. GET settings first and replace version=0 with the current version. PUT replaces all routes. TEAM_LEAD and DEPARTMENT_MANAGER automatically resolve managers from teams/departments; do not supply employeeId/userId for those steps. USER requires approverEmployeeId variable. Missing managers, repeated approvers or disallowed self-approval fail submission. Existing pending steps keep their assignment. See docs/modules/Leave/WORKFLOW_SETTINGS.md and migration 20261117043059_SnapshotApprovalEmployee; this collection does not apply migrations.",
+            "url": "{{baseUrl}}/api/system-settings/leave-accrual",
+            "description": "WEB_SYSTEM_SETTINGS/UPDATE AND WEB_LEAVE_BALANCES/UPDATE scopeALL. version is in body, not If-Match. Configure active positions, balance-tracked types, monthly day/rate, eligibility and first reset date/repetition. Sample disabled deliberately; review before enabling. New effectiveFrom cannot be backdated. Stale version409. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"version\": 0,\n  \"routes\": [\n    {\n      \"requestType\": \"LEAVE\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"TEAM_LEAD\"\n        },\n        {\n          \"approverType\": \"DEPARTMENT_MANAGER\"\n        },\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    },\n    {\n      \"requestType\": \"OVERTIME\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"DEPARTMENT_MANAGER\"\n        },\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    },\n    {\n      \"requestType\": \"ATTENDANCE_ADJUSTMENT\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    }\n  ]\n}",
+              "raw": "{\n  \"version\": {{accrualSettingsVersion}},\n  \"settings\": {\n    \"enabled\": false,\n    \"effectiveFrom\": \"{{accrualEffectiveFrom}}\",\n    \"accrualDay\": 15,\n    \"newHireEligibility\": \"ACTIVE_ON_DATE\",\n    \"resetOn\": \"{{accrualResetOn}}\",\n    \"repeatResetYearly\": true,\n    \"rules\": [\n      {\n        \"positionId\": {{accrualPositionId}},\n        \"leaveTypeId\": {{leaveTypeId}},\n        \"daysPerMonth\": 1.5\n      }\n    ]\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2863,6 +2893,169 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "POST /system-settings/leave-accrual/run",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/system-settings/leave-accrual/run",
+            "description": "Same global authority as settingsPUT. Runs saved, enabled, due schedules only using server Vietnam date. Does not force a future date or catch up previous months. Permanent period receipts prevent double accrual after retry/restart/concurrent run. Reset expires available days and preserves used/reserved history. Manual mutation; execute only in authorized test environment. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Approvals",
+      "description": "Shared approval engine with child modules. Module handlers apply domain changes at final approval/rejection inside the shared transaction. See docs/modules/Approvals/ARCHITECTURE.md.",
+      "item": [
+        {
+          "name": "Shared Workflow",
+          "item": [
+            {
+              "name": "GET /approvals",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/approvals?page=1&pageSize=20&view=ALL",
+                "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution. Owned by Modules/Approvals. Existing routes, permissions and payloads are preserved. Request types must be registered through IApprovalModule; max100 distinct configured types. See docs/modules/Approvals/API.md."
+              },
+              "response": []
+            },
+            {
+              "name": "GET /approvals/{id:long}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/approvals/{{approvalId}}",
+                "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution. Owned by Modules/Approvals. Existing routes, permissions and payloads are preserved. Request types must be registered through IApprovalModule; max100 distinct configured types. See docs/modules/Approvals/API.md."
+              },
+              "response": []
+            },
+            {
+              "name": "POST /approvals/{id:long}/approve",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{baseUrl}}/api/approvals/{{approvalId}}/approve",
+                "description": "WEB_APPROVALS / APPROVE + scope + assigned current step. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution. Owned by Modules/Approvals. Existing routes, permissions and payloads are preserved. Request types must be registered through IApprovalModule; max100 distinct configured types. See docs/modules/Approvals/API.md.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "POST /approvals/{id:long}/reject",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": "{{baseUrl}}/api/approvals/{{approvalId}}/reject",
+                "description": "WEB_APPROVALS / APPROVE + scope + assigned current step. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution. Owned by Modules/Approvals. Existing routes, permissions and payloads are preserved. Request types must be registered through IApprovalModule; max100 distinct configured types. See docs/modules/Approvals/API.md.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "name": "GET /approvals/{id:long}/history",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/approvals/{{approvalId}}/history?page=1&pageSize=20",
+                "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution. Owned by Modules/Approvals. Existing routes, permissions and payloads are preserved. Request types must be registered through IApprovalModule; max100 distinct configured types. See docs/modules/Approvals/API.md."
+              },
+              "response": []
+            },
+            {
+              "name": "GET /approval-workflow-settings",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/approval-workflow-settings",
+                "description": "WEB_APPROVAL_SETTINGS / VIEW. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution. Owned by Modules/Approvals. Existing routes, permissions and payloads are preserved. Request types must be registered through IApprovalModule; max100 distinct configured types. See docs/modules/Approvals/API.md."
+              },
+              "response": []
+            },
+            {
+              "name": "PUT /approval-workflow-settings",
+              "request": {
+                "method": "PUT",
+                "header": [],
+                "url": "{{baseUrl}}/api/approval-workflow-settings",
+                "description": "WEB_APPROVAL_SETTINGS/UPDATE. USER selects an active employee by employeeId; backend resolves the active linked user and snapshots the employee/user assignment. Approve/reject recheck that the acting user is still linked to that employee. No HR role required for USER. HR legacy still uses userId/roleCode. Use current settings version. GET settings first and replace version=0 with the current version. PUT replaces all routes. TEAM_LEAD and DEPARTMENT_MANAGER automatically resolve managers from teams/departments; do not supply employeeId/userId for those steps. USER requires approverEmployeeId variable. Missing managers, repeated approvers or disallowed self-approval fail submission. Existing pending steps keep their assignment. See docs/modules/Leave/WORKFLOW_SETTINGS.md and migration 20261117043059_SnapshotApprovalEmployee; this collection does not apply migrations. Owned by Modules/Approvals. Existing routes, permissions and payloads are preserved. Request types must be registered through IApprovalModule; max100 distinct configured types. See docs/modules/Approvals/API.md.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"version\": 0,\n  \"routes\": [\n    {\n      \"requestType\": \"LEAVE\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"TEAM_LEAD\"\n        },\n        {\n          \"approverType\": \"DEPARTMENT_MANAGER\"\n        },\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    },\n    {\n      \"requestType\": \"OVERTIME\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"DEPARTMENT_MANAGER\"\n        },\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    },\n    {\n      \"requestType\": \"ATTENDANCE_ADJUSTMENT\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Leave",
+          "item": [
+            {
+              "name": "GET /approvals — Leave",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/approvals?page=1&pageSize=20&module=LEAVE",
+                "description": "WEB_APPROVALS/VIEW + live employee scope. Child module filter applies before count/paging and never widens scope. Leave includes LEAVE and LEAVE_CANCELLATION. Unknown module400. See docs/modules/Approvals/API.md."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Overtime",
+          "item": [
+            {
+              "name": "GET /approvals — Overtime",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/approvals?page=1&pageSize=20&module=OVERTIME",
+                "description": "WEB_APPROVALS/VIEW + live employee scope. Child module filter applies before count/paging and never widens scope. Leave includes LEAVE and LEAVE_CANCELLATION. Unknown module400. See docs/modules/Approvals/API.md."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Attendance",
+          "item": [
+            {
+              "name": "GET /approvals — Attendance",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/approvals?page=1&pageSize=20&module=ATTENDANCE",
+                "description": "WEB_APPROVALS/VIEW + live employee scope. Child module filter applies before count/paging and never widens scope. Leave includes LEAVE and LEAVE_CANCELLATION. Unknown module400. See docs/modules/Approvals/API.md."
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }

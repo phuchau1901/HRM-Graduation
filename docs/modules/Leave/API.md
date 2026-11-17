@@ -9,8 +9,15 @@ Tất cả route dưới `/api`, bearer authentication, ScreenPermission và Bus
 | GET | /leave-types | WEB_LEAVE_TYPES / VIEW |
 | POST | /leave-types | WEB_LEAVE_TYPES / NEW |
 | PUT | /leave-types/{id:long} | WEB_LEAVE_TYPES / UPDATE |
+| GET | /leave-balances/me | WEB_LEAVE_BALANCES / VIEW + own linked Employee |
+| GET | /system-settings/leave-accrual | WEB_SYSTEM_SETTINGS / VIEW |
+| PUT | /system-settings/leave-accrual | WEB_SYSTEM_SETTINGS / UPDATE + WEB_LEAVE_BALANCES UPDATE/ALL |
+| POST | /system-settings/leave-accrual/run | WEB_SYSTEM_SETTINGS / UPDATE + WEB_LEAVE_BALANCES UPDATE/ALL |
 | GET | /leave-balances | WEB_LEAVE_BALANCES / VIEW + scope |
 | PUT | /leave-balances | WEB_LEAVE_BALANCES / UPDATE + scope DEPARTMENT/ALL |
+| POST | /leave-balances/grants | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |
+| POST | /leave-balances/{id:long}/adjustments | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |
+| GET | /leave-balances/{id:long}/history | WEB_LEAVE_BALANCES / VIEW + scope |
 | GET | /leave-requests | WEB_LEAVE_REQUESTS / VIEW + scope |
 | GET | /leave-requests/{id:long} | WEB_LEAVE_REQUESTS / VIEW + scope |
 | POST | /leave-requests | WEB_LEAVE_REQUESTS / NEW + own employee |
@@ -40,7 +47,7 @@ POST leave-types / PUT leave-types/{id}:
 ```
 PUT balances (version0 to create, GET current version to update; server manages used/reserved):
 ```json
-{"employeeId":12,"leaveTypeId":1,"year":2027,"entitledDays":12,"version":0}
+{"employeeId":12,"leaveTypeId":1,"year":2027,"entitledDays":12,"carriedOverDays":2,"version":0,"reason":"Cấp phép năm"}
 ```
 POST leave-requests:
 ```json
@@ -62,7 +69,7 @@ Cancel trả WorkflowReceipt `{id,approvalId,status,version}`. Duyệt trả App
 
 Approval detail: `{request:{id,requestType,referenceId,employeeId,employeeName,requestedByUserId,status,createdAt,version,currentStepNo},steps:[{id,stepNo,approverUserId,approverEmployeeId,decision,comment,decidedAt}],details:{...request data...}}`.
 History: list `{id,actorUserId,action,beforeJson,afterJson,createdAt}` từ AuditLog. Adjustment trước/sau được ghi với action ATTENDANCE_ADJUSTED.
-Balance DTO: `{id,employeeId,employeeName,leaveTypeId,leaveTypeName,year,entitledDays,usedDays,reservedDays,availableDays,version}`.
+Balance DTO: `{id,employeeId,employeeName,leaveTypeId,leaveTypeName,year,entitledDays,usedDays,reservedDays,carriedOverDays,adjustmentDays,remainingDays,availableDays,version}`.
 
 PUT approval-workflow-settings (GET lấy version hiện tại; danh sách routes thay toàn bộ cấu hình):
 ```json
@@ -83,7 +90,7 @@ PUT approval-workflow-settings (GET lấy version hiện tại; danh sách route
   ]
 }
 ```
-GET/PUT settings trả `{version,routes}`. Tối đa4 route khác loại, mỗi route1–10 bước. Thêm LEAVE_CANCELLATION để override quy trình hủy. Nhân viên không có Team có thể dùng luồng chỉ DEPARTMENT_MANAGER/USER; thiếu approver cấu hình báo400, không tự bỏ bước. Người vận hành đăng ký Screen/grants/scopes qua Administration API trước; xem [quy tắc và migration](README.md).
+GET/PUT settings trả `{version,routes}`. Tối đa100 route khác loại đã đăng ký, mỗi route1–10 bước. Thêm LEAVE_CANCELLATION để override quy trình hủy. Nhân viên không có Team có thể dùng luồng chỉ DEPARTMENT_MANAGER/USER; thiếu approver cấu hình báo400, không tự bỏ bước. Người vận hành đăng ký Screen/grants/scopes qua Administration API trước; xem [quy tắc và migration](README.md).
 
 Xem [hướng dẫn cấu hình và quyền](WORKFLOW_SETTINGS.md) cùng [payload JSON đầy đủ](../../API/approval-workflow-settings.sample.json). Employee12 là ví dụ; cần thay bằng nhân viên thực tế có tài khoản liên kết.
 
@@ -105,3 +112,15 @@ Dùng version từ GET khi cập nhật. USER bắt buộc employeeId của nhâ
 Khi gửi đơn, backend kiểm tra quyền/scope và chốt ApproverUserID cùng ApproverEmployeeId vào từng bước. Khi approve/reject, ngoài đúng UserID được giao, đúng thứ tự/version và APPROVE scope, phải còn liên kết users.employee_id đúng ApproverEmployeeId đã chốt; đổi/gỡ liên kết trả403, không thay đổi bước/số dư. Approval detail steps trả thêm approverEmployeeId. Chỉnh settings không đổi các bước của đơn đã gửi.
 
 Migration `20261117043059_SnapshotApprovalEmployee` thêm cột nullable approver_employee_id + index/FK trên approval_steps; không tạo lại bảng và không backfill dữ liệu cũ. Chưa apply. Cấu hình USER cũ chỉ có userId cần sửa sang employeeId trước khi gửi đơn mới. Bước cũ có approver_employee_id=null vẫn dùng UserID đã giao, vì không có snapshot lịch sử để xác minh lại nhân viên; không tự đoán/backfill. Bước HR có tài khoản không liên kết nhân viên vẫn hỗ trợ theo chính sách HR cũ.
+
+## Quản lý số dư phép mở rộng
+
+Xem [Leave Balance Management](BALANCES_API.md) để biết công thức còn lại/khả dụng, bộ lọc, cấp hàng loạt idempotent, điều chỉnh có lý do, lịch sử và migration. PUT số dư đã có bắt buộc reason.
+
+## Số dư của tôi và lịch cộng/reset phép hệ thống
+
+[Đặc tả /me và System Settings](ACCRUAL_SETTINGS.md): lấy tổng phép/đã dùng/còn lại, cấu hình suất cộng theo chức vụ, ngày cộng và ngày reset/lặp hằng năm. Chính sách disabled mặc định; không bật hoặc chạy trên DB thật trong đợt triển khai.
+
+## Approvals là module cha
+
+Các endpoint /approvals và /approval-workflow-settings chuyển controller/service sang [module Approvals](../Approvals/API.md), giữ nguyên URL/quyền/JSON. GET /approvals thêm query module=LEAVE để lọc nghỉ phép/hủy phép; không ảnh hưởng scope. UI chuẩn Approvals → Leave.

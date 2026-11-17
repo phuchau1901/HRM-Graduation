@@ -1,6 +1,6 @@
 # Leave — Nghỉ phép, tăng ca và phê duyệt
 
-[Hướng dẫn cấu hình quy trình duyệt](WORKFLOW_SETTINGS.md) · [API Specification](API.md) · [API Inventory](../../API/README.md) · [Postman](../../HRM-API.postman_collection.json)
+[My balance và lịch cộng/reset hệ thống](ACCRUAL_SETTINGS.md) · [Quản lý số dư phép](BALANCES_API.md) · [Approvals và cấu hình quy trình duyệt](../Approvals/WORKFLOW_SETTINGS.md) · [API Specification](API.md) · [API Inventory](../../API/README.md) · [Postman](../../HRM-API.postman_collection.json)
 
 Trạng thái: **IMPLEMENTED trong source**. Không đồng nghĩa đã apply migration, cấu hình quyền hoặc deploy.
 
@@ -8,7 +8,7 @@ Trạng thái: **IMPLEMENTED trong source**. Không đồng nghĩa đã apply mi
 
 Sáu entity `LeaveType`, `LeaveBalance`, `LeaveRequest`, `OvertimeRequest`, `ApprovalRequest`, `ApprovalStep` và bảng tương ứng đã có từ migration `20261019074710_InitialHRMDatabase`. Attendance cũng đã có `AttendanceAdjustment`; trước thay đổi này chưa có API nghiệp vụ cho những bảng này. Không tạo lại bảng.
 
-Bổ sung `LeaveWorkflowService` và controller với 23 endpoint: danh mục phép, cấp số dư, nghỉ phép, tăng ca, điều chỉnh công, quyết định/lịch sử phê duyệt và cấu hình luồng. Tái sử dụng EmployeeDataScope, NotificationService/outbox, AuditLog, SystemSetting và snapshot quy tắc Attendance.
+LeaveWorkflowService xử lý nghiệp vụ và dùng [engine Approvals](../Approvals/README.md) chung; tổng các API liên quan vẫn30 route: danh mục phép, cấp số dư, nghỉ phép, tăng ca, điều chỉnh công, quyết định/lịch sử phê duyệt và cấu hình luồng. Tái sử dụng EmployeeDataScope, NotificationService/outbox, AuditLog, SystemSetting và snapshot quy tắc Attendance.
 
 Frontend trước đó chưa có các màn hình Leave/Approval trong checkout. Bổ sung My Leave (`/#/hr/my-leave`), Team Leave (`/#/hr/team-leave`), Leave Management (`/#/hr/leave-management`), Approval Center (`/#/hr/approvals`) theo giao diện workspace hiện có. Dữ liệu API thật, lọc/phân trang, tạo/chi tiết/hủy, duyệt/từ chối, cấu hình luồng, lỗi và skeleton.
 
@@ -69,3 +69,11 @@ Concurrency tests chạy SQLite, không thay thế kiểm thử tải/deadlock t
 Migration `20261117014440_CompleteLeaveApprovalWorkflow` tạo các composite index thay thế trước khi DROP index đơn đang hỗ trợ khóa ngoại. Down khôi phục index đơn trước khi DROP composite index. Tests kiểm tra cả thứ tự operations và SQL MySQL ở hai chiều. Với lỗi DROP INDEX đầu tiên của bản migration cũ như log báo, migration dừng trước các thay đổi schema của migration này; sau khi cập nhật source có thể chạy lại cùng lệnh database update. Không tự drop foreign key hoặc tắt FOREIGN_KEY_CHECKS. Nếu lỗi ở bước sau trong một lần chạy khác, cần kiểm tra schema thực tế trước vì MySQL DDL có thể đã commit từng bước.
 
 USER là bước chọn nhân viên cụ thể qua employeeId, không yêu cầu role HR. Khi lưu kiểm tra nhân viên ACTIVE có tài khoản ACTIVE. Khi gửi đơn chốt UserID và EmployeeId vào bước; khi duyệt kiểm tra lại liên kết user-employee đúng snapshot. Frontend nhập Employee ID cho USER; HR cũ vẫn dùng User ID + Role code. Migration mới 20261117043059_SnapshotApprovalEmployee thêm snapshot nullable + FK/index, chưa apply; không backfill bước cũ. Xem API để biết xử lý cấu hình/bước legacy.
+
+## Leave Balance Management
+
+WEB_LEAVE_BALANCES có màn hình riêng Human Resources → Số dư phép tại /#/hr/leave-balances, dùng chung trong My Leave/Team Leave/Leave Management. Bổ sung phép chuyển năm và tổng điều chỉnh, số còn lại/khả dụng, cấp mới một nhân viên/phòng ban/phạm vi quản lý, lịch sử lý do và cấp hàng loạt idempotent. Chi tiết API, quy tắc và migration 20261117062126_ExtendLeaveBalanceManagement tại [BALANCES_API.md](BALANCES_API.md). Chuyển năm vẫn do người quản lý nhập theo chính sách đã duyệt. Cộng tháng/reset có thể cấu hình riêng qua [System Settings](ACCRUAL_SETTINGS.md), mặc định chưa bật. Không apply migration hoặc deploy.
+
+## Tách module Approvals
+
+ApprovalRequest/ApprovalStep, query/decision/settings controller và workflow engine chuyển sang Modules/Approvals. Phê duyệt nghỉ phép/hủy phép thuộc Modules/Approvals/Modules/Leave; nghiệp vụ quota dùng LeaveBalanceAccounting. Các loại tăng ca/điều chỉnh công có adapter riêng. [API cha và bộ lọc module](../Approvals/API.md) · [Cách thêm loại duyệt khác](../Approvals/ARCHITECTURE.md). Không đổi bảng hoặc tạo migration cho việc tách module.

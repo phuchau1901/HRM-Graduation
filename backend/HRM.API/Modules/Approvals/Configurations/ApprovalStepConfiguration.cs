@@ -1,9 +1,9 @@
 using HRM.API.Modules.Authorization.Entities;
-using HRM.API.Modules.Leave.Entities;
+using HRM.API.Modules.Approvals.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace HRM.API.Modules.Leave.Configurations;
+namespace HRM.API.Modules.Approvals.Configurations;
 
 public class ApprovalStepConfiguration : IEntityTypeConfiguration<ApprovalStep>
 {

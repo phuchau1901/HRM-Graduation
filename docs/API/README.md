@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **112 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **119 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -12,8 +12,9 @@ Có **112 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | Employees / Contracts / Contract Types / History | 19 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
 | Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow qua module Leave |
-| System Settings | 4 | IMPLEMENTED |
-| Leave / Overtime / Approvals / Adjustments / Workflow Settings | 23 | IMPLEMENTED |
+| System Settings | 7 | IMPLEMENTED |
+| Leave / Overtime / Adjustments / Balances | 20 | IMPLEMENTED |
+| Approvals / Workflow Settings | 7 | IMPLEMENTED; module cha với các module con |
 | Payroll / Timesheets | 0 | Model có, API MISSING |
 | Performance / KPI | 0 | Model có, API MISSING |
 | AuditLog (System) | 2 | IMPLEMENTED; WEB_AUDIT_LOGS/VIEW |
@@ -149,12 +150,37 @@ Employee GET list/detail giữ routes, quyền và pagination; EmployeeDto thêm
 | GET | `/api/attendance-adjustments` | [Leave](../modules/Leave/API.md) | WEB_ATTENDANCE_ADJUSTMENTS / VIEW + scope |
 | POST | `/api/attendance-adjustments` | [Leave](../modules/Leave/API.md) | WEB_ATTENDANCE_ADJUSTMENTS / NEW + own employee |
 | POST | `/api/attendance-adjustments/{id:long}/cancel` | [Leave](../modules/Leave/API.md) | WEB_ATTENDANCE_ADJUSTMENTS / UPDATE + own request |
-| GET | `/api/approvals` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / VIEW + scope |
-| GET | `/api/approvals/{id:long}` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / VIEW + scope |
-| POST | `/api/approvals/{id:long}/approve` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / APPROVE + scope + assigned current step |
-| POST | `/api/approvals/{id:long}/reject` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / APPROVE + scope + assigned current step |
-| GET | `/api/approvals/{id:long}/history` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / VIEW + scope |
-| GET | `/api/approval-workflow-settings` | [Leave](../modules/Leave/API.md) | WEB_APPROVAL_SETTINGS / VIEW |
-| PUT | `/api/approval-workflow-settings` | [Leave](../modules/Leave/API.md) | WEB_APPROVAL_SETTINGS / UPDATE |
+| GET | `/api/approvals` | [Approvals](../modules/Approvals/API.md) | WEB_APPROVALS / VIEW + scope |
+| GET | `/api/approvals/{id:long}` | [Approvals](../modules/Approvals/API.md) | WEB_APPROVALS / VIEW + scope |
+| POST | `/api/approvals/{id:long}/approve` | [Approvals](../modules/Approvals/API.md) | WEB_APPROVALS / APPROVE + scope + assigned current step |
+| POST | `/api/approvals/{id:long}/reject` | [Approvals](../modules/Approvals/API.md) | WEB_APPROVALS / APPROVE + scope + assigned current step |
+| GET | `/api/approvals/{id:long}/history` | [Approvals](../modules/Approvals/API.md) | WEB_APPROVALS / VIEW + scope |
+| GET | `/api/approval-workflow-settings` | [Approvals](../modules/Approvals/API.md) | WEB_APPROVAL_SETTINGS / VIEW |
+| PUT | `/api/approval-workflow-settings` | [Approvals](../modules/Approvals/API.md) | WEB_APPROVAL_SETTINGS / UPDATE |
 
 Hướng dẫn [Approval Workflow Settings](../modules/Leave/WORKFLOW_SETTINGS.md): TEAM_LEAD/DEPARTMENT_MANAGER tự lấy quản lý; USER chọn employeeId, kiểm tra lại liên kết User khi duyệt. [Payload mẫu](approval-workflow-settings.sample.json).
+
+## Leave Balance Management
+
+| Method | URL | Permission |
+| --- | --- | --- |
+| POST | `/api/leave-balances/grants` | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |
+| POST | `/api/leave-balances/{id:long}/adjustments` | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |
+| GET | `/api/leave-balances/{id:long}/history` | WEB_LEAVE_BALANCES / VIEW + scope |
+
+[Đặc tả số dư phép](../modules/Leave/BALANCES_API.md); GET/PUT balances hiện có được mở rộng, không thêm route trùng.
+
+## My balance và Leave Accrual Settings
+
+| Method | URL | Permission |
+| --- | --- | --- |
+| GET | `/api/leave-balances/me` | WEB_LEAVE_BALANCES VIEW + own Employee |
+| GET | `/api/system-settings/leave-accrual` | WEB_SYSTEM_SETTINGS VIEW |
+| PUT | `/api/system-settings/leave-accrual` | WEB_SYSTEM_SETTINGS UPDATE + WEB_LEAVE_BALANCES UPDATE/ALL |
+| POST | `/api/system-settings/leave-accrual/run` | Cùng quyền PUT, chỉ xử lý lịch đến hạn |
+
+[Đặc tả chính sách hệ thống và worker](../modules/Leave/ACCRUAL_SETTINGS.md).
+
+## Approvals — module cha
+
+Các7 endpoint /api/approvals* và /api/approval-workflow-settings chuyển sang ApprovalsController, giữ URL và quyền hiện có; tổng inventory119 không đổi. GET /api/approvals hỗ trợ module=LEAVE/OVERTIME/ATTENDANCE, lọc trước count/paging và trong scope. [Đặc tả Approvals](../modules/Approvals/API.md) · [Kiến trúc mở rộng](../modules/Approvals/ARCHITECTURE.md).

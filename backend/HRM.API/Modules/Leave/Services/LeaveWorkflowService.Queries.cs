@@ -1,3 +1,4 @@
+using HRM.API.Modules.Approvals.Entities;
 using HRM.API.Common;
 using HRM.API.Modules.Leave.DTOs;
 using HRM.API.Modules.Leave.Entities;
@@ -50,42 +51,5 @@ public sealed partial class LeaveWorkflowService
         var rows = await query.OrderByDescending(r => r.ID).Skip(Paging.Offset(q)).Take(q.PageSize).Select(r => new AdjustmentView(r.ID, r.EmployeeID, r.AttendanceID, r.ProposedCheckIn, r.ProposedCheckOut, r.Reason, r.Status, r.Version,
             db.Set<ApprovalRequest>().Where(a => a.RequestType == "ATTENDANCE_ADJUSTMENT" && a.ReferenceID == r.ID).OrderByDescending(a => a.ID).Select(a => (long?)a.ID).FirstOrDefault())).ToListAsync(ct);
         return new(true, total, q.Page, q.PageSize, rows);
-    }
-    private async Task<IQueryable<ApprovalRequest>> ApprovalQuery(string actor, WorkflowQuery q, CancellationToken ct)
-    {
-        var employees = await Visible(actor, Approvals, q, ct);
-        return db.Set<ApprovalRequest>().AsNoTracking().Where(a => employees.Any(e => e.Id == a.EmployeeId));
-    }
-    private IQueryable<ApprovalView> ApprovalProjection(IQueryable<ApprovalRequest> query) => from a in query join e in db.Employees.AsNoTracking() on a.EmployeeId equals (int?)e.Id
-        select new ApprovalView(a.ID, a.RequestType, a.ReferenceID, a.EmployeeId, e.FullName, a.RequestedByUserID, a.Status, a.CreatedAt, a.Version,
-            db.Set<ApprovalStep>().Where(s => s.ApprovalRequestID == a.ID && s.Decision == "PENDING").OrderBy(s => s.StepNo).Select(s => (int?)s.StepNo).FirstOrDefault());
-    public async Task<PageResult<ApprovalView>> ApprovalList(string actor, WorkflowQuery q, CancellationToken ct)
-    {
-        var query = await ApprovalQuery(actor, q, ct);
-        if (q.Status is not null) query = query.Where(a => a.Status == q.Status);
-        if (q.RequestType is not null) query = query.Where(a => a.RequestType == q.RequestType);
-        var total = await query.CountAsync(ct);
-        return new(true, total, q.Page, q.PageSize, await ApprovalProjection(query.OrderByDescending(a => a.ID).Skip(Paging.Offset(q)).Take(q.PageSize)).ToListAsync(ct));
-    }
-    public async Task<ApprovalDetail> ApprovalGet(string actor, long id, CancellationToken ct)
-    {
-        var row = await ApprovalProjection((await ApprovalQuery(actor, new(), ct)).Where(a => a.ID == id)).SingleOrDefaultAsync(ct) ?? throw BusinessException.Missing();
-        var steps = await db.Set<ApprovalStep>().AsNoTracking().Where(s => s.ApprovalRequestID == id).OrderBy(s => s.StepNo).Select(s => new ApprovalStepView(s.ID, s.StepNo, s.ApproverUserID, s.Decision, s.Comment, s.DecidedAt, s.ApproverEmployeeId)).ToListAsync(ct);
-        object? details = row.RequestType switch
-        {
-            "LEAVE" or "LEAVE_CANCELLATION" => await LeaveProjection(db.Set<LeaveRequest>().AsNoTracking().Where(r => r.ID == row.ReferenceId && r.EmployeeID == row.EmployeeId)).SingleOrDefaultAsync(ct),
-            "OVERTIME" => await OvertimeProjection(db.Set<OvertimeRequest>().AsNoTracking().Where(r => r.ID == row.ReferenceId && r.EmployeeID == row.EmployeeId)).SingleOrDefaultAsync(ct),
-            "ATTENDANCE_ADJUSTMENT" => await db.Set<AttendanceAdjustment>().AsNoTracking().SingleOrDefaultAsync(r => r.ID == row.ReferenceId && r.EmployeeID == row.EmployeeId, ct),
-            _ => null
-        };
-        return new(row, steps, details);
-    }
-    public async Task<PageResult<ApprovalHistoryView>> History(string actor, long id, WorkflowQuery q, CancellationToken ct)
-    {
-        if (!await (await ApprovalQuery(actor, new(), ct)).AnyAsync(a => a.ID == id, ct)) throw BusinessException.Missing();
-        var key = id.ToString(global::System.Globalization.CultureInfo.InvariantCulture);
-        var query = db.Set<AuditLog>().AsNoTracking().Where(a => a.EntityType == "ApprovalRequest" && a.EntityID == key);
-        var total = await query.CountAsync(ct);
-        return new(true, total, q.Page, q.PageSize, await query.OrderBy(a => a.ID).Skip(Paging.Offset(q)).Take(q.PageSize).Select(a => new ApprovalHistoryView(a.ID, a.ActorUserID, a.Action, a.BeforeJSON, a.AfterJSON, a.CreatedAt)).ToListAsync(ct));
     }
 }

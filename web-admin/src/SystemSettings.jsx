@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { can } from './api';
+import { LeaveAccrualSettings } from './LeaveAccrualSettings';
 const passwordNumbers = [['minimumLength', 'Độ dài tối thiểu', 1, 1024], ['maximumLength', 'Độ dài tối đa', 1, 1024], ['passwordHistoryCount', 'Số mật khẩu cũ cần ghi nhớ', 0, 100]];
 const passwordChecks = [['requireUppercase', 'Yêu cầu chữ hoa'], ['requireLowercase', 'Yêu cầu chữ thường'], ['requireDigit', 'Yêu cầu chữ số'], ['requireSpecialCharacter', 'Yêu cầu ký tự đặc biệt'], ['disallowUsernameInPassword', 'Không chứa tên tài khoản']];
 const attendanceNumbers = [['checkInBeforeStartMinutes', 'Check-in trước giờ bắt đầu (phút)', 0, 1440], ['checkInAfterStartMinutes', 'Check-in sau giờ bắt đầu (phút)', 0, 1440], ['checkOutBeforeEndMinutes', 'Check-out trước giờ kết thúc (phút)', 0, 1440], ['checkOutAfterEndMinutes', 'Check-out sau giờ kết thúc (phút)', 0, 1440], ['lateGraceMinutes', 'Đi trễ cho phép — mặc định khi tạo ca (phút)', 0, 240], ['earlyLeaveGraceMinutes', 'Về sớm cho phép (phút)', 0, 240]];
@@ -10,7 +11,7 @@ export function SystemSettings({ api, permissions }) {
   const allowed = can(permissions, 'WEB_SYSTEM_SETTINGS', 'VIEW'), editable = can(permissions, 'WEB_SYSTEM_SETTINGS', 'UPDATE');
   useEffect(() => {
     setView(null); setSettings(null); setError(''); setSuccess('');
-    if (!allowed) return;
+    if (!allowed || tab === 'leave-accrual') { setLoading(false); return; }
     const controller = new AbortController(); setLoading(true);
     api(`/system-settings/${tab}`, { signal: controller.signal }).then(value => { if (!controller.signal.aborted) { setView({ ...value, section: tab }); setSettings(value.settings); } })
       .catch(err => { if (!controller.signal.aborted) setError(err.message); }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -25,9 +26,9 @@ export function SystemSettings({ api, permissions }) {
     } catch (err) { setError(err.message); } finally { setSaving(false); }
   }
   const password = tab === 'password-policy';
-  return <><div className="page-title"><div><span className="eyebrow">SYSTEM SETTINGS</span><h1>Cấu hình hệ thống</h1><p>Chính sách mật khẩu và quy tắc chấm công dùng chung.</p></div></div>
-    <div className="tabs"><button className={password ? 'selected' : ''} disabled={saving} onClick={() => setTab('password-policy')}>Password Policy</button><button className={!password ? 'selected' : ''} disabled={saving} onClick={() => setTab('attendance')}>Attendance Settings</button></div>
-    {!allowed ? <p>Bạn chưa có quyền xem cấu hình hệ thống.</p> : (loading || settings && view?.section !== tab) ? <p role="status">Đang tải cấu hình…</p> : settings && <form className="card editor settings-editor" onSubmit={save}>
+  return <><div className="page-title"><div><span className="eyebrow">SYSTEM SETTINGS</span><h1>Cấu hình hệ thống</h1><p>Chính sách mật khẩu, chấm công và tự động cộng/reset phép.</p></div></div>
+    <div className="tabs"><button className={password ? 'selected' : ''} disabled={saving} onClick={() => setTab('password-policy')}>Password Policy</button><button className={tab === 'attendance' ? 'selected' : ''} disabled={saving} onClick={() => setTab('attendance')}>Attendance Settings</button><button className={tab === 'leave-accrual' ? 'selected' : ''} disabled={saving} onClick={() => setTab('leave-accrual')}>Leave Accrual Settings</button></div>
+    {tab === 'leave-accrual' ? <LeaveAccrualSettings api={api} permissions={permissions} /> : !allowed ? <p>Bạn chưa có quyền xem cấu hình hệ thống.</p> : (loading || settings && view?.section !== tab) ? <p role="status">Đang tải cấu hình…</p> : settings && <form className="card editor settings-editor" onSubmit={save}>
       <h2>{password ? 'Chính sách mật khẩu' : 'Cấu hình chấm công'}</h2><p>{password ? 'Áp dụng khi tạo hoặc đổi mật khẩu. Mật khẩu hiện tại và các phiên đăng nhập được giữ nguyên.' : 'Quy tắc được lưu theo lịch phân ca để bảo toàn kết quả lịch sử. Mỗi ca có mức đi trễ riêng; giá trị ở đây là mặc định cho ca mới.'}</p>
       <fieldset disabled={!editable || saving}><div className="form-grid">{(password ? passwordNumbers : attendanceNumbers).map(([key, label, min, max]) => <label key={key}>{label}<input type="number" min={min} max={max} step="1" required value={settings[key]} onChange={e => field(key, e.target.value === '' ? '' : Number(e.target.value))} /></label>)}</div>
       {(password ? passwordChecks : attendanceChecks).map(([key, label]) => <label className="checkbox" key={key}><input type="checkbox" checked={settings[key]} onChange={e => field(key, e.target.checked)} />{label}</label>)}

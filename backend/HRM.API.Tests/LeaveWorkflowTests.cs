@@ -23,7 +23,7 @@ using AttendanceEntity = HRM.API.Modules.Attendance.Entities.Attendance;
 namespace HRM.API.Tests;
 public sealed class LeaveWorkflowTests
 {
-    private sealed class Fixture : IAsyncDisposable
+    internal sealed class Fixture : IAsyncDisposable
     {
         internal EmployeeApiTests.Harness H = null!;
         internal long TypeId;
@@ -273,7 +273,7 @@ public sealed class LeaveWorkflowTests
         try
         {
             await using var f = await Fixture.Create(path); var balance = await f.Balance();
-            (await f.H.Client.PutAsJsonAsync("/api/leave-balances", new { employeeId = f.H.Self, leaveTypeId = f.TypeId, year = 2026, entitledDays = 2, version = balance.Version })).EnsureSuccessStatusCode();
+            (await f.H.Client.PutAsJsonAsync("/api/leave-balances", new { employeeId = f.H.Self, leaveTypeId = f.TypeId, year = 2026, entitledDays = 2, version = balance.Version, reason = "Reduce allocation for concurrency test" })).EnsureSuccessStatusCode();
             var responses = await Task.WhenAll(f.H.Client.PostAsJsonAsync("/api/leave-requests", f.LeaveBody()), f.H.Client.PostAsJsonAsync("/api/leave-requests", f.LeaveBody("2026-11-25", "2026-11-26")));
             Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Created); Assert.Single(responses, r => r.StatusCode == HttpStatusCode.Conflict);
             Assert.Equal(2, (await f.Balance()).ReservedDays);

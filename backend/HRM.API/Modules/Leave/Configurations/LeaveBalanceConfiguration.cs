@@ -18,6 +18,8 @@ public class LeaveBalanceConfiguration : IEntityTypeConfiguration<LeaveBalance>
         entity.Property(x => x.LeaveTypeID).HasColumnName("leave_type_id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.YearNo).HasColumnName("year_no").HasColumnType("smallint").IsRequired();
         entity.Property(x => x.EntitledDays).HasColumnName("entitled_days").HasColumnType("decimal(7,2)").HasPrecision(7, 2).IsRequired().HasDefaultValue(0.00m);
+        entity.Property(x => x.CarriedOverDays).HasColumnName("carried_over_days").HasColumnType("decimal(7,2)").HasPrecision(7, 2).HasDefaultValue(0m);
+        entity.Property(x => x.AdjustmentDays).HasColumnName("adjustment_days").HasColumnType("decimal(7,2)").HasPrecision(7, 2).HasDefaultValue(0m);
         entity.Property(x => x.UsedDays).HasColumnName("used_days").HasColumnType("decimal(7,2)").HasPrecision(7, 2).IsRequired().HasDefaultValue(0.00m);
         entity.Property(x => x.ReservedDays).HasColumnName("reserved_days").HasColumnType("decimal(7,2)").HasPrecision(7, 2).IsRequired().HasDefaultValue(0.00m);
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeID).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_leave_balances_employee_id");

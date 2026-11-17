@@ -133,7 +133,16 @@ builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationSer
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.TeamService>();
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationTreeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeDataScope>();
+builder.Services.AddScoped<HRM.API.Modules.Leave.Services.LeaveBalanceAccounting>();
+builder.Services.AddScoped<HRM.API.Modules.Approvals.Services.ApprovalWorkflowService>();
+builder.Services.AddScoped<HRM.API.Modules.Approvals.Services.IApprovalModule, HRM.API.Modules.Approvals.Modules.Leave.LeaveApprovalModule>();
+builder.Services.AddScoped<HRM.API.Modules.Approvals.Services.IApprovalModule, HRM.API.Modules.Approvals.Modules.Overtime.OvertimeApprovalModule>();
+builder.Services.AddScoped<HRM.API.Modules.Approvals.Services.IApprovalModule, HRM.API.Modules.Approvals.Modules.Attendance.AttendanceAdjustmentApprovalModule>();
 builder.Services.AddScoped<HRM.API.Modules.Leave.Services.LeaveWorkflowService>();
+builder.Services.AddOptions<HRM.API.Modules.Leave.Services.LeaveAccrualWorkerOptions>()
+    .Bind(builder.Configuration.GetSection("LeaveAccrual"))
+    .Validate(o => o.PollSeconds is >= 30 and <= 3600, "LeaveAccrual PollSeconds must be between 30 and 3600.").ValidateOnStart();
+builder.Services.AddHostedService<HRM.API.Modules.Leave.Services.LeaveAccrualWorker>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractTypeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractNumberGenerator>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractStatisticsService>();

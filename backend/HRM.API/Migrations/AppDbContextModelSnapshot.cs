@@ -899,7 +899,7 @@ namespace HRM.API.Migrations
                     b.ToTable("employee_histories", (string)null);
                 });
 
-            modelBuilder.Entity("HRM.API.Modules.Leave.Entities.ApprovalRequest", b =>
+            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalRequest", b =>
                 {
                     b.Property<long>("ID")
                         .ValueGeneratedOnAdd()
@@ -962,7 +962,7 @@ namespace HRM.API.Migrations
                     b.ToTable("approval_requests", (string)null);
                 });
 
-            modelBuilder.Entity("HRM.API.Modules.Leave.Entities.ApprovalStep", b =>
+            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalStep", b =>
                 {
                     b.Property<long>("ID")
                         .ValueGeneratedOnAdd()
@@ -1026,6 +1026,20 @@ namespace HRM.API.Migrations
                         .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<decimal>("AdjustmentDays")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(7, 2)
+                        .HasColumnType("decimal(7,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("adjustment_days");
+
+                    b.Property<decimal>("CarriedOverDays")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(7, 2)
+                        .HasColumnType("decimal(7,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("carried_over_days");
 
                     b.Property<int>("EmployeeID")
                         .HasColumnType("int")
@@ -2046,6 +2060,8 @@ namespace HRM.API.Migrations
 
                     b.HasIndex("ActorUserID");
 
+                    b.HasIndex("EntityType", "EntityID");
+
                     b.ToTable("audit_logs", (string)null);
                 });
 
@@ -2462,7 +2478,7 @@ namespace HRM.API.Migrations
                         .HasConstraintName("fk_employee_histories_old_position_id");
                 });
 
-            modelBuilder.Entity("HRM.API.Modules.Leave.Entities.ApprovalRequest", b =>
+            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalRequest", b =>
                 {
                     b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
                         .WithMany()
@@ -2477,9 +2493,9 @@ namespace HRM.API.Migrations
                         .HasConstraintName("fk_approval_requests_requested_by_user_id");
                 });
 
-            modelBuilder.Entity("HRM.API.Modules.Leave.Entities.ApprovalStep", b =>
+            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalStep", b =>
                 {
-                    b.HasOne("HRM.API.Modules.Leave.Entities.ApprovalRequest", null)
+                    b.HasOne("HRM.API.Modules.Approvals.Entities.ApprovalRequest", null)
                         .WithMany()
                         .HasForeignKey("ApprovalRequestID")
                         .OnDelete(DeleteBehavior.Restrict)

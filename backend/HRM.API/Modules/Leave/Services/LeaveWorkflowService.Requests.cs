@@ -1,3 +1,4 @@
+using HRM.API.Modules.Approvals.Entities;
 using HRM.API.Common;
 using HRM.API.Modules.Employees.Entities;
 using HRM.API.Modules.Leave.DTOs;
@@ -30,32 +31,16 @@ public sealed partial class LeaveWorkflowService
     public async Task<PageResult<BalanceView>> LeaveBalances(string actor, WorkflowQuery q, CancellationToken ct)
     {
         var employees = await Visible(actor, Balances, q, ct);
+        if (q.DepartmentId.HasValue) employees = employees.Where(e => e.DepartmentId == q.DepartmentId);
         var query = from b in db.Set<LeaveBalance>().AsNoTracking() join e in employees on b.EmployeeID equals e.Id join t in db.Set<LeaveType>() on b.LeaveTypeID equals t.ID
-                    where !q.Year.HasValue || b.YearNo == q.Year select new { Balance = b, Employee = e, Type = t };
+                    where (!q.Year.HasValue || b.YearNo == q.Year) && (!q.LeaveTypeId.HasValue || b.LeaveTypeID == q.LeaveTypeId) && (q.Search == null || e.FullName.Contains(q.Search) || e.EmployeeCode.Contains(q.Search)) select new { Balance = b, Employee = e, Type = t };
         var total = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.Employee.Id).ThenBy(x => x.Type.ID).ThenBy(x => x.Balance.YearNo).Skip(Paging.Offset(q)).Take(q.PageSize)
             .Select(x => new BalanceView(x.Balance.ID, x.Employee.Id, x.Employee.FullName, x.Type.ID, x.Type.Name, x.Balance.YearNo, x.Balance.EntitledDays, x.Balance.UsedDays,
-                x.Balance.ReservedDays, x.Balance.EntitledDays - x.Balance.UsedDays - x.Balance.ReservedDays, x.Balance.Version)).ToListAsync(ct);
+                x.Balance.ReservedDays, x.Balance.EntitledDays + x.Balance.CarriedOverDays + x.Balance.AdjustmentDays - x.Balance.UsedDays - x.Balance.ReservedDays, x.Balance.Version, x.Balance.CarriedOverDays, x.Balance.AdjustmentDays, x.Balance.EntitledDays + x.Balance.CarriedOverDays + x.Balance.AdjustmentDays - x.Balance.UsedDays)).ToListAsync(ct);
         return new(true, total, q.Page, q.PageSize, rows);
     }
 
-    public Task<BalanceView> SaveBalance(string actor, BalanceRequest request, CancellationToken ct) => Transaction(async () =>
-    {
-        var access = await scopes.GetAsync(actor, Balances, "UPDATE", ct); access.DemandWrite();
-        var employee = await access.Apply(db.Employees).SingleOrDefaultAsync(e => e.Id == request.EmployeeId, ct) ?? throw BusinessException.Missing();
-        await db.Employees.Where(e => e.Id == employee.Id).ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt), ct);
-        var type = await db.Set<LeaveType>().FindAsync([request.LeaveTypeId], ct) ?? throw BusinessException.Invalid("Unknown leave type.");
-        if (decimal.Round(request.EntitledDays, 2) != request.EntitledDays) throw BusinessException.Invalid("Entitlement allows at most two decimals.");
-        var balance = await db.Set<LeaveBalance>().SingleOrDefaultAsync(b => b.EmployeeID == employee.Id && b.LeaveTypeID == type.ID && b.YearNo == request.Year, ct);
-        if ((balance?.Version ?? 0) != request.Version) throw BusinessException.Conflict("Balance changed; reload.");
-        var before = balance is null ? null : Json(balance);
-        if (balance is null) { balance = new LeaveBalance { EmployeeID = employee.Id, LeaveTypeID = type.ID, YearNo = request.Year }; db.Add(balance); }
-        if (request.EntitledDays < balance.UsedDays + balance.ReservedDays) throw BusinessException.Conflict("Entitlement cannot be below used plus reserved days.");
-        balance.EntitledDays = request.EntitledDays; if (request.Version > 0) balance.Version++;
-        await db.SaveChangesAsync(ct);
-        db.Add(new HRM.API.Modules.System.Entities.AuditLog { ActorUserID = actor, EntityType = "LeaveBalance", EntityID = balance.ID.ToString(), Action = "LEAVE_BALANCE_UPDATED", BeforeJSON = before, AfterJSON = Json(balance), CreatedAt = Now });
-        return new BalanceView(balance.ID, employee.Id, employee.FullName, type.ID, type.Name, balance.YearNo, balance.EntitledDays, balance.UsedDays, balance.ReservedDays, balance.EntitledDays - balance.UsedDays - balance.ReservedDays, balance.Version);
-    }, ct);
     public Task<WorkflowReceipt> CreateLeave(string actor, LeaveCreateRequest request, CancellationToken ct) => Transaction(async () =>
     {
         var employee = await Own(actor, Leave, "NEW", ct);
@@ -72,8 +57,10 @@ public sealed partial class LeaveWorkflowService
             var days = year.Count(); total += days;
             if (!type.RequiresBalance) continue;
             var balance = await db.Set<LeaveBalance>().SingleOrDefaultAsync(b => b.EmployeeID == employee.Id && b.LeaveTypeID == type.ID && b.YearNo == year.Key, ct) ?? throw BusinessException.Invalid("Leave balance is not configured for every requested year.");
-            if (balance.EntitledDays - balance.UsedDays - balance.ReservedDays < days) throw BusinessException.Conflict("Insufficient available leave balance.");
+            if (balance.EntitledDays + balance.CarriedOverDays + balance.AdjustmentDays - balance.UsedDays - balance.ReservedDays < days) throw BusinessException.Conflict("Insufficient available leave balance.");
+            var before = Json(balance);
             balance.ReservedDays += days; balance.Version++; allocations.Add(new(balance.ID, days));
+            BalanceAudit(actor, balance, "LEAVE_BALANCE_RESERVED", before, "Leave request submitted");
         }
         if (total == 0) throw BusinessException.Invalid("Range contains no configured working days.");
         var row = new LeaveRequest { EmployeeID = employee.Id, LeaveTypeID = type.ID, FromDate = request.FromDate, ToDate = request.ToDate, RequestedDays = total, Reason = request.Reason.Trim(), Status = "PENDING", CreatedAt = Now, BalanceAllocationJson = Json(allocations) };
@@ -90,16 +77,9 @@ public sealed partial class LeaveWorkflowService
         db.Add(row); await db.SaveChangesAsync(ct); var approval = await Start(actor, employee, "OVERTIME", row.ID, ct);
         return new WorkflowReceipt(row.ID, approval.ID, row.Status, row.Version);
     }, ct);
-    private static string AttendanceSnapshot(AttendanceEntity row) => Json(new { row.CheckInAt, row.CheckOutAt, row.CheckInQRID, row.CheckOutQRID, row.LateMinutes, row.EarlyMinutes, row.Status });
+    private static string AttendanceSnapshot(AttendanceEntity row) => HRM.API.Modules.Attendance.Services.AttendanceCorrectionRules.Snapshot(row);
     private AttendanceRuleSnapshot ValidateCorrection(WorkSchedule schedule, DateTime? checkIn, DateTime? checkOut)
-    {
-        if (schedule.Status == "CANCELLED" || schedule.RulesSnapshotJson is null) throw BusinessException.Conflict("Schedule is cancelled or has no rules snapshot.");
-        var rules = Read<AttendanceRuleSnapshot>(schedule.RulesSnapshotJson);
-        if ((!checkIn.HasValue && !checkOut.HasValue) || checkOut < checkIn || checkOut == checkIn || checkIn > Now || checkOut > Now ||
-            checkIn < rules.CheckInOpenUtc || checkIn > rules.CheckOutCloseUtc || checkOut < rules.CheckInOpenUtc || checkOut > rules.CheckOutCloseUtc)
-            throw BusinessException.Invalid("Correction timestamps must be past, ordered and inside the schedule's correction envelope.");
-        return rules;
-    }
+        => HRM.API.Modules.Attendance.Services.AttendanceCorrectionRules.Validate(schedule, checkIn, checkOut, clock);
     public Task<WorkflowReceipt> CreateAdjustment(string actor, AdjustmentCreateRequest request, CancellationToken ct) => Transaction(async () =>
     {
         var employee = await Own(actor, Adjustments, "NEW", ct);

@@ -1,0 +1,18 @@
+{
+  "version": 0,
+  "settings": {
+    "enabled": false,
+    "effectiveFrom": "2027-01-01",
+    "accrualDay": 15,
+    "newHireEligibility": "ACTIVE_ON_DATE",
+    "resetOn": "2028-01-01",
+    "repeatResetYearly": true,
+    "rules": [
+      {
+        "positionId": 3,
+        "leaveTypeId": 1,
+        "daysPerMonth": 1.5
+      }
+    ]
+  }
+}

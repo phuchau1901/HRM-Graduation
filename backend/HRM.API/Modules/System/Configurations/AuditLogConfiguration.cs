@@ -11,6 +11,7 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
     {
         entity.ToTable("audit_logs");
         entity.HasKey(x => x.ID);
+        entity.HasIndex(x => new { x.EntityType, x.EntityID });
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.ActorUserID).HasColumnName("actor_user_id").HasColumnType("varchar(100)").HasMaxLength(100).IsRequired(false);
         entity.Property(x => x.Action).HasColumnName("action").HasColumnType("varchar(100)").HasMaxLength(100).IsRequired();

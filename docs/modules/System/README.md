@@ -9,3 +9,7 @@ Các quyền cần được quản trị viên đăng ký/cấp có chọn lọc
 Migration mới: `20261114112511_AddSystemSettingsAndAttendanceRules`. Chỉ tạo hai bảng mới system_settings/password_histories, thêm version/snapshot/index trên bảng có sẵn và hai dòng settings mặc định. Không apply DB, không seed user/role/grant, không backfill giờ cũ, không deploy. Snapshot lịch cũ để null, yêu cầu review rõ ràng trước khi sử dụng cho punch mới.
 
 AuditLog: `GET /api/audit-logs` (lọc/phân trang) và `GET /api/audit-logs/{id}` (before/after). Cả hai yêu cầu quyền riêng `WEB_AUDIT_LOGS/VIEW` cho audit toàn hệ thống; không cấp grant tự động. Không cần migration.
+
+## Lịch phép tự động
+
+System Settings → Leave Accrual Settings cấu hình suất cộng theo PositionId, ngày cộng tháng, điều kiện nhân viên mới và ngày reset có lặp năm. [API và chính sách](../Leave/ACCRUAL_SETTINGS.md). Cấu hình disabled mặc định; không tự chạy migration/deploy. Quyền lưu/chạy cần thêm WEB_LEAVE_BALANCES UPDATE scope ALL vì tác động số dư toàn hệ thống.

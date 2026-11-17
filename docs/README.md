@@ -4,7 +4,7 @@ Tài liệu được tổ chức theo module, đối chiếu source tại `backe
 
 ## Bắt đầu
 
-- [API Inventory — 112 REST endpoint và SignalR](API/README.md)
+- [API Inventory — 119 REST endpoint và SignalR](API/README.md)
 - [Cấu hình và chạy local](guides/DEVELOPMENT.md)
 - [Quy ước HTTP, lỗi, phân quyền và CORS](guides/CONVENTIONS.md)
 - [Database và migrations](guides/DATABASE.md)
@@ -21,6 +21,7 @@ Tài liệu được tổ chức theo module, đối chiếu source tại `backe
 | [Employees](modules/Employees/README.md) | Hồ sơ, hợp đồng, lịch sử, data scope | API có |
 | [Notifications](modules/Notifications/README.md) | Target, inbox, outbox, worker, SignalR | API có; FCM chưa có |
 | [Attendance](modules/Attendance/README.md) | Ca/lịch/công/QR qua System; hiệu chỉnh qua Leave workflow | API có |
+| [Approvals](modules/Approvals/README.md) | Engine phê duyệt chung, module con Leave/Overtime/Attendance | API có |
 | [Leave](modules/Leave/README.md) | Nghỉ phép, tăng ca, approval, điều chỉnh công | API có |
 | [Payroll](modules/Payroll/README.md) | Lương và bảng công | Chỉ model; API chưa có |
 | [Performance](modules/Performance/README.md) | KPI và đánh giá | Chỉ model; API chưa có |
