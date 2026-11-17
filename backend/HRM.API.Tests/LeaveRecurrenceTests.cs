@@ -92,7 +92,7 @@ public sealed class LeaveRecurrenceTests
         Assert.Equal(1, run.ExpiredBalances); Assert.Equal(0, run.CreditedBalances); Assert.Equal(0, (await f.Balance()).AvailableDays);
     }
     [Fact]
-    public async Task MissingAnnualCatalogAndRetroactiveScheduleChangesAreRejected()
+    public async Task InvalidIntervalsAndMissingAnnualCatalogAreRejected()
     {
         await using var f = await Fixture.Create(); var position = await Prepare(f); var policy = Policy(position);
         policy.Settings.AccrualSchedule!.Interval = 0;
@@ -100,7 +100,8 @@ public sealed class LeaveRecurrenceTests
         policy.Settings.AccrualSchedule.Interval = 2;
         (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).EnsureSuccessStatusCode();
         Date(f, new(2027, 1, 17)); policy.Version = 1; policy.Settings.AccrualSchedule.Interval = 1;
-        Assert.Equal(HttpStatusCode.BadRequest, (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).StatusCode);
+        (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).EnsureSuccessStatusCode();
+        policy.Version = 2;
         Date(f, new(2026, 11, 17)); policy.Settings.AccrualSchedule.Interval = 2; policy.Settings.Rules[0].LeaveTypeId = null;
         using (var scope = f.H.App.Services.CreateScope()) await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<LeaveType>().Where(t => t.ID == f.TypeId).ExecuteUpdateAsync(s => s.SetProperty(t => t.Code, "OTHER"));
         Assert.Equal(HttpStatusCode.BadRequest, (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).StatusCode);
@@ -113,6 +114,29 @@ public sealed class LeaveRecurrenceTests
         (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).EnsureSuccessStatusCode();
         Assert.Equal(0, (await Run(f)).CreditedBalances);
         Date(f, new(2027, 1, 1)); Assert.Equal(1, (await Run(f)).CreditedBalances);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OverdueCycleCreatesMissingQuotaAndRetriesOldZeroReceipt(bool oldReceipt)
+    {
+        await using var f = await Fixture.Create(); var position = await Prepare(f, peer: true); var policy = Policy(position, 1);
+        policy.Settings.AccrualSchedule!.StartDate = new(2026, 10, 16);
+        (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).EnsureSuccessStatusCode();
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Employees.Where(e => e.Id == f.H.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.PositionId, (long?)null));
+            if (oldReceipt) { db.Add(new HRM.API.Modules.System.Entities.AuditLog { EntityType = "LeaveAutomation", EntityID = "accrual-cycle:20261116", Action = "LEAVE_ACCRUAL_COMPLETED", AfterJSON = "{\"creditedBalances\":0}", CreatedAt = DateTime.UtcNow }); await db.SaveChangesAsync(); }
+        }
+        var empty = await Run(f); Assert.Equal("NO_MATCHING_EMPLOYEES", empty.Status); Assert.Equal(new DateOnly(2026, 11, 16), empty.NextAccrualDate);
+        using (var scope = f.H.App.Services.CreateScope()) await scope.ServiceProvider.GetRequiredService<AppDbContext>().Employees.Where(e => e.Id == f.H.Peer).ExecuteUpdateAsync(s => s.SetProperty(e => e.PositionId, position));
+        var result = await Run(f); Assert.Equal(1, result.CreditedBalances); Assert.Equal(new DateOnly(2026, 11, 16), result.AccrualDueDate); Assert.Equal(new DateOnly(2026, 12, 16), result.NextAccrualDate);
+        Assert.True((await Run(f)).AccrualAlreadyProcessed);
+        var settings = (await f.H.Client.GetFromJsonAsync<LeaveAccrualSettingsView>("/api/system-settings/leave-accrual"))!;
+        Assert.Equal(new DateOnly(2026, 10, 16), settings.Settings.AccrualSchedule!.StartDate); Assert.Equal(result.NextAccrualDate, settings.NextAccrualDate);
+        using var check = f.H.App.Services.CreateScope(); Assert.Equal(3, (await check.ServiceProvider.GetRequiredService<AppDbContext>().Set<LeaveBalance>().SingleAsync(b => b.EmployeeID == f.H.Peer)).EntitledDays);
     }
 
 }

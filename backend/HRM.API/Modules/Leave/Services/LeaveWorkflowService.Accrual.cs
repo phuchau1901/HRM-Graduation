@@ -1,3 +1,4 @@
+using System.Text.Json;
 using HRM.API.Common;
 using HRM.API.Modules.Leave.DTOs;
 using HRM.API.Modules.Leave.Entities;
@@ -24,7 +25,64 @@ public sealed partial class LeaveWorkflowService
     private async Task<long?> AnnualLeaveType(CancellationToken ct) => await db.Set<LeaveType>().AsNoTracking()
         .Where(t => t.Code == "ANNUAL" && t.IsActive && t.RequiresBalance).Select(t => (long?)t.ID).SingleOrDefaultAsync(ct);
     private async Task<LeaveAccrualSettingsView> AccrualView(long version, LeaveAccrualPolicy policy, CancellationToken ct)
-        => new(version, policy, await AnnualLeaveType(ct), VietnamBusinessDate.Today(clock), LeaveRecurrenceCalendar.First(policy.AccrualSchedule), LeaveRecurrenceCalendar.First(policy.ResetSchedule));
+    {
+        var today = VietnamBusinessDate.Today(clock); var next = await UpcomingAccrualDates(policy, today, ct);
+        return new(version, policy, await AnnualLeaveType(ct), today, LeaveRecurrenceCalendar.First(policy.AccrualSchedule), LeaveRecurrenceCalendar.First(policy.ResetSchedule), next.Accrual, next.Reset);
+    }
+    private static string AccrualKey(LeaveAccrualPolicy policy, DateOnly due) => policy.ScheduleVersion == 2
+        ? "accrual-cycle:" + due.ToString("yyyyMMdd", global::System.Globalization.CultureInfo.InvariantCulture)
+        : "accrual:" + due.ToString("yyyyMM", global::System.Globalization.CultureInfo.InvariantCulture);
+    private static string ResetKey(DateOnly due) => "reset:" + due.ToString("yyyyMMdd", global::System.Globalization.CultureInfo.InvariantCulture);
+    private async Task<bool> AccrualCompleted(string key, CancellationToken ct)
+    {
+        var receipts = await db.Set<AuditLog>().AsNoTracking().Where(a => a.EntityType == "LeaveAutomation" && a.EntityID == key).Select(a => a.AfterJSON).ToListAsync(ct);
+        var completed = false;
+        foreach (var json in receipts)
+        {
+            if (json == null) throw BusinessException.Conflict("Invalid leave accrual receipt; operator review required.");
+            var value = Read<JsonElement>(json);
+            if (!value.TryGetProperty("creditedBalances", out var count) || !count.TryGetInt32(out var credited) || credited < 0)
+                throw BusinessException.Conflict("Invalid leave accrual receipt; operator review required.");
+            completed |= credited > 0;
+        }
+        return completed;
+    }
+    private static DateOnly? AccrualDue(LeaveAccrualPolicy policy, DateOnly today) => policy.ScheduleVersion == 2
+        ? LeaveRecurrenceCalendar.Latest(policy.AccrualSchedule, today)
+        : new DateOnly(today.Year, today.Month, Math.Min(policy.AccrualDay, DateTime.DaysInMonth(today.Year, today.Month)));
+    private static DateOnly? ResetDue(LeaveAccrualPolicy policy, DateOnly today)
+    {
+        if (policy.ScheduleVersion == 2) return LeaveRecurrenceCalendar.Latest(policy.ResetSchedule, today);
+        if (!policy.ResetOn.HasValue || !policy.RepeatResetYearly) return policy.ResetOn;
+        var start = policy.ResetOn.Value;
+        var candidate = new DateOnly(today.Year, start.Month, Math.Min(start.Day, DateTime.DaysInMonth(today.Year, start.Month)));
+        if (candidate > today && today.Year > 1) candidate = new(today.Year - 1, start.Month, Math.Min(start.Day, DateTime.DaysInMonth(today.Year - 1, start.Month)));
+        return candidate >= start ? candidate : null;
+    }
+    private async Task<(DateOnly? Accrual, DateOnly? Reset)> UpcomingAccrualDates(LeaveAccrualPolicy policy, DateOnly today, CancellationToken ct)
+    {
+        if (!policy.Enabled) return (null, null);
+        var credit = AccrualDue(policy, today); var reset = ResetDue(policy, today);
+        if (credit.HasValue && await AccrualCompleted(AccrualKey(policy, credit.Value), ct))
+        {
+            if (policy.ScheduleVersion == 2) credit = LeaveRecurrenceCalendar.After(policy.AccrualSchedule, today);
+            else if (credit.Value.Year == 9999 && credit.Value.Month == 12) credit = null;
+            else { var month = new DateOnly(credit.Value.Year, credit.Value.Month, 1).AddMonths(1); credit = new(month.Year, month.Month, Math.Min(policy.AccrualDay, DateTime.DaysInMonth(month.Year, month.Month))); }
+        }
+        if (reset.HasValue && await db.Set<AuditLog>().AnyAsync(a => a.EntityType == "LeaveAutomation" && a.EntityID == ResetKey(reset.Value), ct))
+        {
+            if (policy.ScheduleVersion == 2) reset = LeaveRecurrenceCalendar.After(policy.ResetSchedule, today);
+            else if (!policy.RepeatResetYearly || today.Year == 9999) reset = null;
+            else
+            {
+                var start = policy.ResetOn!.Value; var candidate = new DateOnly(today.Year, start.Month, Math.Min(start.Day, DateTime.DaysInMonth(today.Year, start.Month)));
+                reset = candidate > today ? candidate : new(today.Year + 1, start.Month, Math.Min(start.Day, DateTime.DaysInMonth(today.Year + 1, start.Month)));
+            }
+        }
+        if (policy.ScheduleVersion == 2) { credit ??= LeaveRecurrenceCalendar.After(policy.AccrualSchedule, today); reset ??= LeaveRecurrenceCalendar.After(policy.ResetSchedule, today); }
+        else if (!reset.HasValue && policy.ResetOn > today) reset = policy.ResetOn;
+        return (credit, reset);
+    }
     private static decimal AccrualDays(LeaveAccrualRule rule) => rule.DaysPerCycle ?? rule.DaysPerMonth ?? 0;
     private async Task NormalizeAccrualRules(LeaveAccrualPolicy policy, CancellationToken ct)
     {
@@ -39,15 +97,14 @@ public sealed partial class LeaveWorkflowService
             if (policy.ScheduleVersion == 2) rule.DaysPerCycle ??= rule.DaysPerMonth;
         }
     }
-    private static bool SameSchedule(LeaveRecurrence? a, LeaveRecurrence? b) => a != null && b != null && a.StartDate == b.StartDate && a.Interval == b.Interval && a.Unit == b.Unit;
-    private static void ValidateRecurrence(LeaveRecurrence? schedule, LeaveRecurrence? previous, DateOnly today)
+    private static void ValidateRecurrence(LeaveRecurrence? schedule)
     {
         if (schedule == null) return;
         Validate(schedule);
         var first = LeaveRecurrenceCalendar.First(schedule);
         if (schedule.StartDate.Year < 1900 || first == null) throw BusinessException.Invalid("The first recurrence falls outside the supported calendar.");
-        if (schedule.StartDate < today && !SameSchedule(schedule, previous) && first <= today)
-            throw BusinessException.Invalid("A new or changed past anchor requires its first activation to be in the future; existing unchanged schedules may retain their anchor.");
+        // Past anchors are valid. Execution handles only the latest due cycle and uses
+        // permanent receipts rather than backfilling or moving the original anchor.
     }
     public Task<LeaveAccrualSettingsView> SaveAccrualSettings(string actor, LeaveAccrualSettingsRequest request, CancellationToken ct) => Transaction(async () =>
     {
@@ -61,8 +118,8 @@ public sealed partial class LeaveWorkflowService
         if (policy.AccrualSchedule != null || policy.ResetSchedule != null) policy.ScheduleVersion = 2;
         if (policy.ScheduleVersion == 2)
         {
-            ValidateRecurrence(policy.AccrualSchedule, oldPolicy?.AccrualSchedule, today);
-            ValidateRecurrence(policy.ResetSchedule, oldPolicy?.ResetSchedule, today);
+            ValidateRecurrence(policy.AccrualSchedule);
+            ValidateRecurrence(policy.ResetSchedule);
             if (policy.Enabled && policy.AccrualSchedule == null && policy.ResetSchedule == null) throw BusinessException.Invalid("Enable an accrual or reset schedule.");
             var anchors = new[] { policy.AccrualSchedule?.StartDate, policy.ResetSchedule?.StartDate }.Where(d => d.HasValue).Select(d => d!.Value).ToArray();
             policy.EffectiveFrom = anchors.Length == 0 ? today : anchors.Min();
@@ -102,12 +159,13 @@ public sealed partial class LeaveWorkflowService
     private Task<LeaveAccrualRunView> RunAccrual(string? actor, CancellationToken ct) => Transaction(async () =>
     {
         var today = VietnamBusinessDate.Today(clock);
-        if (!await db.Set<SystemSetting>().AnyAsync(s => s.Key == AccrualSettingsKey, ct)) return new LeaveAccrualRunView(today, 0, 0, false, false);
+        if (!await db.Set<SystemSetting>().AnyAsync(s => s.Key == AccrualSettingsKey, ct)) return new LeaveAccrualRunView(today, 0, 0, false, false, "NOT_CONFIGURED", "Chưa lưu cấu hình cấp/thu hồi phép.");
         // Serializes worker instances, manual execution and configuration changes.
         await db.Set<SystemSetting>().Where(s => s.Key == AccrualSettingsKey).ExecuteUpdateAsync(s => s.SetProperty(s => s.Version, s => s.Version), ct);
         var config = await db.Set<SystemSetting>().AsNoTracking().SingleAsync(s => s.Key == AccrualSettingsKey, ct);
         var policy = Read<LeaveAccrualPolicy>(config.JsonValue);
-        if (!policy.Enabled || today < policy.EffectiveFrom) return new LeaveAccrualRunView(today, 0, 0, false, false);
+        if (!policy.Enabled) return new LeaveAccrualRunView(today, 0, 0, false, false, "DISABLED", "Lịch đang tắt (enabled=false), chưa cấp hoặc thu hồi phép.", false, config.Version);
+        if (today < policy.EffectiveFrom) return new LeaveAccrualRunView(today, 0, 0, false, false, "NOT_STARTED", "Chưa đến ngày bắt đầu áp dụng lịch.", true, config.Version);
         await NormalizeAccrualRules(policy, ct);
         var activePositions = await db.Set<Position>().Where(p => p.IsActive).Select(p => p.ID).ToArrayAsync(ct);
         var activeTypes = await db.Set<LeaveType>().Where(t => t.IsActive && t.RequiresBalance).Select(t => t.ID).ToArrayAsync(ct);
@@ -116,19 +174,14 @@ public sealed partial class LeaveWorkflowService
         var employees = await db.Employees.AsNoTracking().Where(e => e.EmploymentStatus == "ACTIVE" && e.PositionId.HasValue && positionIds.Contains(e.PositionId.Value) && e.HireDate <= today)
             .OrderBy(e => e.Id).Select(e => new { e.Id, PositionId = e.PositionId!.Value, e.HireDate }).ToListAsync(ct);
         var expired = 0; var credited = 0; var resetProcessed = false; var accrualProcessed = false;
-        DateOnly? reset = policy.ScheduleVersion == 2 ? LeaveRecurrenceCalendar.Latest(policy.ResetSchedule, today) : policy.ResetOn;
-        if (policy.ScheduleVersion == 1 && reset.HasValue && policy.RepeatResetYearly)
-        {
-            var candidate = new DateOnly(today.Year, reset.Value.Month, Math.Min(reset.Value.Day, DateTime.DaysInMonth(today.Year, reset.Value.Month)));
-            if (candidate > today && today.Year > 1) candidate = new(today.Year - 1, reset.Value.Month, Math.Min(reset.Value.Day, DateTime.DaysInMonth(today.Year - 1, reset.Value.Month)));
-            reset = candidate >= policy.ResetOn ? candidate : null;
-        }
+        var reset = ResetDue(policy, today); var resetExecuted = false;
         if (reset.HasValue && reset >= policy.EffectiveFrom && reset <= today)
         {
-            var key = "reset:" + reset.Value.ToString("yyyyMMdd", global::System.Globalization.CultureInfo.InvariantCulture);
+            var key = ResetKey(reset.Value);
             resetProcessed = await db.Set<AuditLog>().AnyAsync(a => a.EntityType == "LeaveAutomation" && a.EntityID == key, ct);
             if (!resetProcessed)
             {
+                resetExecuted = true;
                 // January 1 closes last year's availability; it must not erase new-year allocations.
                 var year = reset.Value.Month == 1 && reset.Value.Day == 1 ? reset.Value.Year - 1 : reset.Value.Year;
                 foreach (var chunk in employees.Where(e => e.HireDate <= reset.Value).Chunk(500))
@@ -150,16 +203,16 @@ public sealed partial class LeaveWorkflowService
                 await db.SaveChangesAsync(ct);
             }
         }
-        DateOnly? accrualDue = policy.ScheduleVersion == 2 ? LeaveRecurrenceCalendar.Latest(policy.AccrualSchedule, today)
-            : new DateOnly(today.Year, today.Month, Math.Min(policy.AccrualDay, DateTime.DaysInMonth(today.Year, today.Month)));
+        var accrualDue = AccrualDue(policy, today); var eligibleCount = 0;
         if (accrualDue is { } due && due >= policy.EffectiveFrom && due <= today && (!reset.HasValue || reset > today || due >= reset))
         {
-            var key = policy.ScheduleVersion == 2 ? "accrual-cycle:" + due.ToString("yyyyMMdd", global::System.Globalization.CultureInfo.InvariantCulture)
-                : "accrual:" + due.ToString("yyyyMM", global::System.Globalization.CultureInfo.InvariantCulture);
-            accrualProcessed = await db.Set<AuditLog>().AnyAsync(a => a.EntityType == "LeaveAutomation" && a.EntityID == key, ct);
+            var key = AccrualKey(policy, due);
+            accrualProcessed = await AccrualCompleted(key, ct);
+            var eligible = employees.Where(e => e.HireDate <= due && (policy.NewHireEligibility != "ONE_MONTH" || e.HireDate <= DateOnly.MaxValue.AddMonths(-1) && e.HireDate.AddMonths(1) <= due)).ToArray();
+            eligibleCount = eligible.Length;
             if (!accrualProcessed)
             {
-                foreach (var chunk in employees.Where(e => e.HireDate <= due && (policy.NewHireEligibility != "ONE_MONTH" || e.HireDate <= DateOnly.MaxValue.AddMonths(-1) && e.HireDate.AddMonths(1) <= due)).Chunk(500))
+                foreach (var chunk in eligible.Chunk(500))
                 {
                     var ids = chunk.Select(e => e.Id).ToArray();
                     await db.Employees.Where(e => ids.Contains(e.Id)).ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt), ct);
@@ -178,9 +231,22 @@ public sealed partial class LeaveWorkflowService
                     await db.SaveChangesAsync(ct);
                     foreach (var change in changes) BalanceAudit(actor, change.Balance, "LEAVE_BALANCE_ACCRUED", change.Before, $"Scheduled accrual {due:yyyy-MM-dd}: +{change.Days} days, policy version {config.Version}");
                 }
-                db.Add(new AuditLog { ActorUserID = actor, EntityType = "LeaveAutomation", EntityID = key, Action = "LEAVE_ACCRUAL_COMPLETED", AfterJSON = Json(new { policyVersion = config.Version, dueDate = due, creditedBalances = credited }), CreatedAt = Now });
+                // Zero matches are not a completed credit cycle: allow a retry after
+                // employee/position configuration is corrected. Old zero receipts remain audited.
+                if (credited > 0) db.Add(new AuditLog { ActorUserID = actor, EntityType = "LeaveAutomation", EntityID = key, Action = "LEAVE_ACCRUAL_COMPLETED", AfterJSON = Json(new { policyVersion = config.Version, dueDate = due, creditedBalances = credited }), CreatedAt = Now });
             }
         }
-        return new LeaveAccrualRunView(today, credited, expired, accrualProcessed, resetProcessed);
+        await db.SaveChangesAsync(ct);
+        var upcoming = await UpcomingAccrualDates(policy, today, ct);
+        var (status, message) = credited > 0 || expired > 0 ? ("COMPLETED", $"Đã cấp {credited} số dư, thu hồi {expired} số dư.")
+            : resetExecuted ? ("RESET_COMPLETED_NO_BALANCE", "Đã chạy lịch thu hồi; không có phép khả dụng cần thu hồi.")
+            : accrualDue == null || accrualDue > today ? ("NOT_DUE", "Chưa đến kỳ cấp phép.")
+            : reset.HasValue && reset <= today && accrualDue < reset ? ("BEFORE_RESET", "Kỳ cấp trước lần thu hồi gần nhất, không cấp lại.")
+            : accrualProcessed ? ("ALREADY_PROCESSED", "Kỳ này đã cấp phép thành công trước đó; không cộng trùng.")
+            : rules.Length == 0 ? ("NO_ACTIVE_RULES", "Không có quy tắc chức vụ/loại phép đang hoạt động.")
+            : employees.Count == 0 ? ("NO_MATCHING_EMPLOYEES", "Không có nhân viên ACTIVE thuộc chức vụ đã cấu hình. Kiểm tra employees.position_id.")
+            : ("NO_ELIGIBLE_EMPLOYEES", "Nhân viên chưa đủ điều kiện ngày vào làm tại kỳ cấp phép.");
+        return new LeaveAccrualRunView(today, credited, expired, accrualProcessed, resetProcessed, status, message, true, config.Version,
+            accrualDue, reset, upcoming.Accrual, upcoming.Reset, employees.Count, eligibleCount, rules.Length);
     }, ct);
 }

@@ -56,4 +56,11 @@ describe('LeaveAccrualSettings', () => {
     expect(saved.settings.scheduleVersion).toBe(2); expect(saved.settings.accrualSchedule).toBeNull(); expect(saved.settings.resetSchedule.unit).toBe('YEAR');
     expect(saved.settings).not.toHaveProperty('accrualDay'); expect(saved.settings.rules[0]).not.toHaveProperty('daysPerMonth');
   });
+  it('displays next execution dates returned by the saved schedule', async () => {
+    const api = vi.fn(async () => ({ ...data, nextAccrualDate: '2026-12-16', nextResetDate: '2027-01-01' }));
+    render(<LeaveAccrualSettings api={api} permissions={grants} />);
+    expect(await screen.findByText('2026-12-16')).toBeTruthy();
+    expect(screen.getByText('2027-01-01')).toBeTruthy();
+  });
+
 });

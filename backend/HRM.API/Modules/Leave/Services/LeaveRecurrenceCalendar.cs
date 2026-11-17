@@ -15,6 +15,16 @@ public static class LeaveRecurrenceCalendar
         if (due > date) due = At(schedule, --cycle);
         return cycle >= 1 ? due : null;
     }
+    public static DateOnly? After(LeaveRecurrence? schedule, DateOnly date)
+    {
+        if (schedule == null || schedule.Interval < 1) return null;
+        var first = First(schedule);
+        if (first == null || first > date) return first;
+        var elapsed = (date.Year - schedule.StartDate.Year) * 12 + date.Month - schedule.StartDate.Month;
+        var cycle = Math.Max(1, elapsed / Months(schedule));
+        var next = At(schedule, cycle);
+        return next <= date ? At(schedule, cycle + 1) : next;
+    }
     private static int Months(LeaveRecurrence schedule) => schedule.Unit switch
     {
         "MONTH" => schedule.Interval,

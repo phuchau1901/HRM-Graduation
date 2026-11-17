@@ -2910,7 +2910,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/system-settings/leave-accrual/run",
-            "description": "WEB_SYSTEM_SETTINGS/UPDATE only, no scope. Run latest due saved cycle, never force a future date; first execution requires full interval after anchor. Reset first, then grant if still applicable. Missing quota is skipped by reset; credit creates missing eligible quota. Period receipts prevent duplicates. Response counters remain unchanged. Manual authorized mutation only. See docs/modules/Leave/ACCRUAL_SETTINGS.md."
+            "description": "WEB_SYSTEM_SETTINGS/UPDATE only, no scope. Run latest due saved cycle, never force a future date; first execution requires full interval after anchor. Reset first, then grant if still applicable. Missing quota is skipped by reset; credit creates missing eligible quota. Period receipts prevent duplicates. Response counters remain unchanged. Manual authorized mutation only. See docs/modules/Leave/ACCRUAL_SETTINGS.md.\nInspect status/message, matchedEmployees, eligibleEmployees, nextAccrualDate and nextResetDate. Zero-credit cycles permit retry; positive completion prevents duplicate credit. Past anchors accepted: 2026-10-16 +1 MONTH run on 2026-11-17 credits November 16 and returns next date December 16. Start anchor remains unchanged."
           },
           "response": []
         }

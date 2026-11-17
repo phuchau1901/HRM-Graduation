@@ -120,5 +120,9 @@ public sealed class LeaveAccrualSettingsRequest
     [Required] public LeaveAccrualPolicy Settings { get; set; } = new();
 }
 public sealed record LeaveAccrualSettingsView(long Version, LeaveAccrualPolicy Settings, long? DefaultLeaveTypeId = null,
-    DateOnly? AsOfDate = null, DateOnly? FirstAccrualDate = null, DateOnly? FirstResetDate = null);
-public sealed record LeaveAccrualRunView(DateOnly AsOfDate, int CreditedBalances, int ExpiredBalances, bool AccrualAlreadyProcessed, bool ResetAlreadyProcessed);
+    DateOnly? AsOfDate = null, DateOnly? FirstAccrualDate = null, DateOnly? FirstResetDate = null,
+    DateOnly? NextAccrualDate = null, DateOnly? NextResetDate = null);
+public sealed record LeaveAccrualRunView(DateOnly AsOfDate, int CreditedBalances, int ExpiredBalances, bool AccrualAlreadyProcessed, bool ResetAlreadyProcessed,
+    string Status = "COMPLETED", string? Message = null, bool PolicyEnabled = false, long PolicyVersion = 0,
+    DateOnly? AccrualDueDate = null, DateOnly? ResetDueDate = null, DateOnly? NextAccrualDate = null, DateOnly? NextResetDate = null,
+    int MatchedEmployees = 0, int EligibleEmployees = 0, int ActiveRules = 0);

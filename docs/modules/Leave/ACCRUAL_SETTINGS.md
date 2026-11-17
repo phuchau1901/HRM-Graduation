@@ -87,9 +87,8 @@ Ví dụ: từ mốc01/01/2027, mỗi2 tháng cấp1.5 ngày cho chức vụ3 v�
 - accrualSchedule: lịch cấp; resetSchedule: lịch thu hồi. Hai lịch độc lập, có thể dùng1 tháng,2 tháng,6 tháng,1 năm,2 năm… Interval là số nguyên1..120; unit là MONTH hoặc YEAR.
 - startDate là mốc tính, **không chạy ngay ngày bắt đầu**. Lần đầu là startDate + interval tháng/năm. Bỏ lịch bằng null. Có thể chỉ cấp, chỉ thu hồi hoặc cả hai; enabled=true cần ít nhất một lịch.
 - Ngày tính theo Asia/Ho_Chi_Minh. Cộng theo lịch, không dùng30/365 ngày cố định. Mốc31/01 +1 tháng thành28/02 (29/02 năm nhuận), kỳ tiếp từ mốc gốc trở lại31/03, không trôi thành28/03. Mốc29/02 +1 năm dùng28/02 năm không nhuận.
-- Lịch mới/đổi ngày hoặc tần suất dùng mốc hôm nay/tương lai, hoặc mốc quá khứ nếu lần đầu kích hoạt vẫn ở tương lai (ví dụ hiện17/11/2026, mốc01/01/2026 +1 YEAR đến01/01/2027). Giữ nguyên lịch cũ thì được giữ mốc quá khứ để sửa số ngày/quy tắc cho các kỳ sau. Không backdate để tự cấp lại quá khứ.
 - Worker xử lý kỳ gần nhất đã đến hạn nếu chưa có dấu hoàn tất; không cộng dồn tất cả các kỳ bỏ lỡ. Nếu server tắt qua nhiều kỳ, cần rà soát/cấp thủ công cho kỳ cũ vì không có lịch sử chức vụ để suy đúng quota quá khứ.
-- Đổi mức cấp/rule không chạy lại kỳ đã hoàn tất. Đổi lịch cần mốc mới phù hợp, lần kích hoạt đầu theo chu kỳ mới luôn ở tương lai.
+- Updating rules does not repeat completed cycles; changing the anchor still respects permanent cycle receipts.
 
 GET/PUT trả thêm metadata `defaultLeaveTypeId`, `asOfDate`, `firstAccrualDate`, `firstResetDate`. first* là ngày kích hoạt đầu tiên từ mốc, không phải xác nhận kỳ đã chạy. UI hiển thị preview khi sửa lịch.
 
@@ -117,7 +116,7 @@ Chỉ áp dụng nhân viên/loại phép thuộc rule hiện hành. Nếu cả 
 
 LeaveAccrualWorker kiểm tra khi khởi động và mỗi300 giây. `LeaveAccrual__WorkerEnabled=false` tắt worker; `LeaveAccrual__PollSeconds` từ30..3600. API cần chạy để worker hoạt động. Chính sách enabled mặc địnhfalse.
 
-POST /run dùng cấu hình đã lưu và ngày server, không nhận ngày tùy ý hay force kỳ tương lai. Response vẫn `{asOfDate,creditedBalances,expiredBalances,accrualAlreadyProcessed,resetAlreadyProcessed}`. Counter0 không có nghĩa đã tạo số dư0; có thể chưa tới hạn hoặc không có đối tượng/quota phù hợp.
+POST /run uses the saved policy and server business date. Existing counters are preserved; see status/message and next-date metadata documented below.
 
 Các worker/manual run/config write dùng khóa SystemSetting cùng transaction Serializable. AuditLog LeaveAutomation giữ dấu `accrual-cycle:yyyyMMdd` cho cấp theo lịch mới và `reset:yyyyMMdd` cho thu hồi. Dấu kỳ không phụ thuộc version/rate để không cấp trùng khi retry/restart hoặc đổi suất. Kỳ đã xong không tự cấp thêm cho nhân viên import/bổ sung sau đó; dùng cấp thủ công có kiểm soát nếu cần.
 
@@ -129,7 +128,7 @@ Lưu kết quả vào **leave_balances**. Audit per balance: LEAVE_BALANCE_ACCRU
 
 JSON cũ không có scheduleVersion hoặc có version1 vẫn chạy accrualDay + daysPerMonth, ResetOn + RepeatResetYearly như trước; dấu cũ `accrual:yyyyMM` giữ nguyên. Không tự đổi lịch cũ khi restart hoặc GET. API vẫn nhận payload legacy; ngày/tháng cũ chỉ áp khi scheduleVersion1.
 
-UI đọc lịch cũ sẽ báo rõ cần kiểm tra ngày bắt đầu. Chỉ khi người dùng lưu mới chuyển sang version2 với mốc/lần đầu phù hợp quy tắc trên; không lấy mốc quá khứ để cấp lại. Chọn tần suất/ngày mới trước khi lưu. DaysPerCycle là field chuẩn mới; DaysPerMonth là alias legacy khi chưa chuyển.
+UI converts legacy settings only on explicit save. DaysPerCycle is the canonical amount; DaysPerMonth remains a legacy alias. Past anchors process only the latest incomplete cycle.
 
 ## Schema và kiểm thử
 
@@ -143,3 +142,13 @@ Tests bao gồm lịch1/2 tháng/1 năm, không kích hoạt tại mốc, calend
 - Backend build thành công. Full suite457 tests:448 qua,9 lỗi cũ NV/TX thuộc EmployeeCreationTests; không sửa bộ sinh mã trong thay đổi này.
 - Frontend53/53 tests qua, production build thành công. JSON mẫu, link và payload hai Postman Collection đã kiểm tra; số route119 và ví dụ129 không đổi.
 - Không có migration mới, không apply migration, không deploy, không sửa/bật cấu hình hoặc chạy job trên database thật. Cập nhật tất cả API/worker sang bản hỗ trợ version2 trước khi lưu lịch version2.
+
+## Overdue cycle execution (2026-11-17)
+
+Past anchors are accepted. Only the latest due cycle is processed, without backfilling all missed cycles. Example: startDate=2026-10-16, interval=1 MONTH, run on 2026-11-17 credits 2026-11-16, creates missing leave_balances and returns nextAccrualDate=2026-12-16. The original startDate remains unchanged.
+
+GET/PUT expose nextAccrualDate and nextResetDate alongside first-cycle preview dates. POST /run retains existing fields and adds status, message, policyEnabled, policyVersion, accrualDueDate, resetDueDate, nextAccrualDate, nextResetDate, matchedEmployees, eligibleEmployees and activeRules. HTTP 200 indicates successful execution, not necessarily a credit. Inspect status/message for disabled, not-due, already-processed or no-eligible-employee outcomes.
+
+Credit completion receipts are written only for creditedBalances > 0. Existing zero-credit receipts remain audited and permit retry after correcting employee position/eligibility. Positive receipts still prevent duplicate credits. Reset receipts remain final even with zero balances, to protect allocations added after the reset date. No migration or production database changes.
+
+Validation of overdue-cycle fix: backend build succeeds; 24 accrual/recurrence tests pass. Full backend suite: 450 passed, 9 existing EmployeeCreationTests failures (NV/TX employee-code expectation). Frontend full suite before added next-date regression: 53 passed; updated settings suite: 7 passed. Production frontend build succeeds. No migration applied or deployment performed.

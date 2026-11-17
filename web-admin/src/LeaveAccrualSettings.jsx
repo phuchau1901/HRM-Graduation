@@ -34,7 +34,7 @@ export function LeaveAccrualSettings({ api, permissions }) {
   }
   async function run() {
     setBusy(true); setError(''); setMessage('');
-    try { const result = await api('/system-settings/leave-accrual/run', { method: 'POST' }); setMessage(`Đã xử lý lịch đến hạn: cấp ${result.creditedBalances} số dư; thu hồi ${result.expiredBalances} số dư.`); }
+    try { const result = await api('/system-settings/leave-accrual/run', { method: 'POST' }); setMessage(result.message || `Đã xử lý lịch đến hạn: cấp ${result.creditedBalances} số dư; thu hồi ${result.expiredBalances} số dư.`); setData(d => ({ ...d, nextAccrualDate: result.nextAccrualDate, nextResetDate: result.nextResetDate })); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   if (!allowed) return <p role="alert">Bạn chưa có quyền xem cấu hình hệ thống.</p>;
@@ -42,6 +42,7 @@ export function LeaveAccrualSettings({ api, permissions }) {
   return <section className="leave-workspace"><h2>Tự động cấp và thu hồi phép</h2><p>Quyền WEB_SYSTEM_SETTINGS / UPDATE; không áp dụng Data Scope. Loại phép mặc định: Nghỉ phép năm (ANNUAL).</p><p>Ngày bắt đầu là mốc tính: chọn 2 tháng thì lần đầu chạy sau 2 tháng, không cấp ngay ngày bắt đầu. Thu hồi chỉ hết phần khả dụng, giữ lịch sử đã dùng và phần đang chờ duyệt; nhân viên chưa có số dư sẽ được bỏ qua.</p>
     {error && <p className="error" role="alert">{error}</p>}{message && <p className="success" role="status">{message}</p>}
     {!data ? <div className="card org-skeleton" role="status" aria-label="Đang tải lịch phép"><div /><div /></div> : <form className="card editor" onSubmit={save}>
+      <p>Ngày cấp kế tiếp (lịch đã lưu): <output>{data.nextAccrualDate || '—'}</output> · Ngày thu hồi kế tiếp: <output>{data.nextResetDate || '—'}</output></p>
       {data.legacy && <p>Cấu hình đang dùng lịch cũ. Khi lưu, các mốc bên dưới sẽ áp dụng theo chu kỳ mới; cần kiểm tra ngày bắt đầu.</p>}
       <fieldset disabled={!editable || busy}><label className="checkbox"><input type="checkbox" checked={data.settings.enabled} onChange={e => field('enabled', e.target.checked)} />Bật tự động cấp/thu hồi phép</label>
       <Recurrence label="cấp phép" value={data.settings.accrualSchedule} change={value => field('accrualSchedule', value)} start={data.asOfDate || businessDate()} />
