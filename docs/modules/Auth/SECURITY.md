@@ -12,7 +12,7 @@ Legacy ASP.NET Identity V2/V3 được đọc theo cấu trúc nhị phân có g
 
 ## JWT
 
-HS256, xác thực signing key/issuer/audience/lifetime; sub chứa UserId chuỗi. Mặc định token15 phút, ClockSkew30 giây; giới hạn token8192 byte theo cấu hình. Không đổi SigningKey trong source hoặc tài liệu. Claim hrm_p chứa snapshot action theo screen, hrm_pv=1; role chỉ là metadata, không tự cấp quyền.
+HS256, xác thực signing key/issuer/audience/lifetime; sub chứa UserId chuỗi. Mặc định token15 phút, ClockSkew30 giây; giới hạn token8192 byte theo cấu hình. Không đổi SigningKey trong source hoặc tài liệu. Claim hrm_p chứa snapshot action theo screen; token mới dùng hrm_pv=2 với bitmask cố định (VIEW=1, NEW=2, UPDATE=4, DELETE=8, APPROVE=16, EXPORT=32, SEND_USER=64, SEND_GROUP=128, SEND_ALL=256, SCHEDULE=512, CANCEL=1024); server vẫn hỗ trợ hrm_pv=1 dạng mảng action cho token cũ; role chỉ là metadata, không tự cấp quyền.
 
 Claim av chứa users.auth_version được lấy từ lần xác thực credential. Middleware kiểm tra User ACTIVE và version DB mỗi request. Token thiếu av chỉ được chấp nhận khi version DB=0. Phiên bị thu hồi trả401 và cần Login lại. Chi tiết các thay đổi làm thu hồi phiên: [Authorization Security](../Authorization/SECURITY.md).
 
@@ -27,3 +27,7 @@ LoginRateLimiter:5 lần/phút/client address và30 lần/phút/API instance, kh
 Source AuthSeeder hiện chỉ có account admin và Role ADMIN, không phải danh sách5 demo account của thiết kế trước đây. Chỉ chạy khi Development và AuthSeed:Enabled=true; password lấy riêng từ user-secrets AuthSeed:Passwords:admin. Seed idempotent, không khôi phục password/Role/grant đã sửa. Role ADMIN không tự có quyền.
 
 Không bật seed trên Railway Production. Việc seed là ghi DB, chỉ chạy sau khi có chấp thuận cho môi trường đích. Không có thao tác seed trong đợt viết tài liệu này.
+
+## Login với nhiều quyền
+
+Snapshot compact v2 giảm kích thước JWT để tài khoản nhiều màn hình không vượt giới hạn8KB chỉ vì lặp tên action. Không cắt quyền hoặc tăng giới hạn token; response login permissions vẫn giữ nguyên DTO. Quyền không đăng ký/mask sai/claim trùng bị từ chối. Snapshot vượt giới hạn cấu hình sau compact vẫn không được phát hành. AuthVersion, chữ ký, scope runtime và thu hồi session không thay đổi. Regression tests có login80 màn hình đủ11 action, truy cập /api/auth/me bằng token đó, kiểm tra đủ quyền từng màn hình, chặn quyền ngoài grant và tương thích token v1. Khi cập nhật cần restart tất cả API instance để cùng hỗ trợ v2; không cần migration hay đổi signing key.

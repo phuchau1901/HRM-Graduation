@@ -23,10 +23,18 @@ public sealed class ApiAccessLoggingMiddleware(RequestDelegate next, ILogger<Api
         context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;
         var started = Stopwatch.GetTimestamp();
         var failed = false;
+        string? exceptionType = null, exceptionOrigin = null;
+        int? databaseErrorNumber = null;
         try { await next(context); }
-        catch (Exception) when (!context.Response.HasStarted && !context.RequestAborted.IsCancellationRequested)
+        catch (Exception exception) when (!context.Response.HasStarted && !context.RequestAborted.IsCancellationRequested)
         {
             failed = true;
+            // Log diagnostic metadata only. Exception messages/objects may contain
+            // SQL, credentials or request data and must not enter the access log.
+            var cause = exception.GetBaseException();
+            exceptionType = cause.GetType().FullName;
+            exceptionOrigin = cause.TargetSite is { } site ? $"{site.DeclaringType?.FullName}.{site.Name}" : null;
+            databaseErrorNumber = cause is MySqlConnector.MySqlException mysql ? mysql.Number : null;
             context.Response.Clear();
             context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;
             await ApiErrors.WriteAsync(context, 500, "HRM_API_500", "INTERNAL_ERROR", "An unexpected error occurred.");
@@ -47,12 +55,13 @@ public sealed class ApiAccessLoggingMiddleware(RequestDelegate next, ILogger<Api
                 var method = context.Request.Method.ToUpperInvariant();
                 if (method is not ("GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS")) method = "OTHER";
                 logger.LogInformation(new EventId(1000, "ApiAccess"),
-                    "API access {TimestampUtc} {TraceId} {CorrelationId} {UserId} {Method} {Route} {StatusCode} {DurationMs} {ClientPlatform} {ScreenCode} {Action} {ErrorCode} {ClientIp}",
+                    "API access {TimestampUtc} {TraceId} {CorrelationId} {UserId} {Method} {Route} {StatusCode} {DurationMs} {ClientPlatform} {ScreenCode} {Action} {ErrorCode} {ClientIp} {ExceptionType} {ExceptionOrigin} {DatabaseErrorNumber}",
                     DateTimeOffset.UtcNow, context.TraceIdentifier, context.TraceIdentifier,
                     context.Items[ApiErrors.ValidatedUserItem] as string ?? "anonymous", method, route,
                     status, Stopwatch.GetElapsedTime(started).TotalMilliseconds, "unknown", screens, actions,
                     context.Items[ApiErrors.ErrorItem] as string,
-                    config.IncludeClientIp ? context.Connection.RemoteIpAddress?.ToString() : null);
+                    config.IncludeClientIp ? context.Connection.RemoteIpAddress?.ToString() : null,
+                    exceptionType, exceptionOrigin, databaseErrorNumber);
             }
         }
     }

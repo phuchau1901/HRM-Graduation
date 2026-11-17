@@ -121,6 +121,9 @@ public sealed class AuthorizationV2Tests
             context.Response.Body.Position = 0;
             var body = await new StreamReader(context.Response.Body).ReadToEndAsync();
             Assert.Contains("HRM_API_500", body); Assert.DoesNotContain(secret, body);
+            Assert.Contains("System.InvalidOperationException", entry);
+            Assert.Contains("ExceptionOrigin", entry);
+            Assert.DoesNotContain("System.InvalidOperationException", body);
         }
     }
 
@@ -166,6 +169,60 @@ public sealed class AuthorizationV2Tests
         Assert.Throws<InvalidOperationException>(() => new JwtService(options).Issue(profile, permissions));
     }
 
+
+    [Fact]
+    public async Task LoginWithManyFullScreenGrantsFitsDefaultLimitAndRetainsEveryAction()
+    {
+        using var app = new AuthApiFactory(); using var client = app.CreateClient(new() { BaseAddress = new("https://localhost") });
+        await app.PrepareAsync();
+        var actions = new[] { "VIEW", "NEW", "UPDATE", "DELETE", "APPROVE", "EXPORT", "SEND_USER", "SEND_GROUP", "SEND_ALL", "SCHEDULE", "CANCEL" };
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<HRM.API.Data.AppDbContext>();
+            var role = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.SingleAsync(db.Set<HRM.API.Modules.Authorization.Entities.Role>(), r => r.Code == "HR");
+            for (var i = 0; i < 80; i++)
+            {
+                var screen = new HRM.API.Modules.Authorization.Entities.Screen { Code = $"WEB_FULL_PERMISSION_{i:D3}", Name = "Large permission catalog", IsActive = true }; db.Add(screen); await db.SaveChangesAsync();
+                db.Add(new HRM.API.Modules.Authorization.Entities.RoleDetail { RoleID = role.ID, ScreenID = screen.ID, CanView = "Y", CanNew = "Y", CanUpdate = "Y", CanDelete = "Y", CanApprove = "Y", CanExport = "Y" });
+                foreach (var action in actions.Skip(6)) db.Add(new HRM.API.Modules.Authorization.Entities.RoleScreenAction { RoleID = role.ID, ScreenID = screen.ID, ActionCode = action });
+            }
+            await db.SaveChangesAsync();
+        }
+        var response = await client.PostAsJsonAsync("/api/auth/login", new { userId = "api-user", password = app.Password }); response.EnsureSuccessStatusCode();
+        var login = (await response.Content.ReadFromJsonAsync<LoginResponse>())!;
+        Assert.InRange(Encoding.UTF8.GetByteCount(login.AccessToken), 1, 8192);
+        var token = new JwtSecurityTokenHandler().ReadJwtToken(login.AccessToken);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(token.Claims, "test"));
+        Assert.Equal("2", principal.FindFirst("hrm_pv")!.Value);
+        for (var i = 0; i < 80; i++) foreach (var action in actions) Assert.True(JwtPermissions.HasPermission(principal, $"WEB_FULL_PERMISSION_{i:D3}", action));
+        Assert.False(JwtPermissions.HasPermission(principal, "UNGRANTED_SCREEN", "VIEW"));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", login.AccessToken);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
+    }
+    [Theory]
+    [InlineData("{\"EMPLOYEES\":true}")]
+    [InlineData("{\"EMPLOYEES\":-1}")]
+    [InlineData("{\"EMPLOYEES\":2048}")]
+    [InlineData("{\"EMPLOYEES\":1.5}")]
+    [InlineData("{\"EMPLOYEES\":\"1\"}")]
+    [InlineData("{\"EMPLOYEES\":1,\"EMPLOYEES\":0}")]
+    public void MalformedCompactSnapshotDenies(string value)
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("hrm_pv", "2"), new Claim("hrm_p", value)], "test"));
+        Assert.False(JwtPermissions.HasPermission(principal, "EMPLOYEES", "VIEW"));
+    }
+    [Fact]
+    public void CompactSnapshotDoesNotGrantOtherActionsAndLegacySnapshotStillWorks()
+    {
+        var value = JwtPermissions.Serialize(new() { ["EMPLOYEES"] = ["VIEW", "UPDATE"] });
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("hrm_pv", "2"), new Claim("hrm_p", value)], "test"));
+        Assert.True(JwtPermissions.HasPermission(principal, "EMPLOYEES", "VIEW"));
+        Assert.True(JwtPermissions.HasPermission(principal, "EMPLOYEES", "UPDATE"));
+        Assert.False(JwtPermissions.HasPermission(principal, "EMPLOYEES", "APPROVE"));
+        var legacy = new ClaimsPrincipal(new ClaimsIdentity([new Claim("hrm_pv", "1"), new Claim("hrm_p", "{\"EMPLOYEES\":[\"VIEW\"]}")], "test"));
+        Assert.True(JwtPermissions.HasPermission(legacy, "EMPLOYEES", "VIEW"));
+        Assert.False(JwtPermissions.HasPermission(legacy, "EMPLOYEES", "UPDATE"));
+    }
     private sealed class CapturedLogger : ILogger<ApiAccessLoggingMiddleware>
     {
         public List<string> Entries { get; } = [];

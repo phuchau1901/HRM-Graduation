@@ -34,8 +34,8 @@ public sealed class JwtService(IOptions<JwtOptions> options)
             new(JwtRegisteredClaimNames.Iat, new DateTimeOffset(now).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64),
             new("name", profile.User.UserId)
         };
-        claims.Add(new Claim(HRM.API.Security.JwtPermissions.ClaimType, global::System.Text.Json.JsonSerializer.Serialize(permissions)));
-        claims.Add(new Claim("hrm_pv", "1"));
+        claims.Add(new Claim(HRM.API.Security.JwtPermissions.ClaimType, HRM.API.Security.JwtPermissions.Serialize(permissions)));
+        claims.Add(new Claim("hrm_pv", HRM.API.Security.JwtPermissions.CurrentVersion));
         claims.Add(new Claim("av", authVersion.ToString(CultureInfo.InvariantCulture), ClaimValueTypes.Integer64));
         claims.AddRange(profile.Roles.Select(r => new Claim("role", r.Code)));
         var token = new JwtSecurityToken(config.Issuer, config.Audience, claims, now, expires,
