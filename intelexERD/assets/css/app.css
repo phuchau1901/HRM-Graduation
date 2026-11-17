@@ -96,3 +96,20 @@ dialog:has(#contract-create-popup){width:min(900px,calc(100vw - 32px));max-width
 .approval-employee-picker{display:grid;gap:10px;min-width:0}.approval-employee-picker input,.approval-employee-picker select{width:100%}
 
 .role-nav-group-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.role-nav-group-copy small{font-size:11px;font-weight:400;color:var(--muted)}
+
+.my-leave-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:20px 0}.my-leave-stat{display:flex;align-items:center;gap:16px;padding:22px}.my-leave-stat span{color:var(--muted);font-size:12px}.my-leave-stat strong{display:block;font-size:28px;line-height:1.5}.my-leave-stat small{font-size:12px;font-weight:400;color:var(--muted)}.my-leave-availability{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin:18px 0;color:var(--muted);font-size:12px}.my-leave-availability strong{color:var(--text)}@media(max-width:700px){.my-leave-summary{grid-template-columns:1fr;gap:12px}.my-leave-stat{padding:16px}}
+
+#my-leave-year{align-items:flex-end}#my-leave-year input,#my-leave-year>.btn{min-height:40px}#my-leave-year>.btn{margin:0}
+
+.leave-balances-page{padding:26px}.balance-filters{align-items:flex-end;gap:14px;flex-wrap:wrap}.balance-filters label{margin:0;min-width:140px}.balance-filters input,.balance-filters select{width:100%}.balance-search{flex:1}.leave-balances-table{min-width:850px}.leave-balances-table th,.leave-balances-table td{padding:16px 12px;text-align:right}.leave-balances-table th:first-child,.leave-balances-table td:first-child{text-align:left;min-width:180px}.leave-balances-table small{display:block;color:var(--muted);margin-top:4px}.balance-row-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}.balance-reserved{color:var(--orange)}.balance-remaining{color:var(--green)}@media(max-width:700px){.leave-balances-page{padding:16px}.balance-filters label{flex:1 1 140px}.balance-filters .balance-search{flex-basis:100%}}
+
+dialog:has(#balance-grant-form){width:min(820px,calc(100vw - 32px));max-width:calc(100vw - 32px)}
+#balance-grant-form{width:100%;max-width:none;margin:0;min-width:0}
+#balance-grant-form .form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 22px;align-items:start}
+#balance-grant-form .form-grid>*,#balance-grant-form label{min-width:0}
+#balance-grant-form input:not([type=hidden]),#balance-grant-form select,#balance-grant-form textarea{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+#balance-grant-form .balance-grant-target[hidden]{display:none}
+#balance-grant-form .balance-lookup-status{min-height:16px;overflow-wrap:anywhere;white-space:normal}
+@media(max-width:600px){#balance-grant-form .form-grid{grid-template-columns:minmax(0,1fr);gap:16px}}
+
+.balance-lookup{position:relative;min-width:0}.balance-lookup-options{position:absolute;top:64px;left:0;right:0;z-index:20;max-height:220px;overflow:auto;background:var(--surface,#fff);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px #15274020}.balance-lookup-options[hidden]{display:none}.balance-lookup-options>button{display:block;width:100%;border:0;border-bottom:1px solid var(--border);background:transparent;color:var(--text);text-align:left;white-space:normal;overflow-wrap:anywhere;padding:10px 12px;cursor:pointer}.balance-lookup-options>button:hover,.balance-lookup-options>button[aria-selected=true]{background:#edf3ff;color:var(--primary)}.balance-lookup-options small{display:block;color:var(--muted);margin-top:3px}.balance-lookup-options>p{padding:12px;font-size:12px;color:var(--muted)}

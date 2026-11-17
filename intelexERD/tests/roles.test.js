@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {roleMenuGroups,rolePermissionPatch,roleFlags} from '../assets/js/pages/administration/roles.js';
+import {roleScreenCatalog,roleMenuGroups,rolePermissionPatch,roleFlags} from '../assets/js/pages/administration/roles.js';
 import {apiAllScreens,apiRolePermissions,apiSaveRolePermissions,apiRoles} from '../assets/js/api/client.js';
 test('screen catalog groups follow navigation and retain IDs and unmatched screens',()=>{
  const groups=roleMenuGroups([{id:17,code:'WEB_TEAM_MEMBERS',name:'Members'},{id:9,code:'WEB_ROLES',name:'Roles'},{id:99,code:'WEB_CUSTOM',name:'Custom'}]);
@@ -150,14 +150,44 @@ test('Roles never substitutes demo roles when unauthenticated or when the API fa
  }finally{apiLogout();globalThis.fetch=original;}
 });
 
-test('System Settings expands into its three tabs with stable backend screen identities',()=>{
+test('System Settings expands into its four tabs with stable backend screen identities',()=>{
  const catalog=[{id:10,code:'WEB_SYSTEM_SETTINGS',name:'System Settings',platform:'WEB'},{id:11,code:'WEB_APPROVAL_SETTINGS',name:'Quy trình phê duyệt',platform:'WEB'}];
  const admin=roleMenuGroups(catalog).find(group=>group.name==='Administration');
  const submenu=admin.subgroups.find(group=>group.name==='System Settings');
  assert.equal(submenu.key,'Administration/System Settings');
- assert.deepEqual(submenu.entries.map(item=>item.label),['Chính sách mật khẩu','Chấm công','Quy trình phê duyệt']);
- assert.deepEqual(submenu.entries.map(item=>item.id),[10,10,11]);assert.equal(new Set(submenu.entries.map(item=>item.menuKey)).size,3);
+ assert.deepEqual(submenu.entries.map(item=>item.label),['Chính sách mật khẩu','Chấm công','Cấp/Thu hồi phép','Quy trình phê duyệt']);
+ assert.deepEqual(submenu.entries.map(item=>item.id),[10,10,10,11]);assert.equal(new Set(submenu.entries.map(item=>item.menuKey)).size,4);
  assert.equal(admin.entries.length,2);
  const changed=new Set(submenu.entries.slice(0,2).map(item=>item.code));
  assert.deepEqual(rolePermissionPatch(new Map([['WEB_SYSTEM_SETTINGS',{VIEW:true}]]),changed),[{screenCode:'WEB_SYSTEM_SETTINGS',standard:{VIEW:true}}]);
+});
+
+test('granting My Leave VIEW also saves balance VIEW with SELF scope in one patch',()=>{
+ const draft=new Map([['WEB_LEAVE_MANAGEMENT',{VIEW:true,NEW:false}]]);
+ const patch=rolePermissionPatch(draft,new Set(['WEB_LEAVE_MANAGEMENT']));
+ assert.deepEqual(patch.map(item=>item.screenCode),['WEB_LEAVE_MANAGEMENT','WEB_LEAVE_BALANCES']);
+ const balance=patch.find(item=>item.screenCode==='WEB_LEAVE_BALANCES');
+ assert.equal(balance.standard.VIEW,true);assert.equal(balance.standard.UPDATE,false);assert.equal(balance.standard.NEW,false);assert.deepEqual(balance.dataScopes,{VIEW:'SELF'});
+ assert.equal(draft.has('WEB_LEAVE_BALANCES'),false);
+});
+test('My Leave dependency preserves existing balance permissions and wider scope and does not revoke on disable',()=>{
+ const flags={VIEW:false,UPDATE:true,EXPORT:true},scopes=new Map([['WEB_LEAVE_BALANCES',{VIEW:'ALL',UPDATE:'DEPARTMENT'}]]);
+ const patch=rolePermissionPatch(new Map([['WEB_LEAVE_MANAGEMENT',{VIEW:true}],['WEB_LEAVE_BALANCES',flags]]),new Set(['WEB_LEAVE_MANAGEMENT']),new Set(),scopes);
+ const balance=patch.find(item=>item.screenCode==='WEB_LEAVE_BALANCES');assert.equal(balance.standard.VIEW,true);assert.equal(balance.standard.UPDATE,true);assert.equal(balance.standard.EXPORT,true);assert.deepEqual(balance.dataScopes,{VIEW:'ALL',UPDATE:'DEPARTMENT'});
+ const disabled=rolePermissionPatch(new Map([['WEB_LEAVE_MANAGEMENT',{VIEW:false}],['WEB_LEAVE_BALANCES',{VIEW:true}]]),new Set(['WEB_LEAVE_MANAGEMENT']));
+ assert.equal(disabled.length,1);assert.equal(disabled[0].screenCode,'WEB_LEAVE_MANAGEMENT');
+});
+test('dependency updates draft UI immediately and checks that balance screen is registered and active',async()=>{
+ const {applyMyLeaveViewDependency}=await import('../assets/js/pages/administration/roles.js');
+ const draft=new Map([['WEB_LEAVE_MANAGEMENT',{VIEW:true}]]),changed=new Set(['WEB_LEAVE_MANAGEMENT']),scopes=new Map(),enabled=new Set();
+ assert.throws(()=>applyMyLeaveViewDependency(draft,changed,scopes,enabled,[]),/đăng ký/);assert.equal(draft.has('WEB_LEAVE_BALANCES'),false);
+ applyMyLeaveViewDependency(draft,changed,scopes,enabled,[{code:'WEB_LEAVE_BALANCES',isActive:true}]);
+ assert.equal(draft.get('WEB_LEAVE_BALANCES').VIEW,true);assert.ok(changed.has('WEB_LEAVE_BALANCES'));assert.ok(enabled.has('WEB_LEAVE_BALANCES'));assert.equal(scopes.get('WEB_LEAVE_BALANCES').VIEW,'SELF');
+});
+
+test('role menu and screen title use Leave Management despite an old API name',()=>{
+ const screen={id:99,code:'WEB_LEAVE_MANAGEMENT',name:'Nghỉ phép của tôi',platform:'WEB'};
+ assert.equal(roleScreenCatalog([screen]).find(item=>item.code===screen.code).name,'Leave Management');
+ const entries=roleMenuGroups([screen]).flatMap(group=>group.entries).filter(item=>item.code===screen.code);
+ assert.equal(entries.length,1);assert.equal(entries[0].name,'Leave Management');assert.equal(entries[0].label,'Leave Management');assert.equal(entries[0].id,99);
 });

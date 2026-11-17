@@ -6,8 +6,8 @@ import {e} from '../../utils.js';
 import {icon} from '../../components/ui.js';
 
 const requestScopeScreens=['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'];
-export const roleUsesEmployeeScope=code=>['WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS',...requestScopeScreens].includes(code);
-export const roleHasScopeAction=(code,flag)=>requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):roleUsesEmployeeScope(code);
+export const roleUsesEmployeeScope=code=>['WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS','WEB_LEAVE_BALANCES',...requestScopeScreens].includes(code);
+export const roleHasScopeAction=(code,flag)=>requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):code==='WEB_LEAVE_BALANCES'?['VIEW','UPDATE'].includes(flag):roleUsesEmployeeScope(code);
 
 export function roleScopeSelect(code,flag,label,value='SELF',disabled=false){
  if(!roleHasScopeAction(code,flag))return '';
@@ -28,18 +28,18 @@ export function roleScopeDraft(screens,matrixScreens){
 }
 
 export function roleScreenCatalog(catalog){
- const names={WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công'};
+ const names={WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_LEAVE_BALANCES:'Leave Management',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công',WEB_LEAVE_MANAGEMENT:'Leave Management'};
  const screens=catalog.map(screen=>names[screen.code]?{...screen,name:names[screen.code]}:{...screen});
  for(const [code,name] of Object.entries(names))if(!screens.some(screen=>screen.code===code))screens.push({id:'pending-'+code,code,name,platform:'WEB',isActive:true,registrationRequired:true});
  return screens;
 }
 export function roleMenuGroups(catalog,platform='WEB'){
- catalog=catalog.filter(screen=>!screen.platform||screen.platform===platform);
+ catalog=catalog.filter(screen=>!screen.platform||screen.platform===platform).map(screen=>screen.code==='WEB_LEAVE_MANAGEMENT'?{...screen,name:'Leave Management'}:screen);
  const used=new Set();const groups=navigationForScreens(nav,catalog,platform).map(group=>{
  const entries=(group.children||[[group.name,group.route]]).flatMap(([label,path])=>{
  const dynamic=/^\/screens\/([A-Z0-9_]+)$/.exec(path);
  const codes=dynamic?[dynamic[1]]:(roleScreenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]).map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
- return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:group.route==='/approvals'?(screen.code==='WEB_APPROVALS'?'Phê duyệt':screen.name):codes.length>1?label+' · '+screen.name:label,...(path==='/admin/master-data'?{parentMenu:'Master Data'}:path==='/admin/settings'?{parentMenu:'System Settings'}:{})};}));
+ return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:screen.code==='WEB_LEAVE_MANAGEMENT'?'Leave Management':group.route==='/approvals'?(screen.code==='WEB_APPROVALS'?'Phê duyệt':screen.name):codes.length>1?label+' · '+screen.name:label,...(path==='/admin/master-data'?{parentMenu:'Master Data'}:path==='/admin/settings'?{parentMenu:'System Settings'}:{})};}));
  });return {name:group.name,icon:group.icon,section:group.section,nested:!!group.children||group.route==='/approvals',entries};
  }).filter(group=>group.entries.length);
  for(const group of groups){
@@ -47,7 +47,8 @@ export function roleMenuGroups(catalog,platform='WEB'){
  group.subgroups=entries.length?[{name:'Master Data',key:group.name+'/Master Data',entries}]:[];
  const settingsEntries=group.entries.filter(screen=>screen.parentMenu==='System Settings').flatMap(screen=>screen.code.endsWith('_SYSTEM_SETTINGS')?[
   {...screen,label:'Chính sách mật khẩu',menuKey:'system/password-policy'},
-  {...screen,label:'Chấm công',menuKey:'system/attendance'}
+  {...screen,label:'Chấm công',menuKey:'system/attendance'},
+  {...screen,label:'Cấp/Thu hồi phép',menuKey:'system/leave-accrual'}
  ]:[{...screen,label:'Quy trình phê duyệt',menuKey:'system/approval-workflow'}]);
  if(settingsEntries.length)group.subgroups.push({name:'System Settings',key:group.name+'/System Settings',entries:settingsEntries});
  }
@@ -56,8 +57,19 @@ export function roleMenuGroups(catalog,platform='WEB'){
  if(remaining.length)groups.push({name:'Màn hình khác',icon:'grid',nested:true,entries:remaining.map(screen=>({...screen,label:screen.name}))});
  return groups;
 }
+export function applyMyLeaveViewDependency(draft,changed,scopes=new Map(),enabledScreens=null,screens=null){
+ if(draft.get('WEB_LEAVE_MANAGEMENT')?.VIEW!==true)return;
+ const target='WEB_LEAVE_BALANCES',existing=draft.get(target),scope=scopes.get(target)||{};
+ if(existing?.VIEW===true&&['SELF','DEPARTMENT','ALL'].includes(scope.VIEW)){enabledScreens?.add(target);return;}
+ if(screens){const screen=screens.find(item=>item.code===target);if(!screen||screen.registrationRequired||screen.isActive===false)throw Error('Cần đăng ký và kích hoạt màn hình Số dư phép (WEB_LEAVE_BALANCES) trước khi cấp quyền Leave Management.');}
+ draft.set(target,{...Object.fromEntries(roleFlags.map(([flag])=>[flag,false])),...existing,VIEW:true});
+ scopes.set(target,{...scope,VIEW:['SELF','DEPARTMENT','ALL'].includes(scope.VIEW)?scope.VIEW:'SELF'});
+ changed.add(target);enabledScreens?.add(target);
+}
 export function rolePermissionPatch(draft,changed,disabled=new Set(),scopes=new Map()){
- return [...changed].map(code=>({screenCode:code,standard:{...draft.get(code)},...(scopes.has(code)?{dataScopes:{...scopes.get(code)}}:{}),...(disabled.has(code)?{extendedActions:[]}: {})}));
+ const effectiveDraft=new Map([...draft].map(([code,flags])=>[code,{...flags}])),effectiveScopes=new Map([...scopes].map(([code,values])=>[code,{...values}])),effectiveChanged=new Set(changed);
+ applyMyLeaveViewDependency(effectiveDraft,effectiveChanged,effectiveScopes);
+ return [...effectiveChanged].map(code=>({screenCode:code,standard:{...effectiveDraft.get(code)},...(effectiveScopes.has(code)?{dataScopes:{...effectiveScopes.get(code)}}:{}),...(disabled.has(code)?{extendedActions:[]}: {})}));
 }
 function roleGrant(code,flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p.canView==='Y'&&p[flag]==='Y');}
 export function roleSessionIdentity(session=apiSession()){
@@ -102,6 +114,15 @@ export async function mountRoles(root,filters={}){
  for(const subgroup of group.subgroups||[])if(subgroup.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id)){openByPlatform[platform].add(group.name);openByPlatform[platform].add(subgroup.key);}
  }
  const canSave=roleGrant('WEB_PERMISSIONS','canUpdate')&&roleGrant('WEB_PERMISSIONS','canApprove');
+ function dependencyReady(){
+ const target=screens.find(screen=>screen.code==='WEB_LEAVE_BALANCES');
+ if(target&&!target.registrationRequired&&target.isActive!==false)return true;
+ root.querySelector('#role-feedback').textContent='Cần đăng ký và kích hoạt màn hình Số dư phép (WEB_LEAVE_BALANCES) trước.';
+ return false;
+ }
+ let dependencyError='';
+ function syncMyLeave(strict=false){try{applyMyLeaveViewDependency(draft,changed,scopes,enabledScreens,screens);dependencyError='';}catch(error){dependencyError=error.message;if(strict)throw error;}}
+
  function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" data-screen-menu-key="${e(screen.menuKey||'')}" data-screen-label="${e(screen.label||screen.name)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||screen.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
  function draw(){
  const menuGroups=roleMenuGroups(screens,activePlatform),openGroups=openByPlatform[activePlatform];
@@ -121,7 +142,7 @@ export async function mountRoles(root,filters={}){
  return `<button type="button" class="role-subgroup-toggle ${subActive?'active':''}" data-role-group="${e(subgroup.key)}" aria-expanded="${expanded}"><span>${e(subgroup.name)}</span><span class="chev ${expanded?'role-chevron-open':''}">${icon('chevron',12)}</span>${subgroup.entries.some(item=>changed.has(item.code))?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${expanded?`<div class="submenu role-submenu role-subgroup-items">${subgroup.entries.map(screenButton).join('')}</div>`:''}`;
  }).join('');
  return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="role-nav-group-copy"><span class="nav-label">${e(group.name)}</span>${group.description?`<small>${e(group.description)}</small>`:''}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${menuEntries}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;
- }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(menuLabelByPlatform[activePlatform]||selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.registrationRequired?`<p>Màn hình chưa được đăng ký trên hệ thống.</p><button type="button" class="btn primary" id="role-register-screen" ${!roleGrant('WEB_PERMISSIONS','canNew')||saving?'disabled':''}>Đăng ký màn hình ${e(selected.name)}</button>${!roleGrant('WEB_PERMISSIONS','canNew')?'<p class="muted">Cần quyền thêm mới trong Phân quyền để đăng ký màn hình.</p>':''}`:''}${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu và Chấm công trong System Settings.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||selected.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${roleScopeSelect(selected.code,flag,label,scopes.get(selected.code)?.[flag]||'SELF',!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||selected.registrationRequired||saving)}</div>`).join('')}</div>${requestScopeScreens.includes(selected.code)?'<p class="muted role-scope-note">Phạm vi áp dụng khi xem yêu cầu. Tạo và hủy đơn dùng nhân viên liên kết với tài khoản hiện tại.</p>':selected.code==='WEB_APPROVALS'?'<p class="muted role-scope-note">Phạm vi xem và duyệt được cấu hình riêng. Chỉ người được gán ở bước hiện tại mới có thể duyệt.</p>':roleUsesEmployeeScope(selected.code)?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status"></p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
+ }).join('')||'<p class="muted role-menu-empty">Chưa có màn hình cho nền tảng này.</p>'}</nav><section class="role-functions">${selected?`<div class="role-functions-heading"><span class="icon-tile blue">${icon('shield',20)}</span><div><h3>${e(menuLabelByPlatform[activePlatform]||selected.name)}</h3><p class="muted">${enabledScreens.has(selected.code)?'Thiết lập quyền thao tác trên màn hình':'Bật nút gạt ở menu để phân quyền màn hình này'}</p></div></div>${selected.registrationRequired?`<p>Màn hình chưa được đăng ký trên hệ thống.</p><button type="button" class="btn primary" id="role-register-screen" ${!roleGrant('WEB_PERMISSIONS','canNew')||saving?'disabled':''}>Đăng ký màn hình ${e(selected.name)}</button>${!roleGrant('WEB_PERMISSIONS','canNew')?'<p class="muted">Cần quyền thêm mới trong Phân quyền để đăng ký màn hình.</p>':''}`:''}${selected.isActive===false?'<p>Màn hình ngừng hoạt động · chỉ xem quyền đã cấp.</p>':''}${['WEB_LEAVE_MANAGEMENT','WEB_LEAVE_BALANCES'].includes(selected.code)?'<p class="muted role-scope-note">Bật Xem cho Leave Management sẽ tự cấp Xem số dư phép. Phạm vi số dư mặc định là Chính mình; quyền và phạm vi đã có vẫn được giữ.</p>':''}${selected.code==='WEB_SYSTEM_SETTINGS'?'<p class="muted role-scope-note">Quyền này áp dụng cho Chính sách mật khẩu, Chấm công và Cấp/Thu hồi phép trong System Settings.</p>':''}<div class="role-toggles">${roleFlags.map(([flag,label])=>`<div class="role-permission-item"><label class="role-toggle-row"><span>${label}</span><span class="role-switch"><input type="checkbox" role="switch" aria-label="${label}" data-role-flag="${flag}" ${draft.get(selected.code)[flag]?'checked':''} ${!canSave||!enabledScreens.has(selected.code)||selected.isActive===false||selected.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>${roleScopeSelect(selected.code,flag,label,scopes.get(selected.code)?.[flag]||'SELF',!canSave||!enabledScreens.has(selected.code)||!draft.get(selected.code)[flag]||selected.isActive===false||selected.registrationRequired||saving)}</div>`).join('')}</div>${requestScopeScreens.includes(selected.code)?'<p class="muted role-scope-note">Phạm vi áp dụng khi xem yêu cầu. Tạo và hủy đơn dùng nhân viên liên kết với tài khoản hiện tại.</p>':selected.code==='WEB_APPROVALS'?'<p class="muted role-scope-note">Phạm vi xem và duyệt được cấu hình riêng. Chỉ người được gán ở bước hiện tại mới có thể duyệt.</p>':roleUsesEmployeeScope(selected.code)?'<p class="muted role-scope-note">Chính mình chỉ cho phép đọc. Các thao tác ghi cần phạm vi Cùng phòng ban hoặc Tất cả.</p>':''}`:'<p>Chưa có màn hình trong danh mục.</p>'}</section></div><div class="role-save"><p id="role-feedback" role="status">${e(dependencyError)}</p><span>${changed.size} màn hình thay đổi</span><button id="role-save" class="btn primary" ${!canSave||!changed.size||saving?'disabled':''}>${saving?'Đang lưu…':'Lưu lại'}</button></div>`;
  root.querySelector('#role-register-screen')?.addEventListener('click',async()=>{
  if(saving||!selected?.registrationRequired||!roleGrant('WEB_PERMISSIONS','canNew'))return;
  const target=selected;saving=true;draw();
@@ -152,12 +173,13 @@ export async function mountRoles(root,filters={}){
  root.querySelectorAll('[data-screen-enabled]').forEach(el=>el.onchange=()=>{
  const screen=screens.find(item=>String(item.id)===el.dataset.screenEnabled);
  if(!screen||!canSave||screen.isActive===false||screen.registrationRequired||saving)return;
+ if(screen.code==='WEB_LEAVE_MANAGEMENT'&&el.checked&&!dependencyReady()){el.checked=false;return;}
  selected=screen;menuKeyByPlatform[activePlatform]=el.dataset.screenMenuKey||null;menuLabelByPlatform[activePlatform]=el.dataset.screenLabel||screen.name;
  if(el.checked){enabledScreens.add(screen.code);draft.get(screen.code).VIEW=true;if(roleUsesEmployeeScope(screen.code)){if(!scopes.has(screen.code))scopes.set(screen.code,{});scopes.get(screen.code).VIEW??='SELF';}}
  else{enabledScreens.delete(screen.code);disabledScreens.add(screen.code);roleFlags.forEach(([flag])=>{draft.get(screen.code)[flag]=false;});}
- changed.add(screen.code);draw();root.querySelector(`[data-screen-enabled="${screen.id}"][data-screen-menu-key="${menuKeyByPlatform[activePlatform]||''}"]`)?.focus();
+ changed.add(screen.code);syncMyLeave();draw();root.querySelector(`[data-screen-enabled="${screen.id}"][data-screen-menu-key="${menuKeyByPlatform[activePlatform]||''}"]`)?.focus();
  });
- root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(roleHasScopeAction(selected.code,el.dataset.roleFlag)&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
+ root.querySelectorAll('[data-role-flag]').forEach(el=>el.onchange=()=>{if(!canSave||saving)return;if(selected.code==='WEB_LEAVE_MANAGEMENT'&&el.dataset.roleFlag==='VIEW'&&el.checked&&!dependencyReady()){el.checked=false;return;}draft.get(selected.code)[el.dataset.roleFlag]=el.checked;if(roleHasScopeAction(selected.code,el.dataset.roleFlag)&&el.checked){if(!scopes.has(selected.code))scopes.set(selected.code,{});scopes.get(selected.code)[el.dataset.roleFlag]??='SELF';}changed.add(selected.code);syncMyLeave();const flag=el.dataset.roleFlag;draw();root.querySelector(`[data-role-flag="${flag}"]`)?.focus();});
  root.querySelectorAll('[data-role-scope]').forEach(el=>el.onchange=()=>{
  if(!canSave||saving||selected.isActive===false||selected.registrationRequired)return;
  const flag=el.dataset.roleScope;
@@ -170,7 +192,7 @@ export async function mountRoles(root,filters={}){
  });
  root.querySelector('#role-save').onclick=async()=>{
  if(saving||!canSave||!changed.size)return;saving=true;draw();
- try{const saved=await apiSaveRolePermissions(role.id,matrix.version,rolePermissionPatch(draft,changed,disabledScreens,scopes));if(!root.isConnected)return;
+ try{syncMyLeave(true);const saved=await apiSaveRolePermissions(role.id,matrix.version,rolePermissionPatch(draft,changed,disabledScreens,scopes));if(!root.isConnected)return;
  if(!saved?.version)throw Error('Đã gửi lưu nhưng chưa nhận version mới. Hãy quay lại và tải lại role để xác nhận.');
  matrix.version=saved.version;changed.clear();disabledScreens.clear();saving=false;draw();root.querySelector('#role-feedback').textContent='Đã lưu quyền thành công.';
  }catch(err){saving=false;if(!root.isConnected)return;draw();root.querySelector('#role-feedback').textContent=err.message+' Nếu dữ liệu đã thay đổi, quay lại danh sách và mở role để tải phiên bản mới.';}

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {screenNavigationGroup,screenNavigationLabel,navigationForScreens} from '../assets/js/screen-navigation.js';
-import {nav,mainNavigation,groupFor,isKnown} from '../assets/js/router.js';
-import {screenAllowed} from '../assets/js/permissions.js';
+import {nav,mainNavigation,groupFor,isKnown,getPath} from '../assets/js/router.js';
+import {screenAllowed,screenRoutes} from '../assets/js/permissions.js';
 import {roleMenuGroups} from '../assets/js/pages/administration/roles.js';
 import {login,apiLogout} from '../assets/js/api/client.js';
 
@@ -29,4 +29,21 @@ test('main menu and direct navigation use VIEW grants for each actual backend sc
 test('role groups preserve MOBILE screen identity and separate platforms',()=>{
  const catalog=[{id:1,code:'WEB_PAYROLL',name:'Web payroll',platform:'WEB'},{id:2,code:'MOBILE_PAYROLL',name:'Mobile payroll',platform:'MOBILE'}];
  assert.deepEqual(roleMenuGroups(catalog,'WEB').flatMap(group=>group.entries.map(item=>item.id)),[1]);assert.deepEqual(roleMenuGroups(catalog,'MOBILE').flatMap(group=>group.entries.map(item=>item.id)),[2]);
+});
+
+test('leave balances belongs to hr leave with no duplicate dynamic menu and old link resolves there',()=>{
+ assert.deepEqual(screenRoutes['/hr/leave'],['WEB_LEAVE_BALANCES']);
+ const menu=navigationForScreens(nav,[{code:'WEB_LEAVE_BALANCES',platform:'WEB',canView:'Y'},{code:'WEB_LEAVE',platform:'WEB',canView:'Y'}]);
+ const links=menu.flatMap(group=>group.children||[]);
+ assert.ok(links.some(([label,path])=>label==='Leave Management'&&path==='/hr/leave'));
+ assert.ok(!links.some(([,path])=>path==='/screens/WEB_LEAVE_BALANCES'||path==='/screens/WEB_LEAVE'));
+ const previous=globalThis.location;
+ try{globalThis.location={hash:'#/screens/WEB_LEAVE_BALANCES'};assert.equal(getPath(),'/hr/leave');globalThis.location.hash='#/screens/WEB_LEAVE';assert.equal(getPath(),'/hr/leave');}finally{if(previous===undefined)delete globalThis.location;else globalThis.location=previous;}
+});
+
+test('old My Leave link redirects to workspace leave without adding a duplicate menu',()=>{
+ const links=navigationForScreens(nav,[{code:'WEB_MY_LEAVE',platform:'WEB'},{code:'WEB_LEAVE_MANAGEMENT',platform:'WEB'}]).flatMap(group=>group.children||[]);
+ assert.ok(!links.some(([,path])=>path==='/screens/WEB_MY_LEAVE'||path==='/screens/WEB_LEAVE_MANAGEMENT'));
+ const previous=globalThis.location,calls=[];
+ try{globalThis.location={hash:'#/screens/WEB_MY_LEAVE',replace:value=>calls.push(value)};assert.equal(getPath(),'/workspace/leave');assert.deepEqual(calls,['#/workspace/leave']);globalThis.location.hash='#/screens/WEB_LEAVE_MANAGEMENT';assert.equal(getPath(),'/workspace/leave');}finally{if(previous===undefined)delete globalThis.location;else globalThis.location=previous;}
 });

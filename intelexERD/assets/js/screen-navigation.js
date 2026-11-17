@@ -1,7 +1,7 @@
 import {screenRoutes} from './permissions.js';
 
 const screenLabels={SALARY:'Thiết lập lương nhân viên',EMPLOYEE_SALARIES:'Thiết lập lương nhân viên',PAYROLLS:'Quản lý bảng lương',KPI_CRITERIA:'Thiết lập KPI',SALARY_PROFILES:'Thiết lập lương nhân viên',SALARY_PROFILE:'Thiết lập lương nhân viên',SALARY_SETTINGS:'Thiết lập lương nhân viên',SALARY_SETUP:'Thiết lập lương nhân viên',PAYROLL:'Quản lý bảng lương',PAYROLL_PERIODS:'Quản lý bảng lương',PAYROLL_MANAGEMENT:'Quản lý bảng lương',KPI_TEMPLATES:'Thiết lập KPI',KPI_SETTINGS:'Thiết lập KPI',KPI_SETUP:'Thiết lập KPI',KPI_TARGETS:'Mục tiêu KPI',KPI_RESULTS:'Đánh giá KPI',KPI_REVIEWS:'Đánh giá KPI',KPI_EVALUATIONS:'Đánh giá KPI',PERFORMANCE_REVIEWS:'Đánh giá hiệu suất'};
-export function screenNavigationLabel(screen){const short=String(screen.code||'').replace(/^(WEB|MOBILE)_/,'');return screen.name||screen.screenName||screenLabels[short]||short.replaceAll('_',' ');}
+export function screenNavigationLabel(screen){if(screen.code==='WEB_LEAVE_BALANCES')return 'Leave Management';const short=String(screen.code||'').replace(/^(WEB|MOBILE)_/,'');return screen.name||screen.screenName||screenLabels[short]||short.replaceAll('_',' ');}
 export function screenNavigationGroup(code){
  const short=String(code||'').replace(/^(WEB|MOBILE)_/,'');
  if(/(^|_)(SALARY|SALARIES|PAYROLL|PAYROLLS|COMPENSATION|TIMESHEET|TIMESHEETS)(_|$)/.test(short))return {name:'Payroll & Compensation',icon:'briefcase',description:'Quản lý tiền lương'};
@@ -23,7 +23,7 @@ export function navigationForScreens(base,catalog,platform='WEB'){
  }
  const seen=new Set();
  for(const screen of catalog){
-  if(screen.platform&&screen.platform!==platform||!new RegExp('^'+platform+'_[A-Z0-9_]+$').test(screen.code||'')||assigned.has(screen.code)||seen.has(screen.code))continue;
+  if(screen.platform&&screen.platform!==platform||!new RegExp('^'+platform+'_[A-Z0-9_]+$').test(screen.code||'')||['WEB_LEAVE','WEB_MY_LEAVE'].includes(screen.code)||assigned.has(screen.code)||seen.has(screen.code))continue;
   seen.add(screen.code);
   const metadata=screenNavigationGroup(screen.code),path='/screens/'+screen.code;
   let group=groups.find(group=>group.name===metadata.name);

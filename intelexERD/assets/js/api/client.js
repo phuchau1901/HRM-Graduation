@@ -199,3 +199,26 @@ export function apiApprovalWorkflowSettings(payload=null){
  if(payload!==null&&(!Number.isSafeInteger(payload.version)||payload.version<0))throw Error('Thiếu phiên bản cấu hình quy trình hợp lệ.');
  return request('/api/approval-workflow-settings',payload===null?{cache:'no-store'}:{method:'PUT',body:JSON.stringify(payload)});
 }
+
+export function apiMyLeaveBalances({year=null,leaveTypeId=null}={}){
+ const query=new URLSearchParams();
+ if(year!==null){if(!Number.isInteger(year)||year<1900||year>9999)throw Error('Năm phải từ 1900 đến 9999.');query.set('year',year);}
+ if(leaveTypeId!==null){if(!Number.isSafeInteger(leaveTypeId)||leaveTypeId<=0)throw Error('Loại nghỉ phép không hợp lệ.');query.set('leaveTypeId',leaveTypeId);}
+ return request('/api/leave-balances/me'+(query.size?'?'+query:''),{cache:'no-store'});
+}
+
+export function apiLeaveAccrualSettings(payload=null){
+ if(payload!==null&&(!Number.isSafeInteger(payload.version)||payload.version<0))throw Error('Phiên bản cấu hình không hợp lệ.');
+ return request('/api/system-settings/leave-accrual',payload===null?{cache:'no-store'}:{method:'PUT',body:JSON.stringify(payload)});
+}
+export function apiRunLeaveAccrual(){return request('/api/system-settings/leave-accrual/run',{method:'POST'});}
+
+export function apiLeaveBalances(filters={},signal){
+ const query=new URLSearchParams();
+ for(const key of ['page','pageSize','view','year','employeeId','departmentId','leaveTypeId','search'])if(filters[key]!==undefined&&filters[key]!==null&&filters[key]!=='')query.set(key,filters[key]);
+ return request('/api/leave-balances?'+query,{cache:'no-store',signal});
+}
+export function apiGrantLeaveBalances(payload){return request('/api/leave-balances/grants',{method:'POST',body:JSON.stringify(payload)});}
+export function apiSaveLeaveBalance(payload){return request('/api/leave-balances',{method:'PUT',body:JSON.stringify(payload)});}
+export function apiAdjustLeaveBalance(id,payload){return request(`/api/leave-balances/${encodeURIComponent(id)}/adjustments`,{method:'POST',body:JSON.stringify(payload)});}
+export function apiLeaveBalanceHistory(id,page=1){return request(`/api/leave-balances/${encodeURIComponent(id)}/history?`+new URLSearchParams({page,pageSize:20}),{cache:'no-store'});}

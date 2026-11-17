@@ -1,6 +1,7 @@
 # Cấu trúc trang theo menu
 
 - `dashboard/`: Tổng quan.
+- `my-workspace/`: Nghỉ phép cá nhân và số dư phép từ API.
 - `human-resources/`: Nhân viên, cơ cấu tổ chức, hợp đồng.
 - `approval-center/`: Nghỉ phép, tăng ca, điều chỉnh công và phê duyệt.
 - `notifications/`: Hộp thư thông báo và popup chi tiết.
