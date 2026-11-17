@@ -6,7 +6,7 @@
 
 Yêu cầu WEB_LEAVE_BALANCES VIEW và tài khoản ACTIVE có Employee liên kết. API này không kiểm tra Data Scope SELF/DEPARTMENT/ALL và không yêu cầu cấu hình dòng scope; backend chỉ lọc theo users.employee_id của chính tài khoản đăng nhập. Quyền VIEW vẫn kiểm tra hiện hành. Không nhận employeeId để chọn người khác.
 
-Query tùy chọn `year=2027`, `leaveTypeId=1`; mặc định năm hiện tại theo Asia/Ho_Chi_Minh. Không dùng trực tiếp ngày UTC. Không có số dư thực tế trong năm/loại được chọn thì tổng0 và balances=[], không tự tạo quota. Không có Employee liên kết =>403; year ngoài1900..9999 =>400.
+Query tùy chọn `year=2027`, `leaveTypeId=1`; mặc định năm hiện tại theo Asia/Ho_Chi_Minh. Không dùng trực tiếp ngày UTC. Không có số dư thực tế trong năm/loại được chọn thì tổng0 và balances=[], không tự tạo quota. Không có Employee liên kết =>403, code HRM_AUTH_006, error EMPLOYEE_LINK_REQUIRED; thiếu VIEW hiện hành =>403 HRM_AUTH_003 PERMISSION_DENIED. /me không trả HRM_AUTH_004 cho hai trường hợp này; year ngoài1900..9999 =>400.
 
 ```json
 {

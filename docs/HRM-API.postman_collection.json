@@ -2861,7 +2861,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/leave-balances/me",
-            "description": "WEB_LEAVE_BALANCES/VIEW and ACTIVE user with linked Employee required. No Data Scope check or configured scope row is needed. Always filters to the signed-in users.employee_id; employeeId query cannot select another person. Optional year/leaveTypeId; year defaults to Asia/Ho_Chi_Minh business year. Response success/data includes totalDays,usedDays,remainingDays,reservedDays,availableDays,balances. Missing link or live VIEW grant403. Other balance APIs retain their normal scopes. See docs/modules/Leave/ACCRUAL_SETTINGS.md."
+            "description": "WEB_LEAVE_BALANCES/VIEW and ACTIVE user with linked Employee required. No Data Scope check or configured scope row is needed. Always filters to the signed-in users.employee_id; employeeId query cannot select another person. Optional year/leaveTypeId; year defaults to Asia/Ho_Chi_Minh business year. Response success/data includes totalDays,usedDays,remainingDays,reservedDays,availableDays,balances. Missing link or live VIEW grant403. Other balance APIs retain their normal scopes. See docs/modules/Leave/ACCRUAL_SETTINGS.md. Distinct failures:403 HRM_AUTH_006 EMPLOYEE_LINK_REQUIRED when users.employee_id is missing;403 HRM_AUTH_003 PERMISSION_DENIED when live VIEW grant is missing. Neither error is DATA_SCOPE_DENIED; /me does not check scope."
           },
           "response": []
         },

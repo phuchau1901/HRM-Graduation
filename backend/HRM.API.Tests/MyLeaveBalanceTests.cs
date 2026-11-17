@@ -46,7 +46,10 @@ public sealed class MyLeaveBalanceTests
         ((AttendanceTestClock)f.H.App.Services.GetRequiredService<TimeProvider>()).Now = new(2026, 12, 31, 18, 0, 0, TimeSpan.Zero);
         var mine = await Get(f); Assert.Equal(2027, mine.Year); Assert.Equal(new DateOnly(2027, 1, 1), mine.AsOfDate); Assert.Equal(5, mine.TotalDays);
         using (var scope = f.H.App.Services.CreateScope()) await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<User>().Where(u => u.UserId == "api-user").ExecuteUpdateAsync(s => s.SetProperty(u => u.EmployeeId, (int?)null));
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.GetAsync("/api/leave-balances/me")).StatusCode);
+        var response = await f.H.Client.GetAsync("/api/leave-balances/me"); Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var failure = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("HRM_AUTH_006", failure.GetProperty("code").GetString());
+        Assert.Equal("EMPLOYEE_LINK_REQUIRED", failure.GetProperty("error").GetString());
     }
     [Theory]
     [InlineData(null)]
@@ -74,7 +77,10 @@ public sealed class MyLeaveBalanceTests
             var screen = await db.Screens.SingleAsync(s => s.Code == "WEB_LEAVE_BALANCES");
             await db.Set<RoleDetail>().Where(d => d.ScreenID == screen.ID).ExecuteUpdateAsync(s => s.SetProperty(d => d.CanView, "N"));
         }
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.GetAsync("/api/leave-balances/me")).StatusCode);
+        var response = await f.H.Client.GetAsync("/api/leave-balances/me"); Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var failure = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("HRM_AUTH_003", failure.GetProperty("code").GetString());
+        Assert.Equal("PERMISSION_DENIED", failure.GetProperty("error").GetString());
     }
 
 }

@@ -9,11 +9,13 @@ public sealed partial class LeaveWorkflowService
 {
     public async Task<MyBalanceSummary> MyLeaveBalances(string actor, MyBalanceQuery q, CancellationToken ct)
     {
-        await Demand(actor, Balances, "VIEW", ct);
+        if (!await permissions.HasPermissionAsync(actor, Balances, "VIEW", ct))
+            throw new BusinessException(403, "HRM_AUTH_003", "Tài khoản chưa có quyền WEB_LEAVE_BALANCES / VIEW đang hiệu lực.", "PERMISSION_DENIED");
         var employee = await (from user in db.Set<User>().AsNoTracking()
                               join person in db.Employees.AsNoTracking() on user.EmployeeId equals (int?)person.Id
                               where user.UserId == actor && user.Status == "ACTIVE"
-                              select new { person.Id, person.FullName }).SingleOrDefaultAsync(ct) ?? throw BusinessException.Scope();
+                              select new { person.Id, person.FullName }).SingleOrDefaultAsync(ct)
+            ?? throw new BusinessException(403, "HRM_AUTH_006", "Tài khoản chưa liên kết với hồ sơ nhân viên hợp lệ. Cần cấu hình users.employee_id để xem số dư phép cá nhân.", "EMPLOYEE_LINK_REQUIRED");
         var today = VietnamBusinessDate.Today(clock); var year = q.Year ?? today.Year;
         var rows = await (from b in db.Set<LeaveBalance>().AsNoTracking()
                           join t in db.Set<LeaveType>().AsNoTracking() on b.LeaveTypeID equals t.ID

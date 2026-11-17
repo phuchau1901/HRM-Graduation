@@ -6,10 +6,11 @@ using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
 namespace HRM.API.Common;
 
-public sealed class BusinessException(int status, string code, string message) : Exception(message)
+public sealed class BusinessException(int status, string code, string message, string? errorName = null) : Exception(message)
 {
     public int Status { get; } = status;
     public string Code { get; } = code;
+    public string? ErrorName { get; } = errorName;
     public static BusinessException Missing() => new(404, "HRM_RESOURCE_404", "Resource not found.");
     public static BusinessException Conflict(string message) => new(409, "HRM_RESOURCE_409", message);
     public static BusinessException Invalid(string message) => new(400, "HRM_VALIDATION_400", message);
@@ -25,7 +26,7 @@ public sealed class BusinessExceptionFilter : IExceptionFilter
             error = BusinessException.Conflict("A unique key or reference constraint prevents this operation.");
         if (error is null) return;
         context.Result = new ObjectResult(ApiErrors.Create(context.HttpContext, error.Code,
-            error.Status == 403 ? (error.Code == "HRM_ADMIN_403" ? "PERMISSION_DENIED" : "DATA_SCOPE_DENIED") : "BUSINESS_ERROR", error.Message)) { StatusCode = error.Status };
+            error.ErrorName ?? (error.Status == 403 ? (error.Code == "HRM_ADMIN_403" ? "PERMISSION_DENIED" : "DATA_SCOPE_DENIED") : "BUSINESS_ERROR"), error.Message)) { StatusCode = error.Status };
         context.ExceptionHandled = true;
     }
 }
