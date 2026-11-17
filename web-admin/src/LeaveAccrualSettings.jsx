@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { can } from './api';
 export function LeaveAccrualSettings({ api, permissions }) {
   const allowed = can(permissions, 'WEB_SYSTEM_SETTINGS', 'VIEW');
-  const editable = can(permissions, 'WEB_SYSTEM_SETTINGS', 'UPDATE') && can(permissions, 'WEB_LEAVE_BALANCES', 'UPDATE');
+  const editable = can(permissions, 'WEB_SYSTEM_SETTINGS', 'UPDATE');
   const [data, setData] = useState(null), [error, setError] = useState(''), [message, setMessage] = useState(''), [busy, setBusy] = useState(false), [reload, setReload] = useState(0);
   useEffect(() => {
     if (!allowed) return; const abort = new AbortController(); setData(null); setError('');
@@ -21,7 +21,7 @@ export function LeaveAccrualSettings({ api, permissions }) {
     catch (e) { setError(e.message); } finally { setBusy(false); }
   }
   if (!allowed) return <p role="alert">Bạn chưa có quyền xem cấu hình hệ thống.</p>;
-  return <section className="leave-workspace"><h2>Tự động cộng và reset phép</h2><p>Lịch theo giờ Việt Nam. Người lưu/chạy lịch cần WEB_SYSTEM_SETTINGS UPDATE và WEB_LEAVE_BALANCES UPDATE với scope ALL.</p><p>Reset chỉ hết phần phép khả dụng, giữ lịch sử đã dùng và phép đang chờ duyệt. Ngày 01/01 đóng số dư năm trước; ngày khác áp dụng năm hiện tại. Lịch cộng không chạy bù các tháng đã bỏ lỡ. Chạy lịch đến hạn dùng cấu hình đã lưu.</p>
+  return <section className="leave-workspace"><h2>Tự động cộng và reset phép</h2><p>Lịch theo giờ Việt Nam. Người lưu/chạy lịch cần WEB_SYSTEM_SETTINGS / UPDATE; không áp dụng Data Scope.</p><p>Reset chỉ hết phần phép khả dụng, giữ lịch sử đã dùng và phép đang chờ duyệt. Ngày 01/01 đóng số dư năm trước; ngày khác áp dụng năm hiện tại. Lịch cộng không chạy bù các tháng đã bỏ lỡ. Chạy lịch đến hạn dùng cấu hình đã lưu.</p>
     {error && <p className="error" role="alert">{error}</p>}{message && <p className="success" role="status">{message}</p>}
     {!data ? <div className="card org-skeleton" role="status" aria-label="Đang tải lịch phép"><div /><div /></div> : <form className="card editor" onSubmit={save}><fieldset disabled={!editable || busy}>
       <label className="checkbox"><input type="checkbox" checked={data.settings.enabled} onChange={e => field('enabled', e.target.checked)} />Bật tự động cộng/reset phép</label>

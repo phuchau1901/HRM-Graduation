@@ -2881,7 +2881,7 @@
             "method": "PUT",
             "header": [],
             "url": "{{baseUrl}}/api/system-settings/leave-accrual",
-            "description": "WEB_SYSTEM_SETTINGS/UPDATE AND WEB_LEAVE_BALANCES/UPDATE scopeALL. version is in body, not If-Match. Configure active positions, balance-tracked types, monthly day/rate, eligibility and first reset date/repetition. Sample disabled deliberately; review before enabling. New effectiveFrom cannot be backdated. Stale version409. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection.",
+            "description": "WEB_SYSTEM_SETTINGS/UPDATE only; no Data Scope, balance permission or Employee link required. version is in body, not If-Match. Configure active positions, balance-tracked types, monthly day/rate, eligibility and first reset date/repetition. Sample disabled deliberately; review before enabling. New effectiveFrom cannot be backdated. Stale version409. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"version\": {{accrualSettingsVersion}},\n  \"settings\": {\n    \"enabled\": false,\n    \"effectiveFrom\": \"{{accrualEffectiveFrom}}\",\n    \"accrualDay\": 15,\n    \"newHireEligibility\": \"ACTIVE_ON_DATE\",\n    \"resetOn\": \"{{accrualResetOn}}\",\n    \"repeatResetYearly\": true,\n    \"rules\": [\n      {\n        \"positionId\": {{accrualPositionId}},\n        \"leaveTypeId\": {{leaveTypeId}},\n        \"daysPerMonth\": 1.5\n      }\n    ]\n  }\n}",
@@ -2900,7 +2900,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/system-settings/leave-accrual/run",
-            "description": "Same global authority as settingsPUT. Runs saved, enabled, due schedules only using server Vietnam date. Does not force a future date or catch up previous months. Permanent period receipts prevent double accrual after retry/restart/concurrent run. Reset expires available days and preserves used/reserved history. Manual mutation; execute only in authorized test environment. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection."
+            "description": "WEB_SYSTEM_SETTINGS/UPDATE only; no Data Scope, balance permission or Employee link required. Runs saved, enabled, due schedules only using server Vietnam date. Does not force a future date or catch up previous months. Permanent period receipts prevent double accrual after retry/restart/concurrent run. Reset expires available days and preserves used/reserved history. Manual mutation; execute only in authorized test environment. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection."
           },
           "response": []
         }

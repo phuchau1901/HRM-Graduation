@@ -15,15 +15,17 @@ describe('LeaveAccrualSettings', () => {
     await waitFor(() => expect(api).toHaveBeenCalledWith('/system-settings/leave-accrual', { method: 'PUT', body: JSON.stringify({ ...data, settings: { ...data.settings, resetOn: '2028-04-01', rules: [{ ...data.settings.rules[0], daysPerMonth: 1.5 }] } }) }));
     expect(await screen.findByText('Đã lưu lịch cộng/reset phép.')).toBeTruthy();
   });
-  it('requires both permission flags for write controls and does not fetch without VIEW', async () => {
+  it('uses only system-settings permissions and does not fetch without VIEW', async () => {
     const api = vi.fn(async () => data); render(<LeaveAccrualSettings api={api} permissions={[]} />); expect(api).not.toHaveBeenCalled(); cleanup();
-    render(<LeaveAccrualSettings api={api} permissions={[{ code: 'WEB_SYSTEM_SETTINGS', canView: 'Y', canUpdate: 'Y' }]} />);
+    const { rerender } = render(<LeaveAccrualSettings api={api} permissions={[{ code: 'WEB_SYSTEM_SETTINGS', canView: 'Y' }]} />);
     await screen.findByLabelText('Ngày bắt đầu áp dụng'); expect(screen.queryByText('Lưu lịch phép')).toBeNull(); expect(screen.getByLabelText('Ngày bắt đầu áp dụng').closest('fieldset').disabled).toBe(true);
+    rerender(<LeaveAccrualSettings api={api} permissions={[{ code: 'WEB_SYSTEM_SETTINGS', canView: 'Y', canUpdate: 'Y' }]} />);
+    expect(screen.getByText('Lưu lịch phép')).toBeTruthy(); expect(screen.getByLabelText('Ngày bắt đầu áp dụng').closest('fieldset').disabled).toBe(false);
   });
   it('runs only due schedules and reports API errors without fabricated outcomes', async () => {
-    const api = vi.fn(async (_path, options) => { if (options?.method === 'POST') throw new Error('Global scope required'); return data; });
+    const api = vi.fn(async (_path, options) => { if (options?.method === 'POST') throw new Error('System settings UPDATE required'); return data; });
     render(<LeaveAccrualSettings api={api} permissions={grants} />); fireEvent.click(await screen.findByText('Chạy lịch đến hạn'));
-    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'Global scope required'); expect(screen.queryByText(/Đã xử lý lịch đến hạn:/)).toBeNull();
+    expect(await screen.findByRole('alert')).toHaveProperty('textContent', 'System settings UPDATE required'); expect(screen.queryByText(/Đã xử lý lịch đến hạn:/)).toBeNull();
   });
   it('opens as a separate system settings tab using its own response format', async () => {
     const api = vi.fn(async path => path === '/system-settings/leave-accrual' ? data : { version: 'password-version', settings: { minimumLength: 12, maximumLength: 128, passwordHistoryCount: 0 } });

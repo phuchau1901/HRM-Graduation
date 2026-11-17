@@ -12,4 +12,4 @@ AuditLog: `GET /api/audit-logs` (lọc/phân trang) và `GET /api/audit-logs/{id
 
 ## Lịch phép tự động
 
-System Settings → Leave Accrual Settings cấu hình suất cộng theo PositionId, ngày cộng tháng, điều kiện nhân viên mới và ngày reset có lặp năm. [API và chính sách](../Leave/ACCRUAL_SETTINGS.md). Cấu hình disabled mặc định; không tự chạy migration/deploy. Quyền lưu/chạy cần thêm WEB_LEAVE_BALANCES UPDATE scope ALL vì tác động số dư toàn hệ thống.
+System Settings → Leave Accrual Settings cấu hình suất cộng theo PositionId, ngày cộng tháng, điều kiện nhân viên mới và ngày reset có lặp năm. [API và chính sách](../Leave/ACCRUAL_SETTINGS.md). Cấu hình disabled mặc định; không tự chạy migration/deploy. Quyền xem là WEB_SYSTEM_SETTINGS VIEW, lưu/chạy là WEB_SYSTEM_SETTINGS UPDATE; không áp Data Scope và không yêu cầu quyền số dư phép hoặc liên kết Employee.

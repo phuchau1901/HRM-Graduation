@@ -84,7 +84,7 @@ public sealed class LeaveAccrualTests
         Date(f, new(2026, 12, 17)); Assert.Equal(1, (await Run(f)).CreditedBalances); Assert.Equal(1.5m, (await f.Balance()).AvailableDays);
     }
     [Fact]
-    public async Task SettingsRequireSystemPermissionAndGlobalBalanceAuthorityAndValidateVersion()
+    public async Task SettingsRequireOnlySystemPermissionWithoutBalanceGrantsOrDataScopeAndValidateVersion()
     {
         await using var f = await Fixture.Create(); Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.GetAsync("/api/system-settings/leave-accrual")).StatusCode);
         var position = await Prepare(f); var policy = Policy(f, position, new(2026, 11, 17));
@@ -94,11 +94,29 @@ public sealed class LeaveAccrualTests
         Assert.Equal(HttpStatusCode.BadRequest, (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).StatusCode);
         using (var scope = f.H.App.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == "WEB_LEAVE_BALANCES");
-            await db.Set<RoleScreenAction>().Where(g => g.ScreenID == screen.ID && g.ActionCode == "UPDATE").ExecuteUpdateAsync(s => s.SetProperty(g => g.DataScope, "DEPARTMENT"));
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var balanceScreen = await db.Screens.SingleAsync(s => s.Code == "WEB_LEAVE_BALANCES");
+            var systemScreen = await db.Screens.SingleAsync(s => s.Code == "WEB_SYSTEM_SETTINGS");
+            await db.Set<RoleDetail>().Where(d => d.ScreenID == balanceScreen.ID).ExecuteDeleteAsync();
+            await db.Set<RoleScreenAction>().Where(g => g.ScreenID == balanceScreen.ID || g.ScreenID == systemScreen.ID).ExecuteDeleteAsync();
+            await db.Set<User>().Where(u => u.UserId == "api-user").ExecuteUpdateAsync(s => s.SetProperty(u => u.EmployeeId, (int?)null));
         }
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.PostAsync("/api/system-settings/leave-accrual/run", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).StatusCode);
+        policy.Settings.Rules = [new() { PositionId = position, LeaveTypeId = f.TypeId, DaysPerMonth = 1 }];
+        (await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy)).EnsureSuccessStatusCode();
+        Assert.Equal(1, (await Run(f)).CreditedBalances);
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == "WEB_SYSTEM_SETTINGS");
+            await db.Set<RoleDetail>().Where(d => d.ScreenID == screen.ID).ExecuteUpdateAsync(s => s.SetProperty(d => d.CanUpdate, "N"));
+        }
+        Assert.Equal(HttpStatusCode.OK, (await f.H.Client.GetAsync("/api/system-settings/leave-accrual")).StatusCode);
+        foreach (var response in new[] { await f.H.Client.PostAsync("/api/system-settings/leave-accrual/run", null), await f.H.Client.PutAsJsonAsync("/api/system-settings/leave-accrual", policy) })
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+            var body = await response.Content.ReadFromJsonAsync<global::System.Text.Json.JsonElement>();
+            Assert.Equal("HRM_AUTH_003", body.GetProperty("code").GetString());
+            Assert.Equal("PERMISSION_DENIED", body.GetProperty("error").GetString());
+        }
     }
     [Fact]
     public async Task DisabledPolicyDoesNotMutateBalancesAndConcurrentRunsOnlyCreditOnce()

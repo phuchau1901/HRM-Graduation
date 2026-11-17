@@ -11,8 +11,8 @@ Tất cả route dưới `/api`, bearer authentication, ScreenPermission và Bus
 | PUT | /leave-types/{id:long} | WEB_LEAVE_TYPES / UPDATE |
 | GET | /leave-balances/me | WEB_LEAVE_BALANCES / VIEW + own linked Employee |
 | GET | /system-settings/leave-accrual | WEB_SYSTEM_SETTINGS / VIEW |
-| PUT | /system-settings/leave-accrual | WEB_SYSTEM_SETTINGS / UPDATE + WEB_LEAVE_BALANCES UPDATE/ALL |
-| POST | /system-settings/leave-accrual/run | WEB_SYSTEM_SETTINGS / UPDATE + WEB_LEAVE_BALANCES UPDATE/ALL |
+| PUT | /system-settings/leave-accrual | WEB_SYSTEM_SETTINGS / UPDATE (không áp dụng Data Scope) |
+| POST | /system-settings/leave-accrual/run | WEB_SYSTEM_SETTINGS / UPDATE (không áp dụng Data Scope) |
 | GET | /leave-balances | WEB_LEAVE_BALANCES / VIEW + scope |
 | PUT | /leave-balances | WEB_LEAVE_BALANCES / UPDATE + scope DEPARTMENT/ALL |
 | POST | /leave-balances/grants | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |

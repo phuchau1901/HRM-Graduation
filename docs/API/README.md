@@ -176,7 +176,7 @@ Hướng dẫn [Approval Workflow Settings](../modules/Leave/WORKFLOW_SETTINGS.m
 | --- | --- | --- |
 | GET | `/api/leave-balances/me` | WEB_LEAVE_BALANCES VIEW + own Employee |
 | GET | `/api/system-settings/leave-accrual` | WEB_SYSTEM_SETTINGS VIEW |
-| PUT | `/api/system-settings/leave-accrual` | WEB_SYSTEM_SETTINGS UPDATE + WEB_LEAVE_BALANCES UPDATE/ALL |
+| PUT | `/api/system-settings/leave-accrual` | WEB_SYSTEM_SETTINGS UPDATE (không áp dụng Data Scope) |
 | POST | `/api/system-settings/leave-accrual/run` | Cùng quyền PUT, chỉ xử lý lịch đến hạn |
 
 [Đặc tả chính sách hệ thống và worker](../modules/Leave/ACCRUAL_SETTINGS.md).

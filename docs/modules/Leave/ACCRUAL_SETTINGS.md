@@ -49,10 +49,10 @@ Màn hình **System Settings → Leave Accrual Settings**, không nằm trong c�
 | Method / route | Quyền |
 | --- | --- |
 | GET /api/system-settings/leave-accrual | WEB_SYSTEM_SETTINGS VIEW |
-| PUT /api/system-settings/leave-accrual | WEB_SYSTEM_SETTINGS UPDATE **và** WEB_LEAVE_BALANCES UPDATE scope ALL |
+| PUT /api/system-settings/leave-accrual | WEB_SYSTEM_SETTINGS UPDATE (không áp dụng Data Scope) |
 | POST /api/system-settings/leave-accrual/run | Cùng quyền PUT; chỉ chạy lịch đã đến hạn theo ngày server |
 
-Đây là chính sách toàn hệ thống, không cho quản lý chỉ có DEPARTMENT thay đổi nó. Quyền VIEW cấu hình không cấp quyền duyệt đơn hoặc chỉnh số dư. Worker là tác vụ nội bộ thực thi chính sách đã được người có thẩm quyền lưu, không có endpoint bỏ qua authorization.
+Đây là cấu hình toàn hệ thống: GET cần WEB_SYSTEM_SETTINGS VIEW; PUT/chạy lịch cần UPDATE. Không đọc Data Scope SELF/DEPARTMENT/ALL, không yêu cầu quyền WEB_LEAVE_BALANCES hoặc liên kết Employee. Quyền VIEW cấu hình không cấp quyền duyệt đơn hoặc chỉnh số dư. Worker là tác vụ nội bộ thực thi chính sách đã được người có thẩm quyền lưu, không có endpoint bỏ qua authorization.
 
 GET/PUT trả `{version,settings}`. PUT dùng version trong body để kiểm soát concurrency; không dùng If-Match của hai endpoint password/attendance cũ. Đọc phiên bản hiện tại trước khi sửa; phiên bản cũ trả409.
 

@@ -10,19 +10,18 @@ public sealed partial class LeaveWorkflowService
     public const string AccrualSettingsScreen = "WEB_SYSTEM_SETTINGS", AccrualSettingsKey = "LEAVE_ACCRUAL";
     public async Task<LeaveAccrualSettingsView> GetAccrualSettings(string actor, CancellationToken ct)
     {
-        await Demand(actor, AccrualSettingsScreen, "VIEW", ct);
+        await DemandAccrualPermission(actor, "VIEW", ct);
         var row = await db.Set<SystemSetting>().AsNoTracking().SingleOrDefaultAsync(s => s.Key == AccrualSettingsKey, ct);
         return row == null ? new(0, new() { EffectiveFrom = VietnamBusinessDate.Today(clock) }) : new(row.Version, Read<LeaveAccrualPolicy>(row.JsonValue));
     }
-    private async Task DemandGlobalAccrualManagement(string actor, CancellationToken ct)
+    private async Task DemandAccrualPermission(string actor, string action, CancellationToken ct)
     {
-        await Demand(actor, AccrualSettingsScreen, "UPDATE", ct);
-        var access = await scopes.GetAsync(actor, Balances, "UPDATE", ct);
-        if (access.Scope != "ALL") throw BusinessException.Scope();
+        if (!await permissions.HasPermissionAsync(actor, AccrualSettingsScreen, action, ct))
+            throw new BusinessException(403, "HRM_AUTH_003", $"Required permission: {AccrualSettingsScreen} / {action}.", "PERMISSION_DENIED");
     }
     public Task<LeaveAccrualSettingsView> SaveAccrualSettings(string actor, LeaveAccrualSettingsRequest request, CancellationToken ct) => Transaction(async () =>
     {
-        await DemandGlobalAccrualManagement(actor, ct);
+        await DemandAccrualPermission(actor, "UPDATE", ct);
         await db.Screens.Where(s => s.Code == AccrualSettingsScreen && s.IsActive).ExecuteUpdateAsync(s => s.SetProperty(s => s.IsActive, s => s.IsActive), ct);
         Validate(request); Validate(request.Settings);
         var policy = request.Settings; var today = VietnamBusinessDate.Today(clock);
@@ -47,10 +46,10 @@ public sealed partial class LeaveWorkflowService
     }, ct);
     public async Task<LeaveAccrualRunView> RunAccrualNow(string actor, CancellationToken ct)
     {
-        await DemandGlobalAccrualManagement(actor, ct);
+        await DemandAccrualPermission(actor, "UPDATE", ct);
         return await RunAccrual(actor, ct);
     }
-    // Internal scheduled execution. The only HTTP entry point independently demands global authority.
+    // Internal scheduled execution. The only HTTP entry point independently demands live system-settings UPDATE authority.
     public Task<LeaveAccrualRunView> RunScheduledAccrual(CancellationToken ct) => RunAccrual(null, ct);
     private Task<LeaveAccrualRunView> RunAccrual(string? actor, CancellationToken ct) => Transaction(async () =>
     {
