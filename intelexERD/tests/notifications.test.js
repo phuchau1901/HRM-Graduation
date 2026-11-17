@@ -97,9 +97,45 @@ test('restored notification categories filter API records without inferring cate
  assert.deepEqual(notificationTabs.map(([key])=>key),['all','unread','task','attendance','leave','system']);
  const items=[{id:1,readAt:null,source:'SYSTEM'},{id:2,readAt:'2026-11-15',referenceType:'LEAVE_REQUEST'},{id:3,readAt:null,referenceType:'TASK'},{id:4,referenceType:'ATTENDANCE'},{id:5,source:'WORKFLOW',title:'Nghỉ phép'}];
  assert.deepEqual(filterNotificationItems(items,'system').map(item=>item.id),[1]);
- assert.deepEqual(filterNotificationItems(items,'leave').map(item=>item.id),[2]);
+ assert.deepEqual(filterNotificationItems(items,'leave').map(item=>item.id),[2,5]);
  assert.deepEqual(filterNotificationItems(items,'task').map(item=>item.id),[3]);
  assert.deepEqual(filterNotificationItems(items,'attendance').map(item=>item.id),[4]);
  assert.ok(!filterNotificationItems(items,'unread').some(item=>item.id===2));
  assert.equal(filterNotificationItems(items,'all'),items);
+});
+
+test('source classification places SYSTEM attendance in Attendance and WORKFLOW in Leave without overlap',async()=>{
+ const {notificationCategory}=await import('../assets/js/pages/notifications.js');
+ const items=[{id:1,source:'SYSTEM',referenceType:null},{id:2,source:'SYSTEM',referenceType:'ATTENDANCE'},{id:3,source:'WORKFLOW',referenceType:'LEAVE_REQUEST'},{id:4,source:'WORKFLOW',referenceType:null},{id:5,source:'system',referenceType:'attendance'}];
+ assert.deepEqual(filterNotificationItems(items,'system').map(item=>item.id),[1]);
+ assert.deepEqual(filterNotificationItems(items,'attendance').map(item=>item.id),[2,5]);
+ assert.deepEqual(filterNotificationItems(items,'leave').map(item=>item.id),[3,4]);
+ assert.equal(filterNotificationItems(items,'all'),items);
+ assert.equal(notificationCategory({source:'SYSTEM',referenceType:'TASK'}),'system');
+});
+test('notification popup renders category, full escaped content and timestamp without demo or connection notes',async()=>{
+ const {notificationDetailMarkup}=await import('../assets/js/pages/notifications.js');
+ const base={title:'<img src=x>',content:'First line\n<script>bad</script>',publishedAt:'2026-11-16T03:00:00Z'};
+ for(const [source,referenceType,label] of [['SYSTEM',null,'Thông báo chung'],['WORKFLOW',null,'Nghỉ phép'],['SYSTEM','ATTENDANCE','Chấm công']]){
+  const html=notificationDetailMarkup({...base,source,referenceType});
+  assert.ok(html.includes(label));assert.ok(html.includes('10:00'));assert.ok(html.includes('&lt;img'));assert.ok(html.includes('First line\n&lt;script&gt;'));assert.ok(!html.includes('<script>'));assert.ok(!html.includes('mô phỏng'));assert.ok(!html.includes('Chưa kết nối'));
+ }
+});
+test('opening unread notification calls the service API and already-read notifications only open detail',async()=>{
+ const {openNotificationDetail}=await import('../assets/js/pages/notifications.js');
+ const calls=[],dialogs=[],service={snapshot:()=>({generation:1}),read:async id=>{calls.push(id);}};
+ await openNotificationDetail({id:42,source:'SYSTEM',title:'Title',content:'Body',readAt:null},service,(...args)=>dialogs.push(args));
+ assert.deepEqual(calls,[42]);assert.equal(dialogs[0][0],'Chi tiết thông báo');assert.ok(dialogs[0][1].includes('Thông báo chung'));
+ await openNotificationDetail({id:43,title:'Read',readAt:'2026-11-16'},service,(...args)=>dialogs.push(args));
+ assert.deepEqual(calls,[42]);assert.equal(dialogs.length,2);
+});
+test('notification read failure is shown in the popup without marking the item read locally',async()=>{
+ const {openNotificationDetail}=await import('../assets/js/pages/notifications.js');
+ const original=globalThis.document,feedback={textContent:''},popup={isConnected:true,querySelector:()=>feedback},item={id:42,source:'SYSTEM',readAt:null};
+ try{
+  globalThis.document={getElementById:()=>popup};
+  const service={snapshot:()=>({generation:1}),read:async()=>{throw Object.assign(Error(),{status:403});}};
+  await openNotificationDetail(item,service,()=>{});
+  assert.equal(feedback.textContent,'Bạn không có quyền thực hiện thao tác này.');assert.equal(item.readAt,null);
+ }finally{if(original===undefined)delete globalThis.document;else globalThis.document=original;}
 });
