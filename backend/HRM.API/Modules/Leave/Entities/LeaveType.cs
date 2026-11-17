@@ -3,6 +3,7 @@ namespace HRM.API.Modules.Leave.Entities;
 
 public class LeaveType
 {
+    public bool IsActive { get; set; } = true;
     public long ID { get; set; }
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

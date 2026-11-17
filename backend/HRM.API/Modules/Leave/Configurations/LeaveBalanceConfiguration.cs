@@ -11,6 +11,8 @@ public class LeaveBalanceConfiguration : IEntityTypeConfiguration<LeaveBalance>
     {
         entity.ToTable("leave_balances");
         entity.HasKey(x => x.ID);
+        entity.HasIndex(x => new { x.EmployeeID, x.LeaveTypeID, x.YearNo }).IsUnique();
+        entity.Property(x => x.Version).HasColumnName("version").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.EmployeeID).HasColumnName("employee_id").HasColumnType("int").IsRequired();
         entity.Property(x => x.LeaveTypeID).HasColumnName("leave_type_id").HasColumnType("bigint").IsRequired();

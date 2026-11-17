@@ -3,6 +3,9 @@ namespace HRM.API.Modules.Attendance.Entities;
 
 public class AttendanceAdjustment
 {
+    public string? OriginalAttendanceJson { get; set; }
+    public long? ExpectedScheduleVersion { get; set; }
+    public long Version { get; set; } = 1;
     public long ID { get; set; }
     public long AttendanceID { get; set; }
     public int EmployeeID { get; set; }

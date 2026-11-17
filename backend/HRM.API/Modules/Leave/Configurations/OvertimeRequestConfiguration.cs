@@ -11,6 +11,10 @@ public class OvertimeRequestConfiguration : IEntityTypeConfiguration<OvertimeReq
     {
         entity.ToTable("overtime_requests");
         entity.HasKey(x => x.ID);
+        entity.Property(x => x.Reason).HasColumnName("reason").HasMaxLength(1000);
+        entity.Property(x => x.CreatedAt).HasColumnName("created_at").HasColumnType("datetime(6)");
+        entity.HasIndex(x => new { x.EmployeeID, x.Status, x.StartAt, x.EndAt });
+        entity.Property(x => x.Version).HasColumnName("version").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.EmployeeID).HasColumnName("employee_id").HasColumnType("int").IsRequired();
         entity.Property(x => x.StartAt).HasColumnName("start_at").HasColumnType("datetime(6)").IsRequired();

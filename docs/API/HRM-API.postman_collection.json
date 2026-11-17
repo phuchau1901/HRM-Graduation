@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "89 source-backed REST endpoints; 96 request examples. Organization Tree supports scoped counts and lazy paginated members. See docs/modules/Organization/TREE_API.md. Run mutations manually only in approved test environments. No migration application or credential logging in this collection."
+    "description": "112 source-backed REST endpoints; 119 request examples. Leave/Overtime/Approval/Attendance adjustment APIs and configurable workflow. See docs/modules/Leave/API.md. Mutations are manual; no migrations/deployment are executed by this collection."
   },
   "auth": {
     "type": "bearer",
@@ -192,6 +192,46 @@
     {
       "key": "expiringWithinDays",
       "value": "30",
+      "type": "string"
+    },
+    {
+      "key": "leaveTypeId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "leaveRequestId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "overtimeRequestId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "attendanceId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "adjustmentId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "approvalId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "workflowVersion",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "approverUserId",
+      "value": "",
       "type": "string"
     }
   ],
@@ -2475,6 +2515,349 @@
             },
             "description": "Requires WEB_CONTRACTS/NEW and ALL/DEPARTMENT scope. Configure active ContractType prefix first. Server atomically allocates PREFIX-YYYY-NNNNNN for the Vietnam creation year in the same transaction as contract/audit/notification. Do not pass ContractNo. See docs/modules/Employees/CONTRACT_NUMBERING.md."
           }
+        }
+      ]
+    },
+    {
+      "name": "Leave, Overtime & Approval Workflow",
+      "item": [
+        {
+          "name": "GET /leave-types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-types?page=1&pageSize=20&view=MY",
+            "description": "WEB_LEAVE_TYPES / VIEW. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /leave-types",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-types",
+            "description": "WEB_LEAVE_TYPES / NEW. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"ANNUAL\",\n  \"name\": \"Phép năm\",\n  \"paid\": true,\n  \"requiresBalance\": true,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /leave-types/{id:long}",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-types/{{leaveTypeId}}",
+            "description": "WEB_LEAVE_TYPES / UPDATE. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"ANNUAL\",\n  \"name\": \"Phép năm\",\n  \"paid\": true,\n  \"requiresBalance\": true,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /leave-balances",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-balances?page=1&pageSize=20&view=MY",
+            "description": "WEB_LEAVE_BALANCES / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /leave-balances",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-balances",
+            "description": "WEB_LEAVE_BALANCES / UPDATE + scope DEPARTMENT/ALL. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": {{employeeId}},\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"year\": 2027,\n  \"entitledDays\": 12,\n  \"version\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /leave-requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-requests?page=1&pageSize=20&view=MY",
+            "description": "WEB_LEAVE_REQUESTS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /leave-requests/{id:long}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-requests/{{leaveRequestId}}",
+            "description": "WEB_LEAVE_REQUESTS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /leave-requests",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-requests",
+            "description": "WEB_LEAVE_REQUESTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"fromDate\": \"2027-01-04\",\n  \"toDate\": \"2027-01-05\",\n  \"reason\": \"Family\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /leave-requests/{id:long}/cancel",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/leave-requests/{{leaveRequestId}}/cancel",
+            "description": "WEB_LEAVE_REQUESTS / UPDATE + own request. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /overtime-requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/overtime-requests?page=1&pageSize=20&view=MY",
+            "description": "WEB_OVERTIME_REQUESTS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /overtime-requests/{id:long}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/overtime-requests/{{overtimeRequestId}}",
+            "description": "WEB_OVERTIME_REQUESTS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /overtime-requests",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/overtime-requests",
+            "description": "WEB_OVERTIME_REQUESTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startAt\": \"2027-01-04T18:00:00+07:00\",\n  \"endAt\": \"2027-01-04T20:00:00+07:00\",\n  \"reason\": \"Work\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /overtime-requests/{id:long}/cancel",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/overtime-requests/{{overtimeRequestId}}/cancel",
+            "description": "WEB_OVERTIME_REQUESTS / UPDATE + own request. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /attendance-adjustments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendance-adjustments?page=1&pageSize=20&view=MY",
+            "description": "WEB_ATTENDANCE_ADJUSTMENTS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /attendance-adjustments",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendance-adjustments",
+            "description": "WEB_ATTENDANCE_ADJUSTMENTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"attendanceId\": {{attendanceId}},\n  \"proposedCheckIn\": \"2026-11-16T08:00:00+07:00\",\n  \"proposedCheckOut\": \"2026-11-16T17:00:00+07:00\",\n  \"reason\": \"Missed device\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /attendance-adjustments/{id:long}/cancel",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendance-adjustments/{{adjustmentId}}/cancel",
+            "description": "WEB_ATTENDANCE_ADJUSTMENTS / UPDATE + own request. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /approvals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/approvals?page=1&pageSize=20&view=ALL",
+            "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /approvals/{id:long}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/approvals/{{approvalId}}",
+            "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /approvals/{id:long}/approve",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/approvals/{{approvalId}}/approve",
+            "description": "WEB_APPROVALS / APPROVE + scope + assigned current step. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /approvals/{id:long}/reject",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/approvals/{{approvalId}}/reject",
+            "description": "WEB_APPROVALS / APPROVE + scope + assigned current step. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": {{workflowVersion}},\n  \"reason\": \"Reviewed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /approvals/{id:long}/history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/approvals/{{approvalId}}/history?page=1&pageSize=20",
+            "description": "WEB_APPROVALS / VIEW + scope. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /approval-workflow-settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/approval-workflow-settings",
+            "description": "WEB_APPROVAL_SETTINGS / VIEW. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /approval-workflow-settings",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": "{{baseUrl}}/api/approval-workflow-settings",
+            "description": "WEB_APPROVAL_SETTINGS / UPDATE. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 0,\n  \"routes\": [\n    {\n      \"requestType\": \"LEAVE\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"HR\",\n          \"userId\": \"{{approverUserId}}\",\n          \"roleCode\": \"HR\"\n        }\n      ]\n    },\n    {\n      \"requestType\": \"OVERTIME\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"HR\",\n          \"userId\": \"{{approverUserId}}\",\n          \"roleCode\": \"HR\"\n        }\n      ]\n    },\n    {\n      \"requestType\": \"ATTENDANCE_ADJUSTMENT\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"HR\",\n          \"userId\": \"{{approverUserId}}\",\n          \"roleCode\": \"HR\"\n        }\n      ]\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
         }
       ]
     }

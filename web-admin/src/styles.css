@@ -18,3 +18,5 @@ nav{display:grid;gap:8px}nav button{background:transparent;color:#bdcfb6;text-al
 .contract-statistics output { display: block; font-size: 32px; font-weight: 600; margin-top: 12px; font-variant-numeric: tabular-nums; }
 .contract-list { margin-top: 24px; }
 @media (max-width: 650px) { .contract-statistics { grid-template-columns: 1fr; } }
+
+.leave-workspace .toolbar{flex-wrap:wrap;justify-content:flex-start}.leave-workspace fieldset{border:1px solid #dfe6da;border-radius:8px;padding:18px;margin:18px 0}.leave-workspace legend{padding:0 8px}.leave-workspace pre{white-space:pre-wrap;overflow-wrap:anywhere}.leave-workspace table td:nth-child(2){white-space:normal;min-width:200px}

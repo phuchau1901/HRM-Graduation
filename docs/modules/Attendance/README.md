@@ -6,4 +6,4 @@ Các entity/table Attendance, AttendanceAdjustment, AttendanceRequest, QRSession
 
 Hiện có 15 endpoints thực cho Shifts (4), WorkSchedules (6), Attendance (3), QRSessions (2). Giờ ca là địa phương theo timezone cấu hình, actual timestamps UTC do server cấp, WorkDate theo ngày bắt đầu ca. Snapshot lịch bảo vệ lịch sử khi chỉnh ca/settings; legacy rules=null không được tự tính lại. Dữ liệu nhân viên dùng SELF/DEPARTMENT/ALL theo action, không mở quyền do có quyền settings.
 
-AttendanceAdjustments vẫn chỉ có model/table ProposedCheckIn/Out/Reason/Status, chưa có submission/approval APIs. Không tuyên bố workflow duyệt chỉnh công, overtime, payroll hoặc giả lập lại dữ liệu cũ đã hoàn chỉnh.
+AttendanceAdjustment được tận dụng bởi [Leave / Approval Workflow](../Leave/README.md), với [API tạo/hủy/duyệt](../Leave/API.md). Chỉ cập nhật Attendance khi duyệt cuối, kiểm tra snapshot/version lịch và lưu AuditLog trước/sau. Không tự sửa dữ liệu cũ hoặc tính payroll.

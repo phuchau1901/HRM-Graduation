@@ -15,3 +15,7 @@ Validation: solution build succeeded with 0 warnings/errors; full automated suit
 ## Generic scope administration update
 
 Scope management now uses live WEB_PERMISSIONS UPDATE+APPROVE authority for every active screen/action, without per-screen name conditions or requiring the administrator's own same-screen data scope. Action/role authority, runtime data filtering, If-Match, audit, token revocation and recovery checks remain. GET /api/authorization/actions adds dataScopes choices from the same central definition used by validation and scope precedence. No schema migration is needed.
+
+## Leave workflow action scopes
+
+Leave, Overtime, Attendance Adjustments, Leave Balances và Approvals dùng EmployeeDataScope hiện hành theo từng action. Request NEW/UPDATE cho phép SELF nhưng chỉ chính người gửi; Balance UPDATE vẫn yêu cầu DEPARTMENT/ALL. Approval APPROVE còn kiểm tra UserID được giao bước pending đầu tiên, nên VIEW/ALL không vượt quyền duyệt. Danh mục loại phép/cấu hình workflow không chứa dữ liệu nhân viên và không áp employee scope. Xem [Leave API](../modules/Leave/API.md).

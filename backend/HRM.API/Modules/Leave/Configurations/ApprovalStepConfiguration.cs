@@ -11,6 +11,7 @@ public class ApprovalStepConfiguration : IEntityTypeConfiguration<ApprovalStep>
     {
         entity.ToTable("approval_steps");
         entity.HasKey(x => x.ID);
+        entity.HasIndex(x => new { x.ApprovalRequestID, x.StepNo }).IsUnique();
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.ApprovalRequestID).HasColumnName("approval_request_id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.StepNo).HasColumnName("step_no").HasColumnType("int").IsRequired();

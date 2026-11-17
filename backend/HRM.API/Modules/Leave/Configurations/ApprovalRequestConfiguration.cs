@@ -11,6 +11,12 @@ public class ApprovalRequestConfiguration : IEntityTypeConfiguration<ApprovalReq
     {
         entity.ToTable("approval_requests");
         entity.HasKey(x => x.ID);
+        entity.Property(x => x.EmployeeId).HasColumnName("employee_id").HasColumnType("int");
+        entity.Property(x => x.AllowSelfApproval).HasColumnName("allow_self_approval").HasDefaultValue(false);
+        entity.HasOne<HRM.API.Modules.Employees.Entities.Employee>().WithMany().HasForeignKey(x => x.EmployeeId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasIndex(x => new { x.RequestType, x.ReferenceID });
+        entity.HasIndex(x => new { x.EmployeeId, x.Status });
+        entity.Property(x => x.Version).HasColumnName("version").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.RequestType).HasColumnName("request_type").HasColumnType("varchar(30)").HasMaxLength(30).IsRequired();
         entity.Property(x => x.ReferenceID).HasColumnName("reference_id").HasColumnType("bigint").IsRequired();

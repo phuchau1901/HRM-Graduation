@@ -3,6 +3,9 @@ namespace HRM.API.Modules.Leave.Entities;
 
 public class ApprovalRequest
 {
+    public int? EmployeeId { get; set; }
+    public bool AllowSelfApproval { get; set; }
+    public long Version { get; set; } = 1;
     public long ID { get; set; }
     public string RequestType { get; set; } = string.Empty;
     public long ReferenceID { get; set; }

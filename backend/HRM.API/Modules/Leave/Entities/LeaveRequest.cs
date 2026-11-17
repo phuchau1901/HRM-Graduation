@@ -3,6 +3,8 @@ namespace HRM.API.Modules.Leave.Entities;
 
 public class LeaveRequest
 {
+    public string? BalanceAllocationJson { get; set; }
+    public long Version { get; set; } = 1;
     public long ID { get; set; }
     public int EmployeeID { get; set; }
     public long LeaveTypeID { get; set; }

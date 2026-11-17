@@ -133,6 +133,7 @@ builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationSer
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.TeamService>();
 builder.Services.AddScoped<HRM.API.Modules.Organization.Services.OrganizationTreeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.EmployeeDataScope>();
+builder.Services.AddScoped<HRM.API.Modules.Leave.Services.LeaveWorkflowService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractTypeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractNumberGenerator>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractStatisticsService>();

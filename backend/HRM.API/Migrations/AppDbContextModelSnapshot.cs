@@ -99,6 +99,15 @@ namespace HRM.API.Migrations
                         .HasColumnType("int")
                         .HasColumnName("employee_id");
 
+                    b.Property<long?>("ExpectedScheduleVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("expected_schedule_version");
+
+                    b.Property<string>("OriginalAttendanceJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("varchar(4000)")
+                        .HasColumnName("original_attendance_json");
+
                     b.Property<DateTime?>("ProposedCheckIn")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("proposed_check_in");
@@ -119,11 +128,18 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("status");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
                     b.HasKey("ID");
 
-                    b.HasIndex("AttendanceID");
-
                     b.HasIndex("EmployeeID");
+
+                    b.HasIndex("AttendanceID", "Status");
 
                     b.ToTable("attendance_adjustments", (string)null);
                 });
@@ -892,9 +908,19 @@ namespace HRM.API.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
 
+                    b.Property<bool>("AllowSelfApproval")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("allow_self_approval");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("created_at");
+
+                    b.Property<int?>("EmployeeId")
+                        .HasColumnType("int")
+                        .HasColumnName("employee_id");
 
                     b.Property<long>("ReferenceID")
                         .HasColumnType("bigint")
@@ -918,9 +944,20 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("status");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
                     b.HasKey("ID");
 
                     b.HasIndex("RequestedByUserID");
+
+                    b.HasIndex("EmployeeId", "Status");
+
+                    b.HasIndex("RequestType", "ReferenceID");
 
                     b.ToTable("approval_requests", (string)null);
                 });
@@ -967,9 +1004,10 @@ namespace HRM.API.Migrations
 
                     b.HasKey("ID");
 
-                    b.HasIndex("ApprovalRequestID");
-
                     b.HasIndex("ApproverUserID");
+
+                    b.HasIndex("ApprovalRequestID", "StepNo")
+                        .IsUnique();
 
                     b.ToTable("approval_steps", (string)null);
                 });
@@ -1012,15 +1050,23 @@ namespace HRM.API.Migrations
                         .HasDefaultValue(0.00m)
                         .HasColumnName("used_days");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
                     b.Property<short>("YearNo")
                         .HasColumnType("smallint")
                         .HasColumnName("year_no");
 
                     b.HasKey("ID");
 
-                    b.HasIndex("EmployeeID");
-
                     b.HasIndex("LeaveTypeID");
+
+                    b.HasIndex("EmployeeID", "LeaveTypeID", "YearNo")
+                        .IsUnique();
 
                     b.ToTable("leave_balances", (string)null);
                 });
@@ -1033,6 +1079,11 @@ namespace HRM.API.Migrations
                         .HasColumnName("id");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<string>("BalanceAllocationJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("varchar(4000)")
+                        .HasColumnName("balance_allocation_json");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)")
@@ -1070,11 +1121,18 @@ namespace HRM.API.Migrations
                         .HasColumnType("date")
                         .HasColumnName("to_date");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
                     b.HasKey("ID");
 
-                    b.HasIndex("EmployeeID");
-
                     b.HasIndex("LeaveTypeID");
+
+                    b.HasIndex("EmployeeID", "Status", "FromDate", "ToDate");
 
                     b.ToTable("leave_requests", (string)null);
                 });
@@ -1093,6 +1151,12 @@ namespace HRM.API.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("varchar(30)")
                         .HasColumnName("code");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1135,6 +1199,10 @@ namespace HRM.API.Migrations
                         .HasColumnType("decimal(8,2)")
                         .HasColumnName("approved_hours");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
                     b.Property<int>("EmployeeID")
                         .HasColumnType("int")
                         .HasColumnName("employee_id");
@@ -1142,6 +1210,11 @@ namespace HRM.API.Migrations
                     b.Property<DateTime>("EndAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("end_at");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)")
+                        .HasColumnName("reason");
 
                     b.Property<decimal>("RequestedHours")
                         .HasPrecision(8, 2)
@@ -1158,9 +1231,16 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("status");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
                     b.HasKey("ID");
 
-                    b.HasIndex("EmployeeID");
+                    b.HasIndex("EmployeeID", "Status", "StartAt", "EndAt");
 
                     b.ToTable("overtime_requests", (string)null);
                 });
@@ -2378,6 +2458,11 @@ namespace HRM.API.Migrations
 
             modelBuilder.Entity("HRM.API.Modules.Leave.Entities.ApprovalRequest", b =>
                 {
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("RequestedByUserID")

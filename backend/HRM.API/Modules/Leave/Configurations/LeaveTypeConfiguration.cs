@@ -10,6 +10,7 @@ public class LeaveTypeConfiguration : IEntityTypeConfiguration<LeaveType>
     {
         entity.ToTable("leave_types");
         entity.HasKey(x => x.ID);
+        entity.Property(x => x.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.Code).HasColumnName("code").HasColumnType("varchar(30)").HasMaxLength(30).IsRequired();
         entity.Property(x => x.Name).HasColumnName("name").HasColumnType("varchar(100)").HasMaxLength(100).IsRequired();

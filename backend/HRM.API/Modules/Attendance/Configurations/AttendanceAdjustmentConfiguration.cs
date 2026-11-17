@@ -12,6 +12,10 @@ public class AttendanceAdjustmentConfiguration : IEntityTypeConfiguration<Attend
     {
         entity.ToTable("attendance_adjustments");
         entity.HasKey(x => x.ID);
+        entity.Property(x => x.OriginalAttendanceJson).HasColumnName("original_attendance_json").HasMaxLength(4000);
+        entity.Property(x => x.ExpectedScheduleVersion).HasColumnName("expected_schedule_version").HasColumnType("bigint");
+        entity.HasIndex(x => new { x.AttendanceID, x.Status });
+        entity.Property(x => x.Version).HasColumnName("version").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.AttendanceID).HasColumnName("attendance_id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.EmployeeID).HasColumnName("employee_id").HasColumnType("int").IsRequired();

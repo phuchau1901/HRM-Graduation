@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **89 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **112 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -11,9 +11,9 @@ Có **89 REST endpoint production** và **1 SignalR hub** trong phạm vi backen
 | Organization (Departments / Positions / Teams / Tree) | 18 | IMPLEMENTED |
 | Employees / Contracts / Contract Types / History | 19 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
-| Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow chưa có API |
+| Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow qua module Leave |
 | System Settings | 4 | IMPLEMENTED |
-| Leave / Overtime / Approvals | 0 | Model có, API MISSING |
+| Leave / Overtime / Approvals / Adjustments / Workflow Settings | 23 | IMPLEMENTED |
 | Payroll / Timesheets | 0 | Model có, API MISSING |
 | Performance / KPI | 0 | Model có, API MISSING |
 | AuditLog (System) | 2 | IMPLEMENTED; WEB_AUDIT_LOGS/VIEW |
@@ -128,3 +128,31 @@ Employee GET list/detail giữ routes, quyền và pagination; EmployeeDto thêm
 ## Organization Tree
 
 [API specification and audit](../modules/Organization/TREE_API.md): scoped tree, lazy paginated Team members and unassigned members.
+
+## Leave, Overtime và Approval Workflow
+
+| Method | URL | Module / đặc tả | Permission |
+| --- | --- | --- | --- |
+| GET | `/api/leave-types` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / VIEW |
+| POST | `/api/leave-types` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / NEW |
+| PUT | `/api/leave-types/{id:long}` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / UPDATE |
+| GET | `/api/leave-balances` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_BALANCES / VIEW + scope |
+| PUT | `/api/leave-balances` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_BALANCES / UPDATE + scope DEPARTMENT/ALL |
+| GET | `/api/leave-requests` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_REQUESTS / VIEW + scope |
+| GET | `/api/leave-requests/{id:long}` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_REQUESTS / VIEW + scope |
+| POST | `/api/leave-requests` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_REQUESTS / NEW + own employee |
+| POST | `/api/leave-requests/{id:long}/cancel` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_REQUESTS / UPDATE + own request |
+| GET | `/api/overtime-requests` | [Leave](../modules/Leave/API.md) | WEB_OVERTIME_REQUESTS / VIEW + scope |
+| GET | `/api/overtime-requests/{id:long}` | [Leave](../modules/Leave/API.md) | WEB_OVERTIME_REQUESTS / VIEW + scope |
+| POST | `/api/overtime-requests` | [Leave](../modules/Leave/API.md) | WEB_OVERTIME_REQUESTS / NEW + own employee |
+| POST | `/api/overtime-requests/{id:long}/cancel` | [Leave](../modules/Leave/API.md) | WEB_OVERTIME_REQUESTS / UPDATE + own request |
+| GET | `/api/attendance-adjustments` | [Leave](../modules/Leave/API.md) | WEB_ATTENDANCE_ADJUSTMENTS / VIEW + scope |
+| POST | `/api/attendance-adjustments` | [Leave](../modules/Leave/API.md) | WEB_ATTENDANCE_ADJUSTMENTS / NEW + own employee |
+| POST | `/api/attendance-adjustments/{id:long}/cancel` | [Leave](../modules/Leave/API.md) | WEB_ATTENDANCE_ADJUSTMENTS / UPDATE + own request |
+| GET | `/api/approvals` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / VIEW + scope |
+| GET | `/api/approvals/{id:long}` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / VIEW + scope |
+| POST | `/api/approvals/{id:long}/approve` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / APPROVE + scope + assigned current step |
+| POST | `/api/approvals/{id:long}/reject` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / APPROVE + scope + assigned current step |
+| GET | `/api/approvals/{id:long}/history` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / VIEW + scope |
+| GET | `/api/approval-workflow-settings` | [Leave](../modules/Leave/API.md) | WEB_APPROVAL_SETTINGS / VIEW |
+| PUT | `/api/approval-workflow-settings` | [Leave](../modules/Leave/API.md) | WEB_APPROVAL_SETTINGS / UPDATE |

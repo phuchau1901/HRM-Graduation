@@ -11,6 +11,9 @@ public class LeaveRequestConfiguration : IEntityTypeConfiguration<LeaveRequest>
     {
         entity.ToTable("leave_requests");
         entity.HasKey(x => x.ID);
+        entity.Property(x => x.BalanceAllocationJson).HasColumnName("balance_allocation_json").HasColumnType("varchar(4000)").HasMaxLength(4000);
+        entity.HasIndex(x => new { x.EmployeeID, x.Status, x.FromDate, x.ToDate });
+        entity.Property(x => x.Version).HasColumnName("version").HasColumnType("bigint").HasDefaultValue(1L).IsConcurrencyToken();
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.EmployeeID).HasColumnName("employee_id").HasColumnType("int").IsRequired();
         entity.Property(x => x.LeaveTypeID).HasColumnName("leave_type_id").HasColumnType("bigint").IsRequired();
