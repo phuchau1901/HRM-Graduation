@@ -92,6 +92,8 @@ public sealed partial class LeaveWorkflowService(AppDbContext db, EmployeeDataSc
             foreach (var step in route.Steps)
             {
                 if (step is null) throw BusinessException.Invalid("Null approval step."); Validate(step);
+                if (step.ApproverType == "USER" && (string.IsNullOrWhiteSpace(step.UserId) || !await db.Set<User>().AnyAsync(u => u.UserId == step.UserId && u.Status == "ACTIVE", ct)))
+                    throw BusinessException.Invalid("USER step requires an active user.");
                 if (step.ApproverType == "HR" && (string.IsNullOrWhiteSpace(step.UserId) || !await db.Set<User>().AnyAsync(u => u.UserId == step.UserId && u.Status == "ACTIVE" && db.Set<UserRole>().Any(ur => ur.UserID == u.UserId && db.Set<Role>().Any(r => r.ID == ur.RoleID && r.Code == step.RoleCode)), ct)))
                     throw BusinessException.Invalid("HR step requires an active user assigned to its configured role.");
             }
@@ -114,7 +116,9 @@ public sealed partial class LeaveWorkflowService(AppDbContext db, EmployeeDataSc
         foreach (var step in route.Steps)
         {
             string? user;
-            if (step.ApproverType == "HR")
+            if (step.ApproverType == "USER")
+                user = await db.Set<User>().Where(u => u.UserId == step.UserId && u.Status == "ACTIVE").Select(u => u.UserId).SingleOrDefaultAsync(ct);
+            else if (step.ApproverType == "HR")
                 user = await db.Set<User>().Where(u => u.UserId == step.UserId && u.Status == "ACTIVE" && db.Set<UserRole>().Any(ur => ur.UserID == u.UserId && db.Set<Role>().Any(r => r.ID == ur.RoleID && r.Code == step.RoleCode))).Select(u => u.UserId).SingleOrDefaultAsync(ct);
             else
             {

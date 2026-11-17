@@ -38,7 +38,7 @@ Frontend trước đó chưa có các màn hình Leave/Approval trong checkout. 
 
 VIEW/ALL không cho phép duyệt. Duyệt cần APPROVE + scope bao phủ nhân viên + đúng UserID của bước pending đầu tiên. Quyền lấy trực tiếp từ các role hiện hành theo action. NEW/UPDATE trên đơn chỉ áp dụng chính người gửi kể cả scope ALL. Team Leave dùng view=TEAM, yêu cầu scope rộng hơn SELF và chỉ phòng ban hiện tại.
 
-Lưu cấu hình qua GET/PUT `/api/approval-workflow-settings`; ban đầu version=0, routes=[] và gửi đơn báo409 cho tới khi cấu hình. Không tự đoán HR. Cấu hình mỗi loại một chuỗi TEAM_LEAD / DEPARTMENT_MANAGER / HR (UserId cụ thể có RoleCode tương ứng), 1–10 cấp; có thể chỉ dùng HR. Người duyệt cần tài khoản active, VIEW/APPROVE và scope phù hợp ngay lúc gửi. Mặc định cấm tự duyệt; các cấp phải là những người khác nhau. Thiếu lead/manager sẽ báo lỗi; không âm thầm bỏ cấp. Cấu hình được chốt thành ApprovalStep khi gửi; thay cấu hình không đổi đơn cũ. LEAVE_CANCELLATION không cấu hình riêng thì dùng luồng LEAVE.
+Lưu cấu hình qua GET/PUT `/api/approval-workflow-settings`; ban đầu version=0, routes=[] và gửi đơn báo409 cho tới khi cấu hình. Không tự đoán HR. Cấu hình mỗi loại một chuỗi TEAM_LEAD / DEPARTMENT_MANAGER / USER / HR (UserId cụ thể có RoleCode tương ứng), 1–10 cấp; có thể chỉ dùng HR. Người duyệt cần tài khoản active, VIEW/APPROVE và scope phù hợp ngay lúc gửi. Mặc định cấm tự duyệt; các cấp phải là những người khác nhau. Thiếu lead/manager sẽ báo lỗi; không âm thầm bỏ cấp. Cấu hình được chốt thành ApprovalStep khi gửi; thay cấu hình không đổi đơn cũ. LEAVE_CANCELLATION không cấu hình riêng thì dùng luồng LEAVE.
 
 ## Transaction, migration và vận hành
 
@@ -67,3 +67,5 @@ Concurrency tests chạy SQLite, không thay thế kiểm thử tải/deadlock t
 ### Sửa thứ tự index phục vụ FK MySQL
 
 Migration `20261117014440_CompleteLeaveApprovalWorkflow` tạo các composite index thay thế trước khi DROP index đơn đang hỗ trợ khóa ngoại. Down khôi phục index đơn trước khi DROP composite index. Tests kiểm tra cả thứ tự operations và SQL MySQL ở hai chiều. Với lỗi DROP INDEX đầu tiên của bản migration cũ như log báo, migration dừng trước các thay đổi schema của migration này; sau khi cập nhật source có thể chạy lại cùng lệnh database update. Không tự drop foreign key hoặc tắt FOREIGN_KEY_CHECKS. Nếu lỗi ở bước sau trong một lần chạy khác, cần kiểm tra schema thực tế trước vì MySQL DDL có thể đã commit từng bước.
+
+USER là bước chọn tài khoản cụ thể qua userId, không yêu cầu role HR. Khi lưu kiểm tra tài khoản ACTIVE; khi gửi đơn tiếp tục kiểm tra quyền/scope và chính sách tự duyệt như các loại bước khác. Không cần migration. Frontend hỗ trợ chọn loại USER và nhập User ID người duyệt; HR cũ vẫn giữ tương thích.

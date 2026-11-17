@@ -41,4 +41,31 @@ describe('LeaveWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
     await waitFor(() => expect(api).toHaveBeenCalledWith('/approvals/4/approve', { method: 'POST', body: JSON.stringify({ version: 7, reason: 'OK' }) }));
   });
+  it('configures a USER approver without requiring an HR role', async () => {
+    const settings = { version: 2, routes: [{ requestType: 'LEAVE', allowSelfApproval: false, steps: [{ approverType: 'USER', userId: 'lead' }] }] };
+    const api = vi.fn(async () => settings);
+    render(<LeaveWorkspace api={api} permissions={[{ code: 'WEB_APPROVAL_SETTINGS', canView: 'Y', canUpdate: 'Y' }]} mode="manage" />);
+    const input = await screen.findByLabelText('Approver User ID');
+    expect(screen.queryByText('Bạn chưa có quyền xem màn hình này.')).toBeNull();
+    expect(api.mock.calls.every(([path]) => path === '/approval-workflow-settings')).toBe(true);
+    expect(screen.queryByLabelText('HR Role code')).toBeNull();
+    fireEvent.change(input, { target: { value: 'manager' } });
+    fireEvent.click(screen.getByText('Lưu cấu hình'));
+    await waitFor(() => expect(api).toHaveBeenCalledWith('/approval-workflow-settings', { method: 'PUT', body: JSON.stringify({ ...settings, routes: [{ ...settings.routes[0], steps: [{ approverType: 'USER', userId: 'manager' }] }] }) }));
+  });
+
+  it('keeps workflow settings read only with VIEW and hides them without VIEW', async () => {
+    const settings = { version: 1, routes: [{ requestType: 'LEAVE', allowSelfApproval: false, steps: [{ approverType: 'USER', userId: 'lead' }] }] };
+    const api = vi.fn(async () => settings);
+    render(<LeaveWorkspace api={api} permissions={[{ code: 'WEB_APPROVAL_SETTINGS', canView: 'Y' }]} mode="manage" />);
+    await screen.findByLabelText('Approver User ID');
+    expect(screen.queryByText('Lưu cấu hình')).toBeNull();
+    expect(screen.getByLabelText('Approver User ID').closest('fieldset').disabled).toBe(true);
+    expect(screen.queryByRole('alert')).toBeNull();
+    cleanup(); api.mockClear();
+    render(<LeaveWorkspace api={api} permissions={[{ code: 'WEB_APPROVAL_SETTINGS', canUpdate: 'Y' }]} mode="manage" />);
+    expect(api).not.toHaveBeenCalled();
+    expect(screen.queryByText('Cấu hình luồng duyệt')).toBeNull();
+  });
+
 });

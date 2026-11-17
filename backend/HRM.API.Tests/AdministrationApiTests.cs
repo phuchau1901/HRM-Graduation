@@ -459,7 +459,7 @@ public sealed class AdministrationApiTests
         Assert.Equal(HttpStatusCode.TooManyRequests, (await f.Send(HttpMethod.Post, "/api/users/target/reset-password", new { type = PasswordResetTypes.SelfChange, oldPassword = "wrong", newPassword = f.App.Password }, u.Version)).StatusCode);
     }
     [Fact]
-    public async Task DelegatedAdminCannotGrantOrTakeOverPrivilegesItDoesNotHave()
+    public async Task PermissionManagerCanDelegateBusinessGrantsWhileUserOperationsRemainBounded()
     {
         using var f = new Fixture(); await f.Start();
         using (var scope = f.App.Services.CreateScope())
@@ -476,7 +476,7 @@ public sealed class AdministrationApiTests
         Assert.Equal(HttpStatusCode.Forbidden, (await f.Send(HttpMethod.Post, "/api/users/api-user/reset-password", new { type = PasswordResetTypes.AdminReset, newPassword = f.App.Password }, root.Version)).StatusCode);
         var created = await f.Client.PostAsJsonAsync("/api/roles", new RoleRequest { Code = "EMPTY", Name = "Empty" }); Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var roleView = (await created.Content.ReadFromJsonAsync<AdminRoleView>())!;
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.Send(HttpMethod.Put, $"/api/roles/{roleView.Id}/permissions", new { screens = new object[] { new { screenCode = "TEST_WEB", standard = new { DELETE = true } } } }, roleView.Version)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await f.Send(HttpMethod.Put, $"/api/roles/{roleView.Id}/permissions", new { screens = new object[] { new { screenCode = "TEST_WEB", standard = new { DELETE = true } } } }, roleView.Version)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.PostAsJsonAsync("/api/users", new { userId = "escalated", email = "escalated@example.invalid", password = f.App.Password, roleIds = root.Roles.Select(x => x.Id).ToArray() })).StatusCode);
     }
     [Fact]
@@ -555,4 +555,34 @@ public sealed class AdministrationApiTests
         Assert.False(AuthSessionVersion.Matches(P("-1"), 0)); Assert.False(AuthSessionVersion.Matches(P("2", "2"), 2));
         Assert.NotEqual(AuthSessionVersion.NotificationGroup("target", 1), AuthSessionVersion.NotificationGroup("target", 2));
     }
+    [Theory]
+    [InlineData("WEB_APPROVAL_SETTINGS", false)]
+    [InlineData("WEB_APPROVAL_SETTINGS", true)]
+    [InlineData("WEB_FUTURE_SCREEN", false)]
+    public async Task PermissionManagerCanGrantNewScreensWithoutPersonalBusinessPermissions(string code, bool existingTargetGrant)
+    {
+        using var f = new Fixture(); await f.Start();
+        using (var services = f.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            var screen = new Screen { Code = code, Name = code, Platform = "WEB", IsActive = true }; db.Add(screen); await db.SaveChangesAsync();
+            // No grant on this screen is given to api-user.
+            if (existingTargetGrant) db.Add(new RoleDetail { RoleID = f.TargetRole, ScreenID = screen.ID, CanView = "Y" });
+            await db.SaveChangesAsync();
+        }
+        var before = await f.Matrix();
+        var response = await f.Send(HttpMethod.Put, $"/api/roles/{f.TargetRole}/permissions", new { screens = new[] { new
+        {
+            screenCode = code, standard = new { NEW = true, VIEW = true, UPDATE = true, DELETE = true, APPROVE = true, EXPORT = true }
+        } } }, before.Version);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var matrix = (await response.Content.ReadFromJsonAsync<RoleMatrixDto>())!;
+        Assert.All(Assert.Single(matrix.Screens, r => r.ScreenCode == code).Standard.Values, Assert.True);
+        Assert.NotEqual(before.Version, matrix.Version);
+        using var check = f.App.Services.CreateScope(); var permissions = check.ServiceProvider.GetRequiredService<HRM.API.Modules.Authorization.Services.IPermissionService>();
+        Assert.False(await permissions.HasPermissionAsync("api-user", code, "VIEW"));
+        Assert.True(await permissions.HasPermissionAsync("target", code, "VIEW"));
+        Assert.True(await permissions.HasPermissionAsync("target", code, "UPDATE"));
+    }
+
 }

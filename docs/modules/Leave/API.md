@@ -84,3 +84,18 @@ PUT approval-workflow-settings (GET lấy version hiện tại; danh sách route
 }
 ```
 GET/PUT settings trả `{version,routes}`. Tối đa4 route khác loại, mỗi route1–10 bước. Thêm LEAVE_CANCELLATION để override quy trình hủy. Nhân viên không có Team có thể dùng luồng chỉ DEPARTMENT_MANAGER/HR; thiếu approver cấu hình báo400, không tự bỏ bước. Người vận hành đăng ký Screen/grants/scopes qua Administration API trước; xem [quy tắc và migration](README.md).
+
+## Bước duyệt USER
+
+Chọn trực tiếp tài khoản duyệt, không yêu cầu role HR:
+```json
+{
+  "version": 0,
+  "routes": [
+    {"requestType":"LEAVE","allowSelfApproval":false,"steps":[
+      {"approverType":"USER","userId":"approver-account"}
+    ]}
+  ]
+}
+```
+Dùng version từ GET khi cập nhật. USER bắt buộc userId có tài khoản ACTIVE; roleCode không áp dụng. Khi gửi đơn vẫn kiểm tra WEB_APPROVALS VIEW/APPROVE, scope phù hợp, chính sách tự duyệt và không trùng người giữa các cấp. HR cũ vẫn hỗ trợ với kiểm tra roleCode. Không cần migration cho USER, cấu hình lưu JSON hiện có.

@@ -52,7 +52,7 @@ public sealed class BalanceRequest
 }
 public sealed class WorkflowStepRule
 {
-    [Required, RegularExpression("^(TEAM_LEAD|DEPARTMENT_MANAGER|HR)$")] public string ApproverType { get; set; } = "";
+    [Required, RegularExpression("^(TEAM_LEAD|DEPARTMENT_MANAGER|HR|USER)$")] public string ApproverType { get; set; } = "";
     [MaxLength(100)] public string? UserId { get; set; }
     [MaxLength(50)] public string RoleCode { get; set; } = "HR";
 }

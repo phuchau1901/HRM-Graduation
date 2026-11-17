@@ -66,7 +66,7 @@ If-Match: "<ETag lấy từ GET>"
 
 Để chỉ đổi phạm vi xem, gửi `screens: [{ "screenCode": "WEB_EMPLOYEES", "dataScopes": { "VIEW": "DEPARTMENT" } }]`; grant và scope khác giữ nguyên. Muốn xóa scope xem, thay giá trị bằng `null`. Thay đổi chỉ áp dụng trong role đang sửa; user vẫn có thể nhận scope từ role khác.
 
-Missing If-Match returns 428; stale version returns 412. Missing live administrative authority or invalid delegation returns 403. Invalid action/scope returns 400. Own-role permission edits are allowed, subject to authority and recovery checks. Scope changes are transactional and revoke affected sessions.
+Missing If-Match returns 428; stale version returns 412. Missing live WEB_PERMISSIONS UPDATE/APPROVE authority or granting an inactive screen returns 403. Invalid action/scope returns 400. Own-role permission edits are allowed, subject to authority and recovery checks. Scope changes are transactional and revoke affected sessions.
 
 ## GET /api/roles/{roleId}/permissions
 
@@ -113,7 +113,7 @@ Patch các quyền đã được phê duyệt.
 
 - ScreenPermission: `WEB_PERMISSIONS/UPDATE AND WEB_PERMISSIONS/APPROVE`. Role: tài khoản có grant tương ứng; không có bypass theo tên Role.
 - Parameters: roleId; If-Match.
-- Validation: live WEB_PERMISSIONS/UPDATE+APPROVE, If-Match, action authority and recovery protection. Own-role permission edits are allowed. Writes are atomic, audited and revoke affected sessions.
+- Validation: live WEB_PERMISSIONS/UPDATE+APPROVE, If-Match, active-screen/action validation and recovery protection. Own-role permission edits are allowed. Writes are atomic, audited and revoke affected sessions.
 - Success: `200`; errors: 400, 401, 403, 404 khi có path resource, 409 khi xung đột, 412/428 khi cần If-Match, 429 cho reset, 413 khi quá body limit, 500 khi hạ tầng lỗi.
 - Test cases: 401/403; Screen/action sai400; request có screen trùng400; stale412; lỗi một mục rollback toàn bộ; không mất extended.
 
@@ -203,7 +203,7 @@ Response thành công:
 
 ## Generic data scopes for every screen/action
 
-Live WEB_PERMISSIONS/UPDATE+APPROVE authorizes configuration of SELF/DEPARTMENT/ALL for any existing active screen and registered action, independently of the administrator's personal data scope. No Contract/Employee screen names are hardcoded in scope validation. Action authority, role authority, If-Match and recovery protection still apply. Standard or extended action grants remain distinct from scope metadata; setting a scope does not grant an action.
+Live WEB_PERMISSIONS/UPDATE+APPROVE authorizes configuration of SELF/DEPARTMENT/ALL for any existing active screen and registered action, independently of the administrator's personal data scope. No Contract/Employee screen names are hardcoded in scope validation. For matrix edits, live UPDATE+APPROVE replace personal target-screen action/role dominance checks; If-Match, active-screen/action validation and recovery protection still apply. Standard or extended action grants remain distinct from scope metadata; setting a scope does not grant an action.
 
 The dataScopes dictionary is optional. Omitted dictionaries or keys preserve current values; explicit null clears a scope. Unknown scope/action returns 400. A non-null scope on an inactive screen is denied. Extended scope metadata requires an existing or simultaneously granted extended action. New modules can use the same storage, matrix and permission resolver without adding special cases here.
 
@@ -214,3 +214,7 @@ Permission administrators may update permissions of a role assigned to themselve
 Runtime data access remains unchanged. For Employee-related APIs, SELF uses users.employee_id, DEPARTMENT uses the linked employee's department, and ALL covers all permitted records. Missing scope still denies data access where required. Configuring another role does not change the actor's own data visibility.
 
 Validation: 105 related administration, permission, contract-statistics, Employee and Team tests passed, including generic Web/Mobile screen codes, standard/extended scopes, invalid and inactive configuration, null clearing, recovery and session invalidation. No migration or deployment was performed.
+
+## Granting newly registered screens
+
+PUT /api/roles/{id}/permissions requires live WEB_PERMISSIONS UPDATE and APPROVE. It can grant standard/registered extended actions on any active screen, including WEB_APPROVAL_SETTINGS, even when the administrator has no personal grants for that screen and the target role already has such grants. No screen-name exceptions or implicit role-name privileges. Unknown actions/inactive screens are rejected; If-Match, atomic audit/revocation and the last recovery administrator guard remain. User/role assignment and reset-password authority are unchanged. No migration needed.

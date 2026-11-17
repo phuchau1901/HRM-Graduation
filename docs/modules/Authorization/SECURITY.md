@@ -6,9 +6,9 @@
 
 API quản trị yêu cầu JWT, tài khoản ACTIVE và ScreenPermission (reset password dùng kiểm tra theo type ở service); read/write còn kiểm tra live grants trong DB. WEB_USERS bảo vệ tài khoản, WEB_ROLES bảo vệ Role, WEB_PERMISSIONS bảo vệ screens/matrix/action catalog. ROLE name không tạo bypass. Metadata quản trị là global qua grant rõ ràng, không tự mở quyền Employee PII.
 
-Matrix update cần WEB_PERMISSIONS/UPDATE **và** APPROVE. Assign Role cần WEB_USERS/APPROVE; ADMIN_RESET cần live WEB_USERS/UPDATE; SELF_CHANGE không cần quyền quản trị; tạo tài khoản có Role cần thêm APPROVE ngoài NEW. User/Role đích có quyền cũ hoặc mới vượt tập quyền hiện tại của actor thì từ chối403. Unknown/inactive grants không được âm thầm biến thành quyền có thể ủy quyền.
+Matrix update cần WEB_PERMISSIONS/UPDATE **và** APPROVE. Assign Role cần WEB_USERS/APPROVE; ADMIN_RESET cần live WEB_USERS/UPDATE; SELF_CHANGE không cần quyền quản trị; tạo tài khoản có Role cần thêm APPROVE ngoài NEW. Thao tác gán role/quản lý user và role metadata vẫn từ chối403 nếu quyền đích vượt tập quyền actor. Riêng cập nhật permission matrix dùng live WEB_PERMISSIONS/UPDATE + APPROVE làm authority quản trị: không yêu cầu actor tự có các quyền của màn hình đích. Unknown/inactive grants không được âm thầm biến thành quyền có thể ủy quyền.
 
-Không tự sửa membership của chính mình; không sửa matrix của Role đang gán cho chính mình; ADMIN_RESET không tự reset chính mình; SELF_CHANGE chỉ đổi password chính mình sau xác thực mật khẩu cũ. Tạo Role rỗng không tự tạo grant. Quyền standard và extended độc lập: bỏ extendedActions khi patch giữ nguyên; [] gỡ các extended đã đăng ký của screen đang sửa; unknown action đã lưu giữ nguyên/read-only.
+Không tự sửa membership của chính mình; được sửa matrix của Role đang gán cho chính mình nếu vẫn bảo đảm recovery guard; ADMIN_RESET không tự reset chính mình; SELF_CHANGE chỉ đổi password chính mình sau xác thực mật khẩu cũ. Tạo Role rỗng không tự tạo grant. Quyền standard và extended độc lập: bỏ extendedActions khi patch giữ nguyên; [] gỡ các extended đã đăng ký của screen đang sửa; unknown action đã lưu giữ nguyên/read-only.
 
 ## Concurrency và transaction
 
@@ -26,7 +26,7 @@ Mỗi mutation phải còn ít nhất một account ACTIVE với stored credenti
 | WEB_ROLES | VIEW, UPDATE |
 | WEB_PERMISSIONS | VIEW, UPDATE, APPROVE |
 
-Tạo dữ liệu còn cần NEW; xóa Role cần DELETE; delegation chỉ trong quyền actor. Không có bootstrap API hoặc tự seed grant. Nếu chưa có account phục hồi, operator phải duyệt quy trình bootstrap ngoài API với người giám sát và bản ghi thay đổi. Không cấp toàn quyền chỉ dựa vào tên ADMIN/ALLROLL.
+Tạo dữ liệu còn cần NEW; xóa Role cần DELETE; gán role cho user bị giới hạn bởi quyền actor; quản trị matrix dùng WEB_PERMISSIONS/UPDATE + APPROVE. Không có bootstrap API hoặc tự seed grant. Nếu chưa có account phục hồi, operator phải duyệt quy trình bootstrap ngoài API với người giám sát và bản ghi thay đổi. Không cấp toàn quyền chỉ dựa vào tên ADMIN/ALLROLL.
 
 Màn hình đang được Role tham chiếu không đổi Code/Platform tùy ý; không xóa cứng. Việc tắt screen không được làm mất quản trị cuối cùng. Kích hoạt screen có dormant grants vượt authority actor bị chặn.
 

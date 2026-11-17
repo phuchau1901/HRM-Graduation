@@ -283,4 +283,57 @@ public sealed class LeaveWorkflowTests
         finally { Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); foreach (var suffix in new[] { "", "-wal", "-shm" }) if (File.Exists(path + suffix)) File.Delete(path + suffix); }
     }
 
+    [Theory]
+    [InlineData("lead", true)]
+    [InlineData("api-user", false)]
+    [InlineData("unknown", false)]
+    public async Task ExplicitUserApproverDoesNotNeedHrRoleAndStillHonorsSelfPolicy(string user, bool valid)
+    {
+        await using var f = await Fixture.Create();
+        var config = (await f.H.Client.GetFromJsonAsync<WorkflowSettingsView>("/api/approval-workflow-settings"))!;
+        var response = await f.H.Client.PutAsJsonAsync("/api/approval-workflow-settings", new WorkflowSettingsRequest { Version = config.Version, Routes = [new WorkflowRoute { RequestType = "LEAVE", Steps = [new WorkflowStepRule { ApproverType = "USER", UserId = user }] }] });
+        if (user == "unknown") { Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode); return; }
+        response.EnsureSuccessStatusCode();
+        if (!valid)
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await f.H.Client.PostAsJsonAsync("/api/leave-requests", f.LeaveBody())).StatusCode);
+            Assert.Equal(0, (await f.Balance()).ReservedDays); return;
+        }
+        var request = await f.Submit();
+        var detail = (await f.H.Client.GetFromJsonAsync<ApprovalDetail>($"/api/approvals/{request.ApprovalId}"))!;
+        Assert.Equal(user, Assert.Single(detail.Steps).ApproverUserId);
+        (await f.Decide(request.ApprovalId, user)).EnsureSuccessStatusCode();
+        Assert.Equal(2, (await f.Balance()).UsedDays);
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task SettingsUseTheirOwnViewAndUpdateActionsWithoutEmployeeLinkOrDataScope(bool view, bool update)
+    {
+        await using var f = await Fixture.Create();
+        var config = (await f.H.Client.GetFromJsonAsync<WorkflowSettingsView>("/api/approval-workflow-settings"))!;
+        using (var services = f.H.App.Services.CreateScope())
+        {
+            var db = services.ServiceProvider.GetRequiredService<AppDbContext>();
+            var role = await db.Set<Role>().SingleAsync(r => r.Code == "LEAD");
+            var screen = await db.Screens.SingleAsync(s => s.Code == LeaveWorkflowService.Configuration);
+            await db.Set<RoleDetail>().Where(d => d.RoleID == role.ID).ExecuteDeleteAsync();
+            await db.Set<RoleScreenAction>().Where(g => g.RoleID == role.ID).ExecuteDeleteAsync();
+            db.Add(new RoleDetail { RoleID = role.ID, ScreenID = screen.ID, CanView = view ? "Y" : "N", CanUpdate = update ? "Y" : "N" });
+            // A configuration administrator need not be an employee or an approver.
+            await db.Set<User>().Where(u => u.UserId == "lead").ExecuteUpdateAsync(s => s.SetProperty(u => u.EmployeeId, (int?)null));
+            await db.SaveChangesAsync();
+        }
+        using var client = await f.As("lead");
+        Assert.Equal(view ? HttpStatusCode.OK : HttpStatusCode.Forbidden, (await client.GetAsync("/api/approval-workflow-settings")).StatusCode);
+        Assert.Equal(update ? HttpStatusCode.OK : HttpStatusCode.Forbidden, (await client.PutAsJsonAsync("/api/approval-workflow-settings", new WorkflowSettingsRequest { Version = config.Version, Routes = config.Routes.ToArray() })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/leave-requests")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/approvals")).StatusCode);
+        var after = (await f.H.Client.GetFromJsonAsync<WorkflowSettingsView>("/api/approval-workflow-settings"))!;
+        Assert.Equal(config.Version + (update ? 1 : 0), after.Version);
+    }
+
 }

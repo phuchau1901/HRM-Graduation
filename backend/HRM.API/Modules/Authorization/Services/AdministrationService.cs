@@ -316,11 +316,10 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
         {
             await Demand(actor, Permissions, "APPROVE", ct);
             var before = await Matrix(id, ct); Match(etag, before.Version);
-            // Permission administrators may edit an assigned role. Live authority,
-            // action delegation, token revocation and the recovery guard still apply.
-            await Dominates(actor, [id], ct);
+            // Live WEB_PERMISSIONS UPDATE + APPROVE authorize matrix administration.
+            // Personal business grants do not limit which active screens can be managed.
+            // User/role assignment operations retain their separate dominance checks.
             if (request.Screens.Select(x => x.ScreenCode).Distinct(StringComparer.Ordinal).Count() != request.Screens.Length) throw BusinessException.Invalid("Duplicate screens.");
-            var own = await permissions.GetSnapshotAsync(actor, ct);
             foreach (var patch in request.Screens)
             {
                 var screen = await db.Screens.SingleOrDefaultAsync(x => x.Code == patch.ScreenCode, ct) ?? throw BusinessException.Invalid("Screen code does not exist.");
@@ -328,7 +327,7 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
                     patch.ExtendedActions?.Any(x => !PermissionActions.Extended.Contains(x)) == true ||
                     patch.ExtendedActions?.Distinct().Count() != patch.ExtendedActions?.Length) throw BusinessException.Invalid("Invalid or duplicate action code.");
                 var proposed = (patch.Standard ?? []).Where(x => x.Value).Select(x => x.Key).Concat(patch.ExtendedActions ?? []).ToArray();
-                if (proposed.Length > 0 && (!screen.IsActive || proposed.Any(x => !own.GetValueOrDefault(screen.Code, []).Contains(x)))) throw Denied();
+                if (proposed.Length > 0 && !screen.IsActive) throw Denied($"Cannot grant permissions for inactive screen {screen.Code}.");
                 if (patch.DataScopes != null)
                 {
                     foreach (var pair in patch.DataScopes)
