@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "119 source-backed REST endpoints; 129 request examples. Leave/Overtime/Approval/Attendance adjustment APIs and configurable workflow. See docs/modules/Leave/API.md. Mutations are manual; no migrations/deployment are executed by this collection. Leave Balance Management: carried-over/adjustment/remaining/available amounts, scoped create-only bulk grants with operationId, adjustments with reason/version and balance audit history. See docs/modules/Leave/BALANCES_API.md. My leave balance and configurable monthly positional accrual/reset via System Settings; disabled sample policy. Approvals is now a parent module with Leave/Overtime/Attendance child examples; source endpoint count remains119."
+    "description": "119 source-backed REST endpoints; 129 request examples. Leave/Overtime/Approval/Attendance adjustment APIs and configurable workflow. See docs/modules/Leave/API.md. Mutations are manual; no migrations/deployment are executed by this collection. Leave Balance Management: carried-over/adjustment/remaining/available amounts, scoped create-only bulk grants with operationId, adjustments with reason/version and balance audit history. See docs/modules/Leave/BALANCES_API.md. My leave balance and configurable month/year recurring positional grants/reset via System Settings; disabled sample policy. Approvals is now a parent module with Leave/Overtime/Attendance child examples; source endpoint count remains119."
   },
   "auth": {
     "type": "bearer",
@@ -277,6 +277,16 @@
     {
       "key": "accrualResetOn",
       "value": "2028-01-01",
+      "type": "string"
+    },
+    {
+      "key": "accrualStartDate",
+      "value": "2027-01-01",
+      "type": "string"
+    },
+    {
+      "key": "resetStartDate",
+      "value": "2027-01-01",
       "type": "string"
     }
   ],
@@ -2871,7 +2881,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/system-settings/leave-accrual",
-            "description": "WEB_SYSTEM_SETTINGS/VIEW. Returns version/settings; absent policy version0, enabledfalse. Read current version before saving. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection."
+            "description": "WEB_SYSTEM_SETTINGS/VIEW, no data scope. Response version/settings plus defaultLeaveTypeId,asOfDate,firstAccrualDate,firstResetDate. No policy: disabled version2 monthly schedule anchored at business date, annual-leave default. Existing legacy policy is returned unchanged. See docs/modules/Leave/ACCRUAL_SETTINGS.md."
           },
           "response": []
         },
@@ -2881,10 +2891,10 @@
             "method": "PUT",
             "header": [],
             "url": "{{baseUrl}}/api/system-settings/leave-accrual",
-            "description": "WEB_SYSTEM_SETTINGS/UPDATE only; no Data Scope, balance permission or Employee link required. version is in body, not If-Match. Configure active positions, balance-tracked types, monthly day/rate, eligibility and first reset date/repetition. Sample disabled deliberately; review before enabling. New effectiveFrom cannot be backdated. Stale version409. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection.",
+            "description": "WEB_SYSTEM_SETTINGS/UPDATE only, no scope/Employee/balance permission required. Version2 has independent accrualSchedule and resetSchedule, each startDate,interval1..120,unit MONTH|YEAR. First execution is after a full interval. daysPerCycle is the award per cycle, not multiplied by interval. Omit leaveTypeId to default active ANNUAL balance-tracked leave. Reset skips missing quota and never creates rows. Policy disabled in sample; read current version and review schedules before enabling. Legacy policy remains supported. See docs/modules/Leave/ACCRUAL_SETTINGS.md.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"version\": {{accrualSettingsVersion}},\n  \"settings\": {\n    \"enabled\": false,\n    \"effectiveFrom\": \"{{accrualEffectiveFrom}}\",\n    \"accrualDay\": 15,\n    \"newHireEligibility\": \"ACTIVE_ON_DATE\",\n    \"resetOn\": \"{{accrualResetOn}}\",\n    \"repeatResetYearly\": true,\n    \"rules\": [\n      {\n        \"positionId\": {{accrualPositionId}},\n        \"leaveTypeId\": {{leaveTypeId}},\n        \"daysPerMonth\": 1.5\n      }\n    ]\n  }\n}",
+              "raw": "{\n  \"version\": {{accrualSettingsVersion}},\n  \"settings\": {\n    \"scheduleVersion\": 2,\n    \"enabled\": false,\n    \"accrualSchedule\": {\n      \"startDate\": \"{{accrualStartDate}}\",\n      \"interval\": 2,\n      \"unit\": \"MONTH\"\n    },\n    \"resetSchedule\": {\n      \"startDate\": \"{{resetStartDate}}\",\n      \"interval\": 1,\n      \"unit\": \"YEAR\"\n    },\n    \"newHireEligibility\": \"ACTIVE_ON_DATE\",\n    \"rules\": [\n      {\n        \"positionId\": {{accrualPositionId}},\n        \"daysPerCycle\": 1.5\n      }\n    ]\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2900,7 +2910,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/system-settings/leave-accrual/run",
-            "description": "WEB_SYSTEM_SETTINGS/UPDATE only; no Data Scope, balance permission or Employee link required. Runs saved, enabled, due schedules only using server Vietnam date. Does not force a future date or catch up previous months. Permanent period receipts prevent double accrual after retry/restart/concurrent run. Reset expires available days and preserves used/reserved history. Manual mutation; execute only in authorized test environment. See docs/modules/Leave/ACCRUAL_SETTINGS.md. No migrations or deployments are run by this collection."
+            "description": "WEB_SYSTEM_SETTINGS/UPDATE only, no scope. Run latest due saved cycle, never force a future date; first execution requires full interval after anchor. Reset first, then grant if still applicable. Missing quota is skipped by reset; credit creates missing eligible quota. Period receipts prevent duplicates. Response counters remain unchanged. Manual authorized mutation only. See docs/modules/Leave/ACCRUAL_SETTINGS.md."
           },
           "response": []
         }

@@ -1,17 +1,23 @@
 {
   "version": 0,
   "settings": {
+    "scheduleVersion": 2,
     "enabled": false,
-    "effectiveFrom": "2027-01-01",
-    "accrualDay": 15,
+    "accrualSchedule": {
+      "startDate": "2027-01-01",
+      "interval": 2,
+      "unit": "MONTH"
+    },
+    "resetSchedule": {
+      "startDate": "2027-01-01",
+      "interval": 1,
+      "unit": "YEAR"
+    },
     "newHireEligibility": "ACTIVE_ON_DATE",
-    "resetOn": "2028-01-01",
-    "repeatResetYearly": true,
     "rules": [
       {
         "positionId": 3,
-        "leaveTypeId": 1,
-        "daysPerMonth": 1.5
+        "daysPerCycle": 1.5
       }
     ]
   }

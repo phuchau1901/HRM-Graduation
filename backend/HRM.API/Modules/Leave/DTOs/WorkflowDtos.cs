@@ -90,11 +90,22 @@ public sealed record MyBalanceSummary(int EmployeeId, int Year, DateOnly AsOfDat
 public sealed class LeaveAccrualRule
 {
     [Range(1, long.MaxValue)] public long PositionId { get; set; }
-    [Range(1, long.MaxValue)] public long LeaveTypeId { get; set; }
-    [Range(typeof(decimal), "0.01", "31", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)] public decimal DaysPerMonth { get; set; }
+    [Range(1, long.MaxValue)] public long? LeaveTypeId { get; set; }
+    [Range(typeof(decimal), "0.01", "99999", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)] public decimal? DaysPerCycle { get; set; }
+    // Legacy monthly policy input; new schedules use DaysPerCycle.
+    [Range(typeof(decimal), "0.01", "31", ParseLimitsInInvariantCulture = true, ConvertValueInInvariantCulture = true)] public decimal? DaysPerMonth { get; set; }
+}
+public sealed class LeaveRecurrence
+{
+    public DateOnly StartDate { get; set; }
+    [Range(1, 120)] public int Interval { get; set; } = 1;
+    [Required, RegularExpression("^(MONTH|YEAR)$")] public string Unit { get; set; } = "MONTH";
 }
 public sealed class LeaveAccrualPolicy
 {
+    [Range(1, 2)] public int ScheduleVersion { get; set; } = 1;
+    public LeaveRecurrence? AccrualSchedule { get; set; }
+    public LeaveRecurrence? ResetSchedule { get; set; }
     public bool Enabled { get; set; }
     public DateOnly EffectiveFrom { get; set; }
     [Range(1, 31)] public int AccrualDay { get; set; } = 1;
@@ -108,5 +119,6 @@ public sealed class LeaveAccrualSettingsRequest
     [Range(0, long.MaxValue)] public long Version { get; set; }
     [Required] public LeaveAccrualPolicy Settings { get; set; } = new();
 }
-public sealed record LeaveAccrualSettingsView(long Version, LeaveAccrualPolicy Settings);
+public sealed record LeaveAccrualSettingsView(long Version, LeaveAccrualPolicy Settings, long? DefaultLeaveTypeId = null,
+    DateOnly? AsOfDate = null, DateOnly? FirstAccrualDate = null, DateOnly? FirstResetDate = null);
 public sealed record LeaveAccrualRunView(DateOnly AsOfDate, int CreditedBalances, int ExpiredBalances, bool AccrualAlreadyProcessed, bool ResetAlreadyProcessed);

@@ -42,93 +42,104 @@ Query tùy chọn `year=2027`, `leaveTypeId=1`; mặc định năm hiện tại 
 
 TotalDays = được cấp + chuyển năm + điều chỉnh. RemainingDays = totalDays − usedDays. AvailableDays = remainingDays − reservedDays. Tổng là cộng từ các dòng balances trả về sau lọc loại phép. Muốn chỉ phép năm, truyền leaveTypeId tương ứng. My Leave tab Số dư phép dùng API này và hiển thị tổng cấp/đã dùng/còn lại; Team Leave vẫn dùng API scoped theo phòng ban.
 
-## Cấu hình trong hệ thống
+## Cấu hình chu kỳ cấp/thu hồi trong hệ thống
 
-Màn hình **System Settings → Leave Accrual Settings**, không nằm trong cấu hình người duyệt. Lưu ở bảng system_settings hiện có, key LEAVE_ACCRUAL. Không seed hoặc bật chính sách tự động. GET chưa cấu hình trả version0, enabled=false, rules=[], effectiveFrom là ngày Việt Nam hôm nay.
+Màn hình **System Settings → Leave Accrual Settings**, lưu JSON ở system_settings key LEAVE_ACCRUAL. Chính sách chưa có mặc định disabled; không tự bật job hay tạo danh mục phép năm.
 
-| Method / route | Quyền |
+| API | Quyền |
 | --- | --- |
 | GET /api/system-settings/leave-accrual | WEB_SYSTEM_SETTINGS VIEW |
-| PUT /api/system-settings/leave-accrual | WEB_SYSTEM_SETTINGS UPDATE (không áp dụng Data Scope) |
-| POST /api/system-settings/leave-accrual/run | Cùng quyền PUT; chỉ chạy lịch đã đến hạn theo ngày server |
+| PUT /api/system-settings/leave-accrual | WEB_SYSTEM_SETTINGS UPDATE |
+| POST /api/system-settings/leave-accrual/run | WEB_SYSTEM_SETTINGS UPDATE |
 
-Đây là cấu hình toàn hệ thống: GET cần WEB_SYSTEM_SETTINGS VIEW; PUT/chạy lịch cần UPDATE. Không đọc Data Scope SELF/DEPARTMENT/ALL, không yêu cầu quyền WEB_LEAVE_BALANCES hoặc liên kết Employee. Quyền VIEW cấu hình không cấp quyền duyệt đơn hoặc chỉnh số dư. Worker là tác vụ nội bộ thực thi chính sách đã được người có thẩm quyền lưu, không có endpoint bỏ qua authorization.
-
-GET/PUT trả `{version,settings}`. PUT dùng version trong body để kiểm soát concurrency; không dùng If-Match của hai endpoint password/attendance cũ. Đọc phiên bản hiện tại trước khi sửa; phiên bản cũ trả409.
+Không áp dụng Data Scope, không cần quyền WEB_LEAVE_BALANCES hoặc liên kết Employee để quản trị cấu hình. GET/PUT dùng `{version,settings}`, PUT lấy version vừa đọc; version0 chỉ lần đầu. Không dùng If-Match của password/attendance settings.
 
 ```json
 {
   "version": 0,
   "settings": {
+    "scheduleVersion": 2,
     "enabled": true,
-    "effectiveFrom": "2027-01-01",
-    "accrualDay": 15,
+    "accrualSchedule": {
+      "startDate": "2027-01-01",
+      "interval": 2,
+      "unit": "MONTH"
+    },
+    "resetSchedule": {
+      "startDate": "2027-01-01",
+      "interval": 1,
+      "unit": "YEAR"
+    },
     "newHireEligibility": "ACTIVE_ON_DATE",
-    "resetOn": "2028-01-01",
-    "repeatResetYearly": true,
     "rules": [
-      { "positionId": 3, "leaveTypeId": 1, "daysPerMonth": 1 },
-      { "positionId": 4, "leaveTypeId": 1, "daysPerMonth": 1.5 }
+      { "positionId": 3, "daysPerCycle": 1.5 },
+      { "positionId": 4, "daysPerCycle": 2 }
     ]
   }
 }
 ```
 
-Ví dụ này: từ01/01/2027, ngày15 mỗi tháng cộng1 ngày cho chức vụ3,1.5 ngày cho chức vụ4, bắt đầu reset vào01/01/2028 rồi lặp hằng năm. ID/ngày là ví dụ, thay bằng dữ liệu thật; không đặt effectiveFrom mới về quá khứ. Version0 chỉ dùng lần đầu. Quy tắc mới không sửa lại kỳ đã xử lý.
+Ví dụ: từ mốc01/01/2027, mỗi2 tháng cấp1.5 ngày cho chức vụ3 và2 ngày cho chức vụ4. Lần đầu01/03/2027, tiếp theo01/05/2027. Lịch thu hồi riêng mỗi1 năm, lần đầu01/01/2028. Số ngày là suất **mỗi chu kỳ**, không nhân thêm theo số tháng.
 
-### Các field
+## Quy tắc lịch
 
-- enabled: bật/tắt cả cộng và reset; worker không sửa số dư khi false.
-- effectiveFrom: ngày bắt đầu áp dụng. Khi tạo/đổi ngày này phải hôm nay hoặc tương lai; được giữ nguyên ngày bắt đầu cũ khi chỉnh chính sách sau đó.
-- accrualDay: ngày1..31. Tháng thiếu ngày đã chọn thì dùng ngày cuối tháng.
-- newHireEligibility: ACTIVE_ON_DATE nhận đủ suất nếu đã vào làm tại ngày cộng; ONE_MONTH yêu cầu HireDate.AddMonths(1) <= ngày cộng. Không tính tỷ lệ theo ngày công. Nhân viên, chức vụ và loại phép phải active ở lúc chạy; loại phép phải requiresBalance=true.
-- resetOn: ngày/tháng/năm reset đầu tiên, không bắt buộc, không được trước effectiveFrom.
-- repeatResetYearly: true lặp cùng ngày/tháng mỗi năm từ resetOn; false chỉ một lần. Ngày29/02 ở năm không nhuận dùng28/02.
-- rules: tối đa200 cặp positionId/leaveTypeId khác nhau; mỗi suất0.01..31 ngày, tối đa2 số thập phân. Một chức vụ có thể có nhiều loại phép. Chức vụ không có rule không được cộng tự động.
+- scheduleVersion=2 dùng lịch mới. Có accrualSchedule hoặc resetSchedule cũng được tự nhận là version2 khi lưu.
+- accrualSchedule: lịch cấp; resetSchedule: lịch thu hồi. Hai lịch độc lập, có thể dùng1 tháng,2 tháng,6 tháng,1 năm,2 năm… Interval là số nguyên1..120; unit là MONTH hoặc YEAR.
+- startDate là mốc tính, **không chạy ngay ngày bắt đầu**. Lần đầu là startDate + interval tháng/năm. Bỏ lịch bằng null. Có thể chỉ cấp, chỉ thu hồi hoặc cả hai; enabled=true cần ít nhất một lịch.
+- Ngày tính theo Asia/Ho_Chi_Minh. Cộng theo lịch, không dùng30/365 ngày cố định. Mốc31/01 +1 tháng thành28/02 (29/02 năm nhuận), kỳ tiếp từ mốc gốc trở lại31/03, không trôi thành28/03. Mốc29/02 +1 năm dùng28/02 năm không nhuận.
+- Lịch mới/đổi ngày hoặc tần suất dùng mốc hôm nay/tương lai, hoặc mốc quá khứ nếu lần đầu kích hoạt vẫn ở tương lai (ví dụ hiện17/11/2026, mốc01/01/2026 +1 YEAR đến01/01/2027). Giữ nguyên lịch cũ thì được giữ mốc quá khứ để sửa số ngày/quy tắc cho các kỳ sau. Không backdate để tự cấp lại quá khứ.
+- Worker xử lý kỳ gần nhất đã đến hạn nếu chưa có dấu hoàn tất; không cộng dồn tất cả các kỳ bỏ lỡ. Nếu server tắt qua nhiều kỳ, cần rà soát/cấp thủ công cho kỳ cũ vì không có lịch sử chức vụ để suy đúng quota quá khứ.
+- Đổi mức cấp/rule không chạy lại kỳ đã hoàn tất. Đổi lịch cần mốc mới phù hợp, lần kích hoạt đầu theo chu kỳ mới luôn ở tương lai.
 
-Nhân viên được xét theo PositionId hiện tại lúc xử lý. Hệ thống không suy lịch sử chức vụ hoặc trạng thái lao động của các tháng server đã ngừng chạy. Không tự chạy bù tháng cũ: chỉ xử lý kỳ tháng hiện tại nếu ngày cộng đã đến và không trước effectiveFrom. Trường hợp bỏ lỡ cần người quản lý rà soát rồi cấp/điều chỉnh có lý do qua API số dư.
+GET/PUT trả thêm metadata `defaultLeaveTypeId`, `asOfDate`, `firstAccrualDate`, `firstResetDate`. first* là ngày kích hoạt đầu tiên từ mốc, không phải xác nhận kỳ đã chạy. UI hiển thị preview khi sửa lịch.
 
-## Reset an toàn
+## Mặc định Nghỉ phép năm
 
-Reset **phần khả dụng chưa dùng**, không xóa row hoặc zero usedDays/reservedDays. Backend trừ availableDays khỏi adjustmentDays, tăng version và ghi LEAVE_BALANCE_EXPIRED. Giữ nguyên lịch sử cấp phép và đơn pending; không làm mất quota đang giữ cho đơn đang duyệt.
+Rule có `positionId`, `daysPerCycle`, optional `leaveTypeId`. Không truyền/null leaveTypeId thì backend tìm loại phép code **ANNUAL**, đang active và requiresBalance=true, rồi lưu ID đã resolve vào rule. Không hardcode ID, không tự tạo/sửa danh mục. Thiếu loại ANNUAL hợp lệ =>400; cần cấu hình danh mục trước. Truyền leaveTypeId rõ ràng vẫn chọn được loại phép khác có theo dõi số dư.
 
-- Reset ngày01/01 đóng phần khả dụng của **năm trước**. Không xóa số dư/quota mới đã cấp trước cho năm mới; cộng tháng sau đó vào row năm mới.
-- Reset ngày khác áp dụng **năm dương lịch của ngày reset**, không chuyển sang fiscal-year model.
-- Chỉ áp dụng số dư/nhân viên thuộc các cặp chức vụ/loại phép cấu hình đang active. Không sửa quota loại phép khác.
-- Reset đến hạn trước, sau đó mới cộng kỳ đến hạn. Nếu ngày cộng trong tháng nằm trước ngày reset vừa xử lý thì không cộng lại khoản trước reset.
-- Khi có đơn pending được hủy sau reset, phần reserved đã được bảo vệ sẽ được giải phóng theo workflow hiện có; việc hủy phép đã duyệt vẫn theo quy trình hoàn phép hợp lệ. Reset không thay các chính sách đó.
+Tối đa200 cặp chức vụ/loại phép khác nhau. Position và LeaveType phải active. DaysPerCycle dương, tối đa99999, tối đa2 số thập phân; tổng số dư vẫn phải vừa precision và đủ dùng/đang giữ. Rule chỉ thu hồi không bắt buộc số ngày cấp. Bỏ trống loại rồi lại thêm rule cùng chức vụ với ID ANNUAL được xem là trùng sau resolve, trả400.
 
-## Chạy nền, idempotency và audit
+Nhân viên phải ACTIVE và thuộc PositionId hiện tại ở lúc xử lý. ACTIVE_ON_DATE: đã vào làm ở ngày đến hạn thì nhận đủ suất. ONE_MONTH: HireDate.AddMonths(1) <= ngày đến hạn. Không tính tỷ lệ theo ngày công. Không suy chức vụ/trạng thái lao động lịch sử khi server bỏ lỡ kỳ.
 
-LeaveAccrualWorker kiểm tra khi API khởi động và mỗi300 giây mặc định. Cấu hình vận hành `LeaveAccrual__WorkerEnabled=false` tắt worker; `LeaveAccrual__PollSeconds` từ30..3600. Chính sách enabled mặc địnhfalse; có worker không đồng nghĩa tự bật cộng phép. API cần chạy để tác vụ nền hoạt động; không có job Railway bên ngoài được tạo/deploy bởi thay đổi này.
+## Nhân viên chưa có số dư
 
-POST `/api/system-settings/leave-accrual/run` không nhận ngày tùy ý, không force cộng kỳ tương lai; dùng chính sách đã lưu, không phải thay đổi chưa lưu trên form. Trả:
-```json
-{
-  "asOfDate": "2027-06-15",
-  "creditedBalances": 25,
-  "expiredBalances": 0,
-  "accrualAlreadyProcessed": false,
-  "resetAlreadyProcessed": false
-}
-```
+- Đến lịch **cấp**: đủ điều kiện thì tạo leave_balances theo employee_id, leave_type_id, year_no của ngày đến hạn; cộng vào entitled_days, không tự chuyển quota từ năm cũ.
+- Đến lịch **thu hồi**: chỉ lấy các row đã tồn tại. Không có row =>bỏ qua; không tạo row0/âm để thu hồi. Không có phép khả dụng thì không trừ.
+- Số dư vẫn chia theo năm dương lịch; /me mặc định năm hiện tại. Tần suất tùy chọn không đổi hệ thống sang fiscal-year, không tự chuyển dư giữa năm.
 
-Khóa SystemSetting LEAVE_ACCRUAL và transaction Serializable serialize các worker instance/manual run/config update. AuditLog EntityType LeaveAutomation giữ dấu `accrual:yyyyMM` và `reset:yyyyMMdd`; mỗi kỳ xử lý một lần, kể cả restart/concurrent run/thay số ngày giữa tháng. Kỳ đã hoàn tất không tự áp dụng lại cho nhân viên/chức vụ vừa bổ sung; dùng cấp thủ công có kiểm soát nếu cần. Nhiều kiểu loại phép được xử lý trong cùng kỳ.
+## Thu hồi an toàn
 
-Cộng vào entitledDays; tạo row nhân viên/loại/năm nếu thiếu. Dòng mới không tự sao chép số dư năm trước. Reset và cộng cùng transaction với lịch sử và dấu kỳ; lỗi bất kỳ rollback toàn bộ. Dùng employee locks/version/unique balance key hiện có, query theo chunk500, không query riêng mỗi nhân viên. Deadlock/concurrency =>409 ở API; worker sẽ thử lại ở chu kỳ sau.
+Thu hồi phần khả dụng chưa dùng bằng giảm adjustmentDays, giữ entitledDays/usedDays/reservedDays và lịch sử. Không zero hoặc xóa số dư. Ngày01/01 thu hồi các năm cũ đến năm trước; ngày khác thu hồi các năm đến năm của ngày đó. Không đụng quota cấp trước cho năm tương lai.
 
-Audit: LEAVE_ACCRUAL_SETTINGS_UPDATED ghi người sửa config; LEAVE_BALANCE_ACCRUED/EXPIRED ghi trước/sau/lý do; LEAVE_ACCRUAL_COMPLETED/LEAVE_RESET_COMPLETED ghi policyVersion và ngày xử lý. Worker có actorUserId=null thể hiện hệ thống, chạy bằng API ghi User người gọi. Giữ dấu audit để không mất idempotency. Logs lỗi chỉ có metadata, không chứa SQL/password/token.
+Chỉ áp dụng nhân viên/loại phép thuộc rule hiện hành. Nếu cả hai lịch cùng đến hạn, thu hồi trước, cấp sau. Không cấp lại kỳ có ngày đến hạn nằm trước lần thu hồi gần nhất. Phép đang giữ cho đơn pending được bảo vệ; hủy/từ chối/hoàn phép vẫn theo quy trình Leave hiện có.
 
-## Migration và kiểm thử
+## Worker, transaction và chống trùng
 
-Tính năng này không thêm bảng/cột hoặc seed settings; tái sử dụng SystemSetting, AuditLog và LeaveBalance. Cần các migration Leave trước đó, gồm `20261117062126_ExtendLeaveBalanceManagement`, có trên môi trường trước khi bật chính sách. Không tự apply migration, không deploy Railway, không bật policy trên database thật.
+LeaveAccrualWorker kiểm tra khi khởi động và mỗi300 giây. `LeaveAccrual__WorkerEnabled=false` tắt worker; `LeaveAccrual__PollSeconds` từ30..3600. API cần chạy để worker hoạt động. Chính sách enabled mặc địnhfalse.
 
-Tests kiểm tra /me không lộ nhân viên khác dù ALL, năm theo giờ Việt Nam, tháng thiếu ngày31, điều kiện đủ một tháng, quy tắc chức vụ, cộng một lần qua restart/concurrency/thay config, reset giữ used/reserved, reset1/1 sang năm mới và rollback cả reset nếu cộng lỗi. SQLite test worker bị tắt để test gọi scheduler một cách xác định; SQL/migrations không được chạy lên database thật.
+POST /run dùng cấu hình đã lưu và ngày server, không nhận ngày tùy ý hay force kỳ tương lai. Response vẫn `{asOfDate,creditedBalances,expiredBalances,accrualAlreadyProcessed,resetAlreadyProcessed}`. Counter0 không có nghĩa đã tạo số dư0; có thể chưa tới hạn hoặc không có đối tượng/quota phù hợp.
 
-## Kết quả kiểm tra — 2026-11-17
+Các worker/manual run/config write dùng khóa SystemSetting cùng transaction Serializable. AuditLog LeaveAutomation giữ dấu `accrual-cycle:yyyyMMdd` cho cấp theo lịch mới và `reset:yyyyMMdd` cho thu hồi. Dấu kỳ không phụ thuộc version/rate để không cấp trùng khi retry/restart hoặc đổi suất. Kỳ đã xong không tự cấp thêm cho nhân viên import/bổ sung sau đó; dùng cấp thủ công có kiểm soát nếu cần.
 
-- Tests /me, accrual/reset và inventory:13/13 qua.
-- Toàn bộ backend:425 qua,9 lỗi cũ, tổng434; cả9 lỗi thuộc EmployeeCreationTests do kỳ vọng mã NV khác implementation TX và các tình huống collision/rollback liên quan. Không sửa bộ sinh mã trong phạm vi này.
-- Frontend:47/47 tests qua; production build thành công.
-- Hai Postman Collection có126 request examples, trong đó30 workflow examples không trùng tên; payload JSON/link tài liệu được kiểm tra. API inventory119 REST routes không trùng.
-- Worker bị tắt trong test host; test gọi scheduler trên SQLite tạm. Không sửa database thật, không bật chính sách, không apply migration hoặc deploy.
+Cộng/thu hồi, version, audit và dấu kỳ cùng transaction; lỗi thì rollback toàn bộ. Employee locks/unique balance key và chunk500 giữ an toàn concurrency. Deadlock =>409 để retry. Không có transaction/cron Railway bên ngoài được tạo.
+
+Lưu kết quả vào **leave_balances**. Audit per balance: LEAVE_BALANCE_ACCRUED/LEAVE_BALANCE_EXPIRED; audit kỳ: LEAVE_ACCRUAL_COMPLETED/LEAVE_RESET_COMPLETED; cấu hình: LEAVE_ACCRUAL_SETTINGS_UPDATED. Worker actorUserId=null, chạy bằng API ghi User người gọi. Không xóa dấu kỳ để giữ idempotency.
+
+## Tương thích cấu hình cũ
+
+JSON cũ không có scheduleVersion hoặc có version1 vẫn chạy accrualDay + daysPerMonth, ResetOn + RepeatResetYearly như trước; dấu cũ `accrual:yyyyMM` giữ nguyên. Không tự đổi lịch cũ khi restart hoặc GET. API vẫn nhận payload legacy; ngày/tháng cũ chỉ áp khi scheduleVersion1.
+
+UI đọc lịch cũ sẽ báo rõ cần kiểm tra ngày bắt đầu. Chỉ khi người dùng lưu mới chuyển sang version2 với mốc/lần đầu phù hợp quy tắc trên; không lấy mốc quá khứ để cấp lại. Chọn tần suất/ngày mới trước khi lưu. DaysPerCycle là field chuẩn mới; DaysPerMonth là alias legacy khi chưa chuyển.
+
+## Schema và kiểm thử
+
+Không có migration mới cho thay đổi lịch JSON. Cần schema LeaveBalance/AuditLog đã triển khai trước, gồm migration20261117062126_ExtendLeaveBalanceManagement nếu môi trường chưa có. Không apply migration, không deploy, không bật lịch hoặc sửa dữ liệu thật trong lần triển khai này.
+
+Tests bao gồm lịch1/2 tháng/1 năm, không kích hoạt tại mốc, calendar clamp/leap không trôi ngày, default ANNUAL, thiếu default catalog, thay lịch backdate, nhân viên chưa có quota được bỏ qua ở thu hồi và được tạo khi cấp, reset-only, idempotency và bảo toàn lịch sử. Tests legacy tiếp tục kiểm tra suất tháng cũ và concurrency/rollback.
+
+## Kết quả kiểm tra chu kỳ mới — 2026-11-17
+
+- Calendar/chu kỳ mới13/13 tests qua; kết hợp accrual legacy22/22 qua.
+- Backend build thành công. Full suite457 tests:448 qua,9 lỗi cũ NV/TX thuộc EmployeeCreationTests; không sửa bộ sinh mã trong thay đổi này.
+- Frontend53/53 tests qua, production build thành công. JSON mẫu, link và payload hai Postman Collection đã kiểm tra; số route119 và ví dụ129 không đổi.
+- Không có migration mới, không apply migration, không deploy, không sửa/bật cấu hình hoặc chạy job trên database thật. Cập nhật tất cả API/worker sang bản hỗ trợ version2 trước khi lưu lịch version2.

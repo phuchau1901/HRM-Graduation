@@ -119,7 +119,7 @@ Xem [Leave Balance Management](BALANCES_API.md) để biết công thức còn l
 
 ## Số dư của tôi và lịch cộng/reset phép hệ thống
 
-[Đặc tả /me và System Settings](ACCRUAL_SETTINGS.md): lấy tổng phép/đã dùng/còn lại, cấu hình suất cộng theo chức vụ, ngày cộng và ngày reset/lặp hằng năm. Chính sách disabled mặc định; không bật hoặc chạy trên DB thật trong đợt triển khai.
+[Đặc tả /me và System Settings](ACCRUAL_SETTINGS.md): lấy tổng phép/đã dùng/còn lại, cấu hình suất theo chức vụ, lịch cấp và thu hồi độc lập theo số tháng/năm từ ngày bắt đầu; mặc định loại ANNUAL. Chính sách disabled mặc định; không bật hoặc chạy trên DB thật trong đợt triển khai.
 
 ## Approvals là module cha
 

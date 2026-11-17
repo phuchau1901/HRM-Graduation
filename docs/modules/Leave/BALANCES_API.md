@@ -156,4 +156,4 @@ Tests gồm công thức/carryover/adjustment, reason/version/precision/negative
 
 ## API của tôi và tự động cộng/reset
 
-Bổ sung GET /api/leave-balances/me và [lịch phép trong System Settings](ACCRUAL_SETTINGS.md). Cộng tháng theo chức vụ vào entitledDays; reset phần khả dụng có audit vào adjustmentDays, giữ used/reserved. Không tự chuyển quota giữa năm và không suy lịch sử các tháng bị bỏ lỡ.
+Bổ sung GET /api/leave-balances/me và [lịch phép trong System Settings](ACCRUAL_SETTINGS.md). Cấp theo chu kỳ tháng/năm cho chức vụ vào entitledDays; reset phần khả dụng có audit vào adjustmentDays, giữ used/reserved. Không tự chuyển quota giữa năm và không suy lịch sử các tháng bị bỏ lỡ.
