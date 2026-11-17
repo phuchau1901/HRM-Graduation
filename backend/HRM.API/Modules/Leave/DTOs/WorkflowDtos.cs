@@ -71,7 +71,7 @@ public sealed record BalanceGrantReceipt(Guid OperationId, int Selected, int Cre
 public sealed record BalanceHistoryView(long Id, string? ActorUserId, string Action, string? BeforeJson, string? AfterJson, DateTime CreatedAt);
 public sealed record LeaveTypeView(long Id, string Code, string Name, bool Paid, bool RequiresBalance, bool IsActive);
 public sealed record BalanceView(long Id, int EmployeeId, string EmployeeName, long LeaveTypeId, string LeaveTypeName, short Year,
-    decimal EntitledDays, decimal UsedDays, decimal ReservedDays, decimal AvailableDays, long Version, decimal CarriedOverDays = 0, decimal AdjustmentDays = 0, decimal RemainingDays = 0);
+    decimal EntitledDays, decimal UsedDays, decimal ReservedDays, decimal AvailableDays, long Version, decimal CarriedOverDays = 0, decimal AdjustmentDays = 0, decimal RemainingDays = 0, string EmployeeCode = "");
 public sealed record LeaveView(long Id, int EmployeeId, string EmployeeName, long LeaveTypeId, string LeaveTypeName, DateOnly FromDate,
     DateOnly ToDate, decimal RequestedDays, string? Reason, string Status, long Version, long? ApprovalId);
 public sealed record OvertimeView(long Id, int EmployeeId, string EmployeeName, DateTime StartAt, DateTime EndAt, decimal RequestedHours,

@@ -72,7 +72,7 @@ USER là bước chọn nhân viên cụ thể qua employeeId, không yêu cầu
 
 ## Leave Balance Management
 
-WEB_LEAVE_BALANCES có màn hình riêng Human Resources → Số dư phép tại /#/hr/leave-balances, dùng chung trong My Leave/Team Leave/Leave Management. Bổ sung phép chuyển năm và tổng điều chỉnh, số còn lại/khả dụng, cấp mới một nhân viên/phòng ban/phạm vi quản lý, lịch sử lý do và cấp hàng loạt idempotent. Chi tiết API, quy tắc và migration 20261117062126_ExtendLeaveBalanceManagement tại [BALANCES_API.md](BALANCES_API.md). Chuyển năm vẫn do người quản lý nhập theo chính sách đã duyệt. Cấp/thu hồi theo chu kỳ tháng/năm có thể cấu hình riêng qua [System Settings](ACCRUAL_SETTINGS.md), mặc định chưa bật. Không apply migration hoặc deploy.
+WEB_LEAVE_MANAGEMENT có màn hình riêng Human Resources → Số dư phép tại /#/hr/leave-balances, dùng chung trong My Leave/Team Leave/Leave Management. Bổ sung phép chuyển năm và tổng điều chỉnh, số còn lại/khả dụng, cấp mới một nhân viên/phòng ban/phạm vi quản lý, lịch sử lý do và cấp hàng loạt idempotent. Chi tiết API, quy tắc và migration 20261117062126_ExtendLeaveBalanceManagement tại [BALANCES_API.md](BALANCES_API.md). Chuyển năm vẫn do người quản lý nhập theo chính sách đã duyệt. Cấp/thu hồi theo chu kỳ tháng/năm có thể cấu hình riêng qua [System Settings](ACCRUAL_SETTINGS.md), mặc định chưa bật. Không apply migration hoặc deploy.
 
 ## Tách module Approvals
 

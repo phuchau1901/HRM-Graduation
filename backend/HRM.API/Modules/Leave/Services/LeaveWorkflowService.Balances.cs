@@ -9,12 +9,12 @@ public sealed partial class LeaveWorkflowService
 {
     public async Task<MyBalanceSummary> MyLeaveBalances(string actor, MyBalanceQuery q, CancellationToken ct)
     {
-        if (!await permissions.HasPermissionAsync(actor, Balances, "VIEW", ct))
+        if (!await permissions.HasPermissionAsync(actor, MyBalances, "VIEW", ct))
             throw new BusinessException(403, "HRM_AUTH_003", "Tài khoản chưa có quyền WEB_LEAVE_BALANCES / VIEW đang hiệu lực.", "PERMISSION_DENIED");
         var employee = await (from user in db.Set<User>().AsNoTracking()
                               join person in db.Employees.AsNoTracking() on user.EmployeeId equals (int?)person.Id
                               where user.UserId == actor && user.Status == "ACTIVE"
-                              select new { person.Id, person.FullName }).SingleOrDefaultAsync(ct)
+                              select new { person.Id, person.FullName, person.EmployeeCode }).SingleOrDefaultAsync(ct)
             ?? throw new BusinessException(403, "HRM_AUTH_006", "Tài khoản chưa liên kết với hồ sơ nhân viên hợp lệ.", "EMPLOYEE_LINK_REQUIRED");
         var today = VietnamBusinessDate.Today(clock); var year = q.Year ?? today.Year;
         var rows = await (from b in db.Set<LeaveBalance>().AsNoTracking()
@@ -22,7 +22,7 @@ public sealed partial class LeaveWorkflowService
                           where b.EmployeeID == employee.Id && b.YearNo == year && (!q.LeaveTypeId.HasValue || b.LeaveTypeID == q.LeaveTypeId)
                           orderby b.LeaveTypeID
                           select new { Balance = b, TypeName = t.Name }).ToListAsync(ct);
-        var balances = rows.Select(r => BalanceDto(r.Balance, employee.FullName, r.TypeName)).ToArray();
+        var balances = rows.Select(r => BalanceDto(r.Balance, employee.FullName, r.TypeName, employee.EmployeeCode)).ToArray();
         return new(employee.Id, year, today, balances.Sum(b => b.EntitledDays + b.CarriedOverDays + b.AdjustmentDays), balances.Sum(b => b.UsedDays),
             balances.Sum(b => b.RemainingDays), balances.Sum(b => b.ReservedDays), balances.Sum(b => b.AvailableDays), balances);
     }
@@ -34,8 +34,8 @@ public sealed partial class LeaveWorkflowService
         if (b.EntitledDays < 0 || b.CarriedOverDays < 0 || Allocated(b) > 99999.99m) throw BusinessException.Invalid("Invalid total allocation.");
         if (Allocated(b) < b.UsedDays + b.ReservedDays) throw BusinessException.Conflict("Allocation cannot be below used plus reserved days.");
     }
-    private static BalanceView BalanceDto(LeaveBalance b, string employeeName, string typeName) => new(b.ID, b.EmployeeID, employeeName, b.LeaveTypeID, typeName, b.YearNo,
-        b.EntitledDays, b.UsedDays, b.ReservedDays, Allocated(b) - b.UsedDays - b.ReservedDays, b.Version, b.CarriedOverDays, b.AdjustmentDays, Allocated(b) - b.UsedDays);
+    private static BalanceView BalanceDto(LeaveBalance b, string employeeName, string typeName, string employeeCode) => new(b.ID, b.EmployeeID, employeeName, b.LeaveTypeID, typeName, b.YearNo,
+        b.EntitledDays, b.UsedDays, b.ReservedDays, Allocated(b) - b.UsedDays - b.ReservedDays, b.Version, b.CarriedOverDays, b.AdjustmentDays, Allocated(b) - b.UsedDays, employeeCode);
     private void BalanceAudit(string? actor, LeaveBalance balance, string action, string? before, string reason, Guid? operationId = null)
         => accounting.Record(actor, balance, action, before, reason, operationId);
     public Task<BalanceView> SaveBalance(string actor, BalanceRequest request, CancellationToken ct) => Transaction(async () =>
@@ -54,7 +54,7 @@ public sealed partial class LeaveWorkflowService
         BalanceAmounts(balance); if (request.Version > 0) balance.Version++;
         await db.SaveChangesAsync(ct);
         BalanceAudit(actor, balance, before == null ? "LEAVE_BALANCE_GRANTED" : "LEAVE_BALANCE_ALLOCATION_UPDATED", before, string.IsNullOrWhiteSpace(request.Reason) ? "Initial allocation" : request.Reason.Trim());
-        return BalanceDto(balance, employee.FullName, type.Name);
+        return BalanceDto(balance, employee.FullName, type.Name, employee.EmployeeCode);
     }, ct);
     public Task<BalanceView> AdjustLeaveBalance(string actor, long id, BalanceAdjustmentRequest request, CancellationToken ct) => Transaction(async () =>
     {
@@ -65,9 +65,9 @@ public sealed partial class LeaveWorkflowService
         if (request.Days == 0 || string.IsNullOrWhiteSpace(request.Reason)) throw BusinessException.Invalid("A nonzero adjustment and a reason are required.");
         var before = Json(balance); balance.AdjustmentDays += request.Days; BalanceAmounts(balance); balance.Version++;
         BalanceAudit(actor, balance, "LEAVE_BALANCE_ADJUSTED", before, request.Reason.Trim());
-        var employeeName = await db.Employees.Where(e => e.Id == balance.EmployeeID).Select(e => e.FullName).SingleAsync(ct);
+        var employee = await db.Employees.Where(e => e.Id == balance.EmployeeID).Select(e => new { e.FullName, e.EmployeeCode }).SingleAsync(ct);
         var typeName = await db.Set<LeaveType>().Where(t => t.ID == balance.LeaveTypeID).Select(t => t.Name).SingleAsync(ct);
-        return BalanceDto(balance, employeeName, typeName);
+        return BalanceDto(balance, employee.FullName, typeName, employee.EmployeeCode);
     }, ct);
     public async Task<PageResult<BalanceHistoryView>> LeaveBalanceHistory(string actor, long id, WorkflowQuery q, CancellationToken ct)
     {

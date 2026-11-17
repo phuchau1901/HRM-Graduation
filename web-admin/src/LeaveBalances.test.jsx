@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { LeaveBalances } from './LeaveBalances';
 import { LeaveWorkspace } from './LeaveWorkspace';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
-const permissions = [{ code: 'WEB_LEAVE_BALANCES', canView: 'Y', canUpdate: 'Y' }];
+const permissions = [{ code: 'WEB_LEAVE_BALANCES', canView: 'Y' }, { code: 'WEB_LEAVE_MANAGEMENT', canView: 'Y', canUpdate: 'Y' }];
 const balance = { id: 2, employeeId: 10, employeeName: 'Alice', year: 2026, leaveTypeId: 3, leaveTypeName: 'Annual', entitledDays: 12, carriedOverDays: 2, adjustmentDays: -1, usedDays: 3, reservedDays: 2, remainingDays: 10, availableDays: 8, version: 4 };
 describe('LeaveBalances', () => {
   it('shows all balance components, filters and pages scoped results', async () => {
@@ -70,7 +70,18 @@ describe('LeaveBalances', () => {
   it('does not fetch without VIEW and hides write controls without UPDATE', async () => {
     const api = vi.fn(async () => ({ total: 0, data: [] }));
     render(<LeaveBalances api={api} permissions={[]} />); expect(api).not.toHaveBeenCalled(); cleanup();
-    render(<LeaveBalances api={api} permissions={[{ code: 'WEB_LEAVE_BALANCES', canView: 'Y' }]} />);
+    render(<LeaveBalances api={api} permissions={[{ code: 'WEB_LEAVE_MANAGEMENT', canView: 'Y' }]} />);
     await screen.findByText('Chưa có số dư phép trong phạm vi được xem.'); expect(screen.queryByText('Cấp phép')).toBeNull();
   });
+  it('keeps personal VIEW separate from management VIEW', async () => {
+    const personal = [{ code: 'WEB_LEAVE_BALANCES', canView: 'Y', canUpdate: 'Y' }];
+    const api = vi.fn(async () => ({ success: true, data: { totalDays: 13, usedDays: 3, remainingDays: 10, balances: [balance] } }));
+    render(<LeaveBalances api={api} permissions={personal} />); expect(api).not.toHaveBeenCalled(); cleanup();
+    render(<LeaveBalances api={api} permissions={personal} view="MY" />);
+    await screen.findByText('Alice'); expect(api.mock.calls.every(([path]) => path.startsWith('/leave-balances/me?'))).toBe(true);
+    expect(screen.queryByText('Lịch sử')).toBeNull(); cleanup(); api.mockClear();
+    render(<LeaveBalances api={api} permissions={[{ code: 'WEB_LEAVE_MANAGEMENT', canView: 'Y' }]} view="MY" />);
+    expect(api).not.toHaveBeenCalled();
+  });
+
 });

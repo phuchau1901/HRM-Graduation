@@ -137,8 +137,8 @@ Employee GET list/detail giữ routes, quyền và pagination; EmployeeDto thêm
 | GET | `/api/leave-types` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / VIEW |
 | POST | `/api/leave-types` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / NEW |
 | PUT | `/api/leave-types/{id:long}` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / UPDATE |
-| GET | `/api/leave-balances` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_BALANCES / VIEW + scope |
-| PUT | `/api/leave-balances` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_BALANCES / UPDATE + scope DEPARTMENT/ALL |
+| GET | `/api/leave-balances` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_MANAGEMENT / VIEW + scope |
+| PUT | `/api/leave-balances` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_MANAGEMENT / UPDATE + scope DEPARTMENT/ALL |
 | GET | `/api/leave-requests` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_REQUESTS / VIEW + scope |
 | GET | `/api/leave-requests/{id:long}` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_REQUESTS / VIEW + scope |
 | POST | `/api/leave-requests` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_REQUESTS / NEW + own employee |
@@ -164,9 +164,9 @@ Hướng dẫn [Approval Workflow Settings](../modules/Leave/WORKFLOW_SETTINGS.m
 
 | Method | URL | Permission |
 | --- | --- | --- |
-| POST | `/api/leave-balances/grants` | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |
-| POST | `/api/leave-balances/{id:long}/adjustments` | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |
-| GET | `/api/leave-balances/{id:long}/history` | WEB_LEAVE_BALANCES / VIEW + scope |
+| POST | `/api/leave-balances/grants` | WEB_LEAVE_MANAGEMENT / UPDATE + DEPARTMENT/ALL |
+| POST | `/api/leave-balances/{id:long}/adjustments` | WEB_LEAVE_MANAGEMENT / UPDATE + DEPARTMENT/ALL |
+| GET | `/api/leave-balances/{id:long}/history` | WEB_LEAVE_MANAGEMENT / VIEW + scope |
 
 [Đặc tả số dư phép](../modules/Leave/BALANCES_API.md); GET/PUT balances hiện có được mở rộng, không thêm route trùng.
 

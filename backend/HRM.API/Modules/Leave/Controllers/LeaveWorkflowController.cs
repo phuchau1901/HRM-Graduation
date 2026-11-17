@@ -25,7 +25,7 @@ public sealed class LeaveWorkflowController(LeaveWorkflowService service) : Cont
     public async Task<IActionResult> UpdateType(long id, LeaveTypeRequest r, CancellationToken ct) => Ok(await service.SaveType(Actor, id, r, ct));
     [HttpGet("api/leave-balances"), ScreenPermission(LeaveWorkflowService.Balances, "VIEW")]
     public async Task<IActionResult> Balances([FromQuery] WorkflowQuery q, CancellationToken ct) => Ok(await service.LeaveBalances(Actor, q, ct));
-    [HttpGet("api/leave-balances/me"), ScreenPermission(LeaveWorkflowService.Balances, "VIEW")]
+    [HttpGet("api/leave-balances/me"), ScreenPermission(LeaveWorkflowService.MyBalances, "VIEW")]
     public async Task<IActionResult> MyBalances([FromQuery] MyBalanceQuery q, CancellationToken ct) => Ok(new { success = true, data = await service.MyLeaveBalances(Actor, q, ct) });
     [HttpPut("api/leave-balances"), ScreenPermission(LeaveWorkflowService.Balances, "UPDATE")]
     public async Task<IActionResult> Balance(BalanceRequest r, CancellationToken ct) => Ok(await service.SaveBalance(Actor, r, ct));

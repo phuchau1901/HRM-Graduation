@@ -2630,7 +2630,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/leave-balances?page=1&pageSize=20&view=ALL&year={{balanceYear}}",
-            "description": "WEB_LEAVE_BALANCES/VIEW + employee scope. Optional departmentId,employeeId,leaveTypeId,search. Returns entitledDays,carriedOverDays,adjustmentDays,usedDays,reservedDays,remainingDays,availableDays,version. See docs/modules/Leave/BALANCES_API.md."
+            "description": "WEB_LEAVE_MANAGEMENT/VIEW + employee scope. Optional departmentId,employeeId,leaveTypeId,search. Returns entitledDays,carriedOverDays,adjustmentDays,usedDays,reservedDays,remainingDays,availableDays,version. See docs/modules/Leave/BALANCES_API.md.\nRequires WEB_LEAVE_MANAGEMENT / VIEW with action data scope. Only /leave-balances/me uses WEB_LEAVE_BALANCES / VIEW without data scope.\nBalance items include employeeCode alongside employeeId and employeeName."
           },
           "response": []
         },
@@ -2640,7 +2640,7 @@
             "method": "PUT",
             "header": [],
             "url": "{{baseUrl}}/api/leave-balances",
-            "description": "WEB_LEAVE_BALANCES/UPDATE with DEPARTMENT/ALL; SELF denied. Version0 creates; use current balanceVersion when updating. Sets entitlement/carryover absolutely; does not change used/reserved/adjustment. Updates require reason. See docs/modules/Leave/BALANCES_API.md.",
+            "description": "WEB_LEAVE_MANAGEMENT/UPDATE with DEPARTMENT/ALL; SELF denied. Version0 creates; use current balanceVersion when updating. Sets entitlement/carryover absolutely; does not change used/reserved/adjustment. Updates require reason. See docs/modules/Leave/BALANCES_API.md.\nRequires WEB_LEAVE_MANAGEMENT / UPDATE with action data scope. Only /leave-balances/me uses WEB_LEAVE_BALANCES / VIEW without data scope.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"employeeId\": {{employeeId}},\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"year\": {{balanceYear}},\n  \"entitledDays\": 12,\n  \"carriedOverDays\": 2,\n  \"version\": {{balanceVersion}},\n  \"reason\": \"Annual allocation approved\"\n}",
@@ -2823,7 +2823,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/leave-balances/grants",
-            "description": "WEB_LEAVE_BALANCES/UPDATE + DEPARTMENT/ALL. Create-only batch; existing employee/type/year rows are skipped. Use EMPLOYEE with only employeeId, DEPARTMENT with only departmentId, or ALL with neither ID. Set balanceOperationId once for a new operation and preserve it with the same payload when retrying. Returns operationId,selected,created,skipped. Different payload/actor with same ID is409; narrowed scope replay is403. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy.",
+            "description": "WEB_LEAVE_MANAGEMENT/UPDATE + DEPARTMENT/ALL. Create-only batch; existing employee/type/year rows are skipped. Use EMPLOYEE with only employeeId, DEPARTMENT with only departmentId, or ALL with neither ID. Set balanceOperationId once for a new operation and preserve it with the same payload when retrying. Returns operationId,selected,created,skipped. Different payload/actor with same ID is409; narrowed scope replay is403. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy.\nRequires WEB_LEAVE_MANAGEMENT / UPDATE with action data scope. Only /leave-balances/me uses WEB_LEAVE_BALANCES / VIEW without data scope.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"operationId\": \"{{balanceOperationId}}\",\n  \"target\": \"DEPARTMENT\",\n  \"departmentId\": {{departmentId}},\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"year\": {{balanceYear}},\n  \"entitledDays\": 12,\n  \"carriedOverDays\": 2,\n  \"reason\": \"Annual allocation approved\"\n}",
@@ -2842,7 +2842,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/leave-balances/{{balanceId}}/adjustments",
-            "description": "WEB_LEAVE_BALANCES/UPDATE + DEPARTMENT/ALL. Signed nonzero days, reason required, current version required. Cannot reduce available balance below0. Retrying old version is409, no duplicate adjustment. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy.",
+            "description": "WEB_LEAVE_MANAGEMENT/UPDATE + DEPARTMENT/ALL. Signed nonzero days, reason required, current version required. Cannot reduce available balance below0. Retrying old version is409, no duplicate adjustment. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy.\nRequires WEB_LEAVE_MANAGEMENT / UPDATE with action data scope. Only /leave-balances/me uses WEB_LEAVE_BALANCES / VIEW without data scope.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"version\": {{balanceVersion}},\n  \"days\": -0.5,\n  \"reason\": \"Correct imported balance\"\n}",
@@ -2861,7 +2861,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/leave-balances/{{balanceId}}/history?page=1&pageSize=20",
-            "description": "WEB_LEAVE_BALANCES/VIEW + employee scope. Paginated latest-first audit history. Reason at afterJson.reason and updated balance at afterJson.balance; historical records may have older JSON shapes. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy."
+            "description": "WEB_LEAVE_MANAGEMENT/VIEW + employee scope. Paginated latest-first audit history. Reason at afterJson.reason and updated balance at afterJson.balance; historical records may have older JSON shapes. See docs/modules/Leave/BALANCES_API.md. Manual mutations only; this collection does not apply migrations or deploy.\nRequires WEB_LEAVE_MANAGEMENT / VIEW with action data scope. Only /leave-balances/me uses WEB_LEAVE_BALANCES / VIEW without data scope.\nBalance items include employeeCode alongside employeeId and employeeName."
           },
           "response": []
         },
@@ -2871,7 +2871,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/leave-balances/me",
-            "description": "WEB_LEAVE_BALANCES/VIEW and ACTIVE user with linked Employee required. No Data Scope check or configured scope row is needed. Always filters to the signed-in users.employee_id; employeeId query cannot select another person. Optional year/leaveTypeId; year defaults to Asia/Ho_Chi_Minh business year. Response success/data includes totalDays,usedDays,remainingDays,reservedDays,availableDays,balances. Missing link or live VIEW grant403. Other balance APIs retain their normal scopes. See docs/modules/Leave/ACCRUAL_SETTINGS.md. Distinct failures:403 HRM_AUTH_006 EMPLOYEE_LINK_REQUIRED when users.employee_id is missing;403 HRM_AUTH_003 PERMISSION_DENIED when live VIEW grant is missing. Neither error is DATA_SCOPE_DENIED; /me does not check scope."
+            "description": "WEB_LEAVE_BALANCES/VIEW and ACTIVE user with linked Employee required. No Data Scope check or configured scope row is needed. Always filters to the signed-in users.employee_id; employeeId query cannot select another person. Optional year/leaveTypeId; year defaults to Asia/Ho_Chi_Minh business year. Response success/data includes totalDays,usedDays,remainingDays,reservedDays,availableDays,balances. Missing link or live VIEW grant403. Other balance APIs retain their normal scopes. See docs/modules/Leave/ACCRUAL_SETTINGS.md. Distinct failures:403 HRM_AUTH_006 EMPLOYEE_LINK_REQUIRED when users.employee_id is missing;403 HRM_AUTH_003 PERMISSION_DENIED when live VIEW grant is missing. Neither error is DATA_SCOPE_DENIED; /me does not check scope.\nBalance items include employeeCode alongside employeeId and employeeName."
           },
           "response": []
         },

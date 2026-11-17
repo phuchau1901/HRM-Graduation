@@ -13,11 +13,11 @@ Tất cả route dưới `/api`, bearer authentication, ScreenPermission và Bus
 | GET | /system-settings/leave-accrual | WEB_SYSTEM_SETTINGS / VIEW |
 | PUT | /system-settings/leave-accrual | WEB_SYSTEM_SETTINGS / UPDATE (không áp dụng Data Scope) |
 | POST | /system-settings/leave-accrual/run | WEB_SYSTEM_SETTINGS / UPDATE (không áp dụng Data Scope) |
-| GET | /leave-balances | WEB_LEAVE_BALANCES / VIEW + scope |
-| PUT | /leave-balances | WEB_LEAVE_BALANCES / UPDATE + scope DEPARTMENT/ALL |
-| POST | /leave-balances/grants | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |
-| POST | /leave-balances/{id:long}/adjustments | WEB_LEAVE_BALANCES / UPDATE + DEPARTMENT/ALL |
-| GET | /leave-balances/{id:long}/history | WEB_LEAVE_BALANCES / VIEW + scope |
+| GET | /leave-balances | WEB_LEAVE_MANAGEMENT / VIEW + scope |
+| PUT | /leave-balances | WEB_LEAVE_MANAGEMENT / UPDATE + scope DEPARTMENT/ALL |
+| POST | /leave-balances/grants | WEB_LEAVE_MANAGEMENT / UPDATE + DEPARTMENT/ALL |
+| POST | /leave-balances/{id:long}/adjustments | WEB_LEAVE_MANAGEMENT / UPDATE + DEPARTMENT/ALL |
+| GET | /leave-balances/{id:long}/history | WEB_LEAVE_MANAGEMENT / VIEW + scope |
 | GET | /leave-requests | WEB_LEAVE_REQUESTS / VIEW + scope |
 | GET | /leave-requests/{id:long} | WEB_LEAVE_REQUESTS / VIEW + scope |
 | POST | /leave-requests | WEB_LEAVE_REQUESTS / NEW + own employee |
@@ -126,3 +126,5 @@ Xem [Leave Balance Management](BALANCES_API.md) để biết công thức còn l
 Các endpoint /approvals và /approval-workflow-settings chuyển controller/service sang [module Approvals](../Approvals/API.md), giữ nguyên URL/quyền/JSON. GET /approvals thêm query module=LEAVE để lọc nghỉ phép/hủy phép; không ảnh hưởng scope. UI chuẩn Approvals → Leave.
 
 Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1 ngày/chu kỳ; `rules: []` hợp lệ. Không khớp chức vụ dùng mức mặc định ANNUAL, khớp thì dùng mức riêng và không cộng cả hai. Chi tiết: [ACCRUAL_SETTINGS.md](ACCRUAL_SETTINGS.md).
+
+GET `/api/leave-balances` includes `employeeCode` (employees.EmployeeCode) in each data item alongside employeeId/employeeName. The field uses the existing scoped employee join, with no additional query. `/me` balance items and single-balance update responses use the same DTO.

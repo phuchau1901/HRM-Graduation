@@ -31,7 +31,7 @@ public sealed class LeaveWorkflowTests
         internal static async Task<Fixture> Create(string? path = null)
         {
             var f = new Fixture { H = await EmployeeApiTests.Harness.Create("ALL", clock: new AttendanceTestClock { Now = new(2026, 11, 17, 5, 0, 0, TimeSpan.Zero) }, sqlitePath: path) };
-            foreach (var code in new[] { LeaveWorkflowService.Leave, LeaveWorkflowService.Types, LeaveWorkflowService.Balances, LeaveWorkflowService.Overtime, LeaveWorkflowService.Approvals, LeaveWorkflowService.Adjustments, LeaveWorkflowService.Configuration })
+            foreach (var code in new[] { LeaveWorkflowService.Leave, LeaveWorkflowService.Types, LeaveWorkflowService.MyBalances, LeaveWorkflowService.Balances, LeaveWorkflowService.Overtime, LeaveWorkflowService.Approvals, LeaveWorkflowService.Adjustments, LeaveWorkflowService.Configuration })
                 await OrganizationApiTests.Grant(f.H.App, code);
             using (var services = f.H.App.Services.CreateScope())
             {

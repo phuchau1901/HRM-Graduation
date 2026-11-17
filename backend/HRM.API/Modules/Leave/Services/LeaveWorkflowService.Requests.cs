@@ -37,7 +37,7 @@ public sealed partial class LeaveWorkflowService
         var total = await query.CountAsync(ct);
         var rows = await query.OrderBy(x => x.Employee.Id).ThenBy(x => x.Type.ID).ThenBy(x => x.Balance.YearNo).Skip(Paging.Offset(q)).Take(q.PageSize)
             .Select(x => new BalanceView(x.Balance.ID, x.Employee.Id, x.Employee.FullName, x.Type.ID, x.Type.Name, x.Balance.YearNo, x.Balance.EntitledDays, x.Balance.UsedDays,
-                x.Balance.ReservedDays, x.Balance.EntitledDays + x.Balance.CarriedOverDays + x.Balance.AdjustmentDays - x.Balance.UsedDays - x.Balance.ReservedDays, x.Balance.Version, x.Balance.CarriedOverDays, x.Balance.AdjustmentDays, x.Balance.EntitledDays + x.Balance.CarriedOverDays + x.Balance.AdjustmentDays - x.Balance.UsedDays)).ToListAsync(ct);
+                x.Balance.ReservedDays, x.Balance.EntitledDays + x.Balance.CarriedOverDays + x.Balance.AdjustmentDays - x.Balance.UsedDays - x.Balance.ReservedDays, x.Balance.Version, x.Balance.CarriedOverDays, x.Balance.AdjustmentDays, x.Balance.EntitledDays + x.Balance.CarriedOverDays + x.Balance.AdjustmentDays - x.Balance.UsedDays, x.Employee.EmployeeCode)).ToListAsync(ct);
         return new(true, total, q.Page, q.PageSize, rows);
     }
 

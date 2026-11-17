@@ -19,7 +19,7 @@ namespace HRM.API.Modules.Leave.Services;
 public sealed partial class LeaveWorkflowService(AppDbContext db, EmployeeDataScope scopes, IPermissionService permissions,
     SystemSettingsService settings, TimeProvider clock, ApprovalWorkflowService approvals, LeaveBalanceAccounting accounting)
 {
-    public const string Leave = "WEB_LEAVE_REQUESTS", Balances = "WEB_LEAVE_BALANCES", Types = "WEB_LEAVE_TYPES",
+    public const string Leave = "WEB_LEAVE_REQUESTS", Balances = "WEB_LEAVE_MANAGEMENT", MyBalances = "WEB_LEAVE_BALANCES", Types = "WEB_LEAVE_TYPES",
         Overtime = "WEB_OVERTIME_REQUESTS", Approvals = ApprovalWorkflowService.Approvals, Adjustments = "WEB_ATTENDANCE_ADJUSTMENTS",
         Configuration = ApprovalWorkflowService.Configuration, SettingsKey = ApprovalWorkflowService.SettingsKey;
     private DateTime Now => clock.GetUtcNow().UtcDateTime;

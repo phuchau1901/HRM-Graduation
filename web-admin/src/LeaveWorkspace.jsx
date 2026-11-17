@@ -13,7 +13,7 @@ export function LeaveWorkspace(props) {
   return props.mode === 'approvals' ? <ApprovalCenter {...props} /> : <LeaveRequestsWorkspace {...props} />;
 }
 function LeaveRequestsWorkspace({ api, permissions, userId, mode }) {
-  const allowed = key => can(permissions, screens[key], 'VIEW');
+  const allowed = key => can(permissions, key === 'balances' && mode !== 'my' ? 'WEB_LEAVE_MANAGEMENT' : screens[key], 'VIEW');
   const hasSettingsView = mode === 'manage' && can(permissions, 'WEB_APPROVAL_SETTINGS', 'VIEW');
   const keys = mode === 'manage' ? ['leave', 'overtime', 'adjustments', 'balances', 'types'] : ['leave', 'overtime', 'adjustments', 'balances'];
   const [tab, setTab] = useState(keys.find(allowed) || keys[0]), [page, setPage] = useState(1), [status, setStatus] = useState(''), [year, setYear] = useState(yearNow), [employee, setEmployee] = useState('');

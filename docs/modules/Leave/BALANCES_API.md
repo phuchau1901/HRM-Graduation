@@ -6,7 +6,7 @@
 
 `leave_balances` đã tồn tại từ InitialHRMDatabase; trước thay đổi đã có entity, unique key `(employee_id,leave_type_id,year_no)`, version concurrency, GET/PUT `/api/leave-balances`, cùng cơ chế reserved/used theo workflow. Tận dụng các thành phần này, không tạo lại bảng hoặc route hiện có.
 
-Màn hình Human Resources → **Số dư phép**, route `/#/hr/leave-balances`, mã `WEB_LEAVE_BALANCES`. My Leave và Team Leave có tab Số dư phép chỉ đọc, lần lượt dùng `view=MY` và `view=TEAM`. Leave Management dùng chung component quản lý số dư. Có bộ lọc, phân trang, skeleton, empty/error state, cấp phép, sửa cấp/chuyển năm, điều chỉnh và lịch sử.
+Màn hình Human Resources → **Số dư phép**, route `/#/hr/leave-balances`, mã `WEB_LEAVE_MANAGEMENT`. My Leave và Team Leave có tab Số dư phép chỉ đọc, lần lượt dùng `/api/leave-balances/me` và `/api/leave-balances?view=TEAM`. Leave Management dùng chung component quản lý số dư. Có bộ lọc, phân trang, skeleton, empty/error state, cấp phép, sửa cấp/chuyển năm, điều chỉnh và lịch sử.
 
 ## Các thành phần số dư
 
@@ -24,7 +24,7 @@ Ngày có tối đa2 chữ số thập phân; tổng được phân bổ phải 
 
 ## Quyền
 
-| API | Action trên WEB_LEAVE_BALANCES |
+| API | Action trên WEB_LEAVE_MANAGEMENT |
 | --- | --- |
 | GET /api/leave-balances | VIEW + SELF/DEPARTMENT/ALL |
 | GET /api/leave-balances/{id:long}/history | VIEW + scope của nhân viên thuộc số dư |
@@ -157,3 +157,11 @@ Tests gồm công thức/carryover/adjustment, reason/version/precision/negative
 ## API của tôi và tự động cộng/reset
 
 Bổ sung GET /api/leave-balances/me và [lịch phép trong System Settings](ACCRUAL_SETTINGS.md). Cấp theo chu kỳ tháng/năm cho chức vụ vào entitledDays; reset phần khả dụng có audit vào adjustmentDays, giữ used/reserved. Không tự chuyển quota giữa năm và không suy lịch sử các tháng bị bỏ lỡ.
+
+## Phân quyền số dư cá nhân và quản lý
+
+GET /api/leave-balances/me dùng WEB_LEAVE_BALANCES / VIEW, không kiểm tra Data Scope, chỉ trả Employee liên kết với tài khoản đăng nhập. Các API danh sách, lịch sử, cấp phép, sửa và điều chỉnh còn lại dùng WEB_LEAVE_MANAGEMENT: VIEW cho đọc, UPDATE cho ghi. Data Scope SELF/DEPARTMENT/ALL của WEB_LEAVE_MANAGEMENT vẫn áp dụng; SELF không cho cấp hoặc điều chỉnh.
+
+My Leave gọi /me; Team Leave và màn hình quản lý dùng WEB_LEAVE_MANAGEMENT. Không tự chuyển quyền từ WEB_LEAVE_BALANCES sang WEB_LEAVE_MANAGEMENT. Quản trị viên cần cấu hình screen active và cấp quyền/action/scope tương ứng qua API quản trị màn hình/phân quyền hiện có nếu môi trường chưa có. Không tự sửa dữ liệu thật hoặc chạy migration.
+
+GET `/api/leave-balances` includes `employeeCode` (employees.EmployeeCode) in each data item alongside employeeId/employeeName. The field uses the existing scoped employee join, with no additional query. `/me` balance items and single-balance update responses use the same DTO.

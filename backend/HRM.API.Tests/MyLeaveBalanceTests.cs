@@ -70,7 +70,7 @@ public sealed class MyLeaveBalanceTests
         }
         var mine = await Get(f, "?employeeId=" + f.H.Other); Assert.Equal(f.H.Self, mine.EmployeeId); Assert.Equal(10, mine.TotalDays);
         Assert.All(mine.Balances, b => Assert.Equal(f.H.Self, b.EmployeeId));
-        if (dataScope == null) Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.GetAsync("/api/leave-balances")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await f.H.Client.GetAsync("/api/leave-balances")).StatusCode);
         using (var scope = f.H.App.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -81,6 +81,32 @@ public sealed class MyLeaveBalanceTests
         var failure = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("HRM_AUTH_003", failure.GetProperty("code").GetString());
         Assert.Equal("PERMISSION_DENIED", failure.GetProperty("error").GetString());
+    }
+
+    [Theory]
+    [InlineData("WEB_LEAVE_MANAGEMENT")]
+    [InlineData("WEB_LEAVE_BALANCES")]
+    public async Task PersonalAndManagementPermissionsAreIndependent(string revoked)
+    {
+        await using var f = await Fixture.Create(); var balance = await f.Balance();
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var screen = await db.Screens.SingleAsync(s => s.Code == revoked);
+            await db.Set<RoleDetail>().Where(d => d.ScreenID == screen.ID).ExecuteDeleteAsync();
+            await db.Set<RoleScreenAction>().Where(d => d.ScreenID == screen.ID).ExecuteDeleteAsync();
+        }
+        var personal = revoked == "WEB_LEAVE_BALANCES" ? HttpStatusCode.Forbidden : HttpStatusCode.OK;
+        var management = revoked == "WEB_LEAVE_MANAGEMENT" ? HttpStatusCode.Forbidden : HttpStatusCode.OK;
+        Assert.Equal(personal, (await f.H.Client.GetAsync("/api/leave-balances/me")).StatusCode);
+        Assert.Equal(management, (await f.H.Client.GetAsync("/api/leave-balances")).StatusCode);
+        Assert.Equal(management, (await f.H.Client.GetAsync($"/api/leave-balances/{balance.Id}/history")).StatusCode);
+        if (management == HttpStatusCode.Forbidden)
+        {
+            Assert.Equal(management, (await f.H.Client.PutAsJsonAsync("/api/leave-balances", new { employeeId = f.H.Self, leaveTypeId = f.TypeId, year = 2026, entitledDays = 20, version = balance.Version, reason = "Permission test" })).StatusCode);
+            Assert.Equal(management, (await f.H.Client.PostAsJsonAsync($"/api/leave-balances/{balance.Id}/adjustments", new { version = balance.Version, days = 1, reason = "Permission test" })).StatusCode);
+            Assert.Equal(management, (await f.H.Client.PostAsJsonAsync("/api/leave-balances/grants", new { operationId = Guid.NewGuid(), target = "ALL", leaveTypeId = f.TypeId, year = 2027, entitledDays = 1, reason = "Permission test" })).StatusCode);
+        }
     }
 
 }

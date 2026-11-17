@@ -27,6 +27,11 @@ public sealed class LeaveBalanceManagementTests
     public async Task AllocationAdjustmentFormulasReasonVersionAndHistoryAreEnforced()
     {
         await using var f = await Fixture.Create(); var balance = await f.Balance();
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var expected = await scope.ServiceProvider.GetRequiredService<AppDbContext>().Employees.Where(e => e.Id == f.H.Self).Select(e => e.EmployeeCode).SingleAsync();
+            Assert.Equal(expected, balance.EmployeeCode); Assert.False(string.IsNullOrWhiteSpace(balance.EmployeeCode));
+        }
         var response = await f.H.Client.PutAsJsonAsync("/api/leave-balances", new { employeeId = f.H.Self, leaveTypeId = f.TypeId, year = 2026, entitledDays = 10, carriedOverDays = 3, version = balance.Version, reason = "Carryover approved" }); response.EnsureSuccessStatusCode();
         balance = (await response.Content.ReadFromJsonAsync<BalanceView>())!; Assert.Equal(13, balance.RemainingDays); Assert.Equal(13, balance.AvailableDays);
         response = await f.H.Client.PostAsJsonAsync($"/api/leave-balances/{balance.Id}/adjustments", new { version = balance.Version, days = -1.5, reason = "Correct imported allocation" }); response.EnsureSuccessStatusCode();
