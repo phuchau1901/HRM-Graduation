@@ -1,6 +1,6 @@
 # Leave — Nghỉ phép, tăng ca và phê duyệt
 
-[API Specification](API.md) · [API Inventory](../../API/README.md) · [Postman](../../HRM-API.postman_collection.json)
+[Hướng dẫn cấu hình quy trình duyệt](WORKFLOW_SETTINGS.md) · [API Specification](API.md) · [API Inventory](../../API/README.md) · [Postman](../../HRM-API.postman_collection.json)
 
 Trạng thái: **IMPLEMENTED trong source**. Không đồng nghĩa đã apply migration, cấu hình quyền hoặc deploy.
 
@@ -38,7 +38,7 @@ Frontend trước đó chưa có các màn hình Leave/Approval trong checkout. 
 
 VIEW/ALL không cho phép duyệt. Duyệt cần APPROVE + scope bao phủ nhân viên + đúng UserID của bước pending đầu tiên. Quyền lấy trực tiếp từ các role hiện hành theo action. NEW/UPDATE trên đơn chỉ áp dụng chính người gửi kể cả scope ALL. Team Leave dùng view=TEAM, yêu cầu scope rộng hơn SELF và chỉ phòng ban hiện tại.
 
-Lưu cấu hình qua GET/PUT `/api/approval-workflow-settings`; ban đầu version=0, routes=[] và gửi đơn báo409 cho tới khi cấu hình. Không tự đoán HR. Cấu hình mỗi loại một chuỗi TEAM_LEAD / DEPARTMENT_MANAGER / USER / HR (UserId cụ thể có RoleCode tương ứng), 1–10 cấp; có thể chỉ dùng HR. Người duyệt cần tài khoản active, VIEW/APPROVE và scope phù hợp ngay lúc gửi. Mặc định cấm tự duyệt; các cấp phải là những người khác nhau. Thiếu lead/manager sẽ báo lỗi; không âm thầm bỏ cấp. Cấu hình được chốt thành ApprovalStep khi gửi; thay cấu hình không đổi đơn cũ. LEAVE_CANCELLATION không cấu hình riêng thì dùng luồng LEAVE.
+Lưu cấu hình qua GET/PUT `/api/approval-workflow-settings`; ban đầu version=0, routes=[] và gửi đơn báo409 cho tới khi cấu hình. Không tự đoán HR. Cấu hình mỗi loại một chuỗi TEAM_LEAD / DEPARTMENT_MANAGER / USER / HR (UserId cụ thể có RoleCode tương ứng), 1–10 cấp; có thể chỉ dùng USER với employeeId (hoặc HR theo cấu hình cũ). Người duyệt cần tài khoản active, VIEW/APPROVE và scope phù hợp ngay lúc gửi. Mặc định cấm tự duyệt; các cấp phải là những người khác nhau. Thiếu lead/manager sẽ báo lỗi; không âm thầm bỏ cấp. Cấu hình được chốt thành ApprovalStep khi gửi; thay cấu hình không đổi đơn cũ. LEAVE_CANCELLATION không cấu hình riêng thì dùng luồng LEAVE.
 
 ## Transaction, migration và vận hành
 

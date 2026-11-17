@@ -156,3 +156,5 @@ Employee GET list/detail giữ routes, quyền và pagination; EmployeeDto thêm
 | GET | `/api/approvals/{id:long}/history` | [Leave](../modules/Leave/API.md) | WEB_APPROVALS / VIEW + scope |
 | GET | `/api/approval-workflow-settings` | [Leave](../modules/Leave/API.md) | WEB_APPROVAL_SETTINGS / VIEW |
 | PUT | `/api/approval-workflow-settings` | [Leave](../modules/Leave/API.md) | WEB_APPROVAL_SETTINGS / UPDATE |
+
+Hướng dẫn [Approval Workflow Settings](../modules/Leave/WORKFLOW_SETTINGS.md): TEAM_LEAD/DEPARTMENT_MANAGER tự lấy quản lý; USER chọn employeeId, kiểm tra lại liên kết User khi duyệt. [Payload mẫu](approval-workflow-settings.sample.json).

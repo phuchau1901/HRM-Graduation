@@ -1,0 +1,44 @@
+{
+  "version": 0,
+  "routes": [
+    {
+      "requestType": "LEAVE",
+      "allowSelfApproval": false,
+      "steps": [
+        {
+          "approverType": "TEAM_LEAD"
+        },
+        {
+          "approverType": "DEPARTMENT_MANAGER"
+        },
+        {
+          "approverType": "USER",
+          "employeeId": 12
+        }
+      ]
+    },
+    {
+      "requestType": "OVERTIME",
+      "allowSelfApproval": false,
+      "steps": [
+        {
+          "approverType": "DEPARTMENT_MANAGER"
+        },
+        {
+          "approverType": "USER",
+          "employeeId": 12
+        }
+      ]
+    },
+    {
+      "requestType": "ATTENDANCE_ADJUSTMENT",
+      "allowSelfApproval": false,
+      "steps": [
+        {
+          "approverType": "USER",
+          "employeeId": 12
+        }
+      ]
+    }
+  ]
+}

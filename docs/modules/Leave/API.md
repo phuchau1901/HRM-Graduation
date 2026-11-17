@@ -60,7 +60,7 @@ Tạo đơn trả201: `{id,approvalId,status:"PENDING",version:1}`. Cancel dùng
 ```
 Cancel trả WorkflowReceipt `{id,approvalId,status,version}`. Duyệt trả ApprovalReceipt `{id,status,version}`. Hủy phép đã duyệt trả approvalId mới của luồng hủy và status CANCELLATION_PENDING.
 
-Approval detail: `{request:{id,requestType,referenceId,employeeId,employeeName,requestedByUserId,status,createdAt,version,currentStepNo},steps:[{id,stepNo,approverUserId,decision,comment,decidedAt}],details:{...request data...}}`.
+Approval detail: `{request:{id,requestType,referenceId,employeeId,employeeName,requestedByUserId,status,createdAt,version,currentStepNo},steps:[{id,stepNo,approverUserId,approverEmployeeId,decision,comment,decidedAt}],details:{...request data...}}`.
 History: list `{id,actorUserId,action,beforeJson,afterJson,createdAt}` từ AuditLog. Adjustment trước/sau được ghi với action ATTENDANCE_ADJUSTED.
 Balance DTO: `{id,employeeId,employeeName,leaveTypeId,leaveTypeName,year,entitledDays,usedDays,reservedDays,availableDays,version}`.
 
@@ -72,18 +72,20 @@ PUT approval-workflow-settings (GET lấy version hiện tại; danh sách route
     {"requestType":"LEAVE","allowSelfApproval":false,"steps":[
       {"approverType":"TEAM_LEAD"},
       {"approverType":"DEPARTMENT_MANAGER"},
-      {"approverType":"HR","userId":"configured-hr-user","roleCode":"HR"}
+      {"approverType":"USER","employeeId":12}
     ]},
     {"requestType":"OVERTIME","allowSelfApproval":false,"steps":[
-      {"approverType":"HR","userId":"configured-hr-user","roleCode":"HR"}
+      {"approverType":"USER","employeeId":12}
     ]},
     {"requestType":"ATTENDANCE_ADJUSTMENT","allowSelfApproval":false,"steps":[
-      {"approverType":"HR","userId":"configured-hr-user","roleCode":"HR"}
+      {"approverType":"USER","employeeId":12}
     ]}
   ]
 }
 ```
-GET/PUT settings trả `{version,routes}`. Tối đa4 route khác loại, mỗi route1–10 bước. Thêm LEAVE_CANCELLATION để override quy trình hủy. Nhân viên không có Team có thể dùng luồng chỉ DEPARTMENT_MANAGER/HR; thiếu approver cấu hình báo400, không tự bỏ bước. Người vận hành đăng ký Screen/grants/scopes qua Administration API trước; xem [quy tắc và migration](README.md).
+GET/PUT settings trả `{version,routes}`. Tối đa4 route khác loại, mỗi route1–10 bước. Thêm LEAVE_CANCELLATION để override quy trình hủy. Nhân viên không có Team có thể dùng luồng chỉ DEPARTMENT_MANAGER/USER; thiếu approver cấu hình báo400, không tự bỏ bước. Người vận hành đăng ký Screen/grants/scopes qua Administration API trước; xem [quy tắc và migration](README.md).
+
+Xem [hướng dẫn cấu hình và quyền](WORKFLOW_SETTINGS.md) cùng [payload JSON đầy đủ](../../API/approval-workflow-settings.sample.json). Employee12 là ví dụ; cần thay bằng nhân viên thực tế có tài khoản liên kết.
 
 ## Bước duyệt USER theo EmployeeId
 
