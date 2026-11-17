@@ -291,7 +291,7 @@ public sealed class LeaveWorkflowTests
     {
         await using var f = await Fixture.Create();
         var config = (await f.H.Client.GetFromJsonAsync<WorkflowSettingsView>("/api/approval-workflow-settings"))!;
-        var response = await f.H.Client.PutAsJsonAsync("/api/approval-workflow-settings", new WorkflowSettingsRequest { Version = config.Version, Routes = [new WorkflowRoute { RequestType = "LEAVE", Steps = [new WorkflowStepRule { ApproverType = "USER", UserId = user }] }] });
+        var response = await f.H.Client.PutAsJsonAsync("/api/approval-workflow-settings", new WorkflowSettingsRequest { Version = config.Version, Routes = [new WorkflowRoute { RequestType = "LEAVE", Steps = [new WorkflowStepRule { ApproverType = "USER", EmployeeId = user == "lead" ? f.H.Peer : user == "api-user" ? f.H.Self : int.MaxValue }] }] });
         if (user == "unknown") { Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode); return; }
         response.EnsureSuccessStatusCode();
         if (!valid)
@@ -302,6 +302,7 @@ public sealed class LeaveWorkflowTests
         var request = await f.Submit();
         var detail = (await f.H.Client.GetFromJsonAsync<ApprovalDetail>($"/api/approvals/{request.ApprovalId}"))!;
         Assert.Equal(user, Assert.Single(detail.Steps).ApproverUserId);
+        Assert.Equal(f.H.Peer, detail.Steps[0].ApproverEmployeeId);
         (await f.Decide(request.ApprovalId, user)).EnsureSuccessStatusCode();
         Assert.Equal(2, (await f.Balance()).UsedDays);
     }
@@ -334,6 +335,44 @@ public sealed class LeaveWorkflowTests
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/approvals")).StatusCode);
         var after = (await f.H.Client.GetFromJsonAsync<WorkflowSettingsView>("/api/approval-workflow-settings"))!;
         Assert.Equal(config.Version + (update ? 1 : 0), after.Version);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AssignedApproverCannotDecideAfterEmployeeLinkChanges(bool unlink)
+    {
+        await using var f = await Fixture.Create();
+        var config = (await f.H.Client.GetFromJsonAsync<WorkflowSettingsView>("/api/approval-workflow-settings"))!;
+        (await f.H.Client.PutAsJsonAsync("/api/approval-workflow-settings", new WorkflowSettingsRequest { Version = config.Version, Routes = [new WorkflowRoute { RequestType = "LEAVE", Steps = [new WorkflowStepRule { ApproverType = "USER", EmployeeId = f.H.Peer }] }] })).EnsureSuccessStatusCode();
+        var request = await f.Submit(); using var lead = await f.As("lead");
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Set<User>().Where(u => u.UserId == "lead").ExecuteUpdateAsync(s => s.SetProperty(u => u.EmployeeId, unlink ? (int?)null : f.H.Other));
+            var role = await db.Set<Role>().SingleAsync(r => r.Code == "LEAD");
+            await db.Set<RoleScreenAction>().Where(g => g.RoleID == role.ID).ExecuteUpdateAsync(s => s.SetProperty(g => g.DataScope, "ALL"));
+        }
+        foreach (var action in new[] { "approve", "reject" })
+            Assert.Equal(HttpStatusCode.Forbidden, (await lead.PostAsJsonAsync($"/api/approvals/{request.ApprovalId}/{action}", new { version = 1, reason = "Old account assignment" })).StatusCode);
+        var detail = (await f.H.Client.GetFromJsonAsync<ApprovalDetail>($"/api/approvals/{request.ApprovalId}"))!;
+        Assert.Equal("PENDING", detail.Request.Status); Assert.Equal(1, detail.Request.Version);
+        Assert.Equal(f.H.Peer, Assert.Single(detail.Steps).ApproverEmployeeId);
+        Assert.Equal(0, (await f.Balance()).UsedDays);
+    }
+    [Fact]
+    public async Task UserStepRequiresEmployeeIdAndChangingSettingsDoesNotReassignPendingSteps()
+    {
+        await using var f = await Fixture.Create();
+        var config = (await f.H.Client.GetFromJsonAsync<WorkflowSettingsView>("/api/approval-workflow-settings"))!;
+        Assert.Equal(HttpStatusCode.BadRequest, (await f.H.Client.PutAsJsonAsync("/api/approval-workflow-settings", new WorkflowSettingsRequest { Version = config.Version, Routes = [new WorkflowRoute { RequestType = "LEAVE", Steps = [new WorkflowStepRule { ApproverType = "USER", UserId = "lead" }] }] })).StatusCode);
+        (await f.H.Client.PutAsJsonAsync("/api/approval-workflow-settings", new WorkflowSettingsRequest { Version = config.Version, Routes = [new WorkflowRoute { RequestType = "LEAVE", Steps = [new WorkflowStepRule { ApproverType = "USER", EmployeeId = f.H.Peer }] }] })).EnsureSuccessStatusCode();
+        var request = await f.Submit();
+        int managerId;
+        using (var scope = f.H.App.Services.CreateScope()) managerId = (await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<User>().SingleAsync(u => u.UserId == "manager")).EmployeeId!.Value;
+        (await f.H.Client.PutAsJsonAsync("/api/approval-workflow-settings", new WorkflowSettingsRequest { Version = config.Version + 1, Routes = [new WorkflowRoute { RequestType = "LEAVE", Steps = [new WorkflowStepRule { ApproverType = "USER", EmployeeId = managerId }] }] })).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.Forbidden, (await f.Decide(request.ApprovalId, "manager")).StatusCode);
+        (await f.Decide(request.ApprovalId, "lead")).EnsureSuccessStatusCode();
     }
 
 }

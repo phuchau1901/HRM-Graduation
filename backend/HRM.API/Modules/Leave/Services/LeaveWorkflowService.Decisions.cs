@@ -1,4 +1,5 @@
 using HRM.API.Common;
+using HRM.API.Modules.Authorization.Entities;
 using HRM.API.Modules.Leave.DTOs;
 using HRM.API.Modules.Leave.Entities;
 using HRM.API.Modules.Attendance.Entities;
@@ -39,6 +40,8 @@ public sealed partial class LeaveWorkflowService
         var steps = await db.Set<ApprovalStep>().Where(s => s.ApprovalRequestID == id).OrderBy(s => s.StepNo).ToListAsync(ct);
         var current = steps.FirstOrDefault(s => s.Decision == "PENDING") ?? throw BusinessException.Conflict("No pending step.");
         if (current.ApproverUserID != actor || !row.AllowSelfApproval && row.RequestedByUserID == actor) throw BusinessException.Scope();
+        if (current.ApproverEmployeeId.HasValue && !await db.Set<User>().AnyAsync(u => u.UserId == actor && u.Status == "ACTIVE" && u.EmployeeId == current.ApproverEmployeeId, ct))
+            throw BusinessException.Scope();
         var before = new { row.Status, row.Version, step = current.StepNo, current.Decision };
         current.Decision = approve ? "APPROVED" : "REJECTED"; current.Comment = request.Reason.Trim(); current.DecidedAt = Now; row.Version++;
         var next = steps.FirstOrDefault(s => s.Decision == "PENDING");

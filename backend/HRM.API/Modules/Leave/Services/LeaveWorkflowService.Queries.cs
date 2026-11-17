@@ -70,7 +70,7 @@ public sealed partial class LeaveWorkflowService
     public async Task<ApprovalDetail> ApprovalGet(string actor, long id, CancellationToken ct)
     {
         var row = await ApprovalProjection((await ApprovalQuery(actor, new(), ct)).Where(a => a.ID == id)).SingleOrDefaultAsync(ct) ?? throw BusinessException.Missing();
-        var steps = await db.Set<ApprovalStep>().AsNoTracking().Where(s => s.ApprovalRequestID == id).OrderBy(s => s.StepNo).Select(s => new ApprovalStepView(s.ID, s.StepNo, s.ApproverUserID, s.Decision, s.Comment, s.DecidedAt)).ToListAsync(ct);
+        var steps = await db.Set<ApprovalStep>().AsNoTracking().Where(s => s.ApprovalRequestID == id).OrderBy(s => s.StepNo).Select(s => new ApprovalStepView(s.ID, s.StepNo, s.ApproverUserID, s.Decision, s.Comment, s.DecidedAt, s.ApproverEmployeeId)).ToListAsync(ct);
         object? details = row.RequestType switch
         {
             "LEAVE" or "LEAVE_CANCELLATION" => await LeaveProjection(db.Set<LeaveRequest>().AsNoTracking().Where(r => r.ID == row.ReferenceId && r.EmployeeID == row.EmployeeId)).SingleOrDefaultAsync(ct),

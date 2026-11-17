@@ -53,6 +53,7 @@ public sealed class BalanceRequest
 public sealed class WorkflowStepRule
 {
     [Required, RegularExpression("^(TEAM_LEAD|DEPARTMENT_MANAGER|HR|USER)$")] public string ApproverType { get; set; } = "";
+    [Range(1, int.MaxValue)] public int? EmployeeId { get; set; }
     [MaxLength(100)] public string? UserId { get; set; }
     [MaxLength(50)] public string RoleCode { get; set; } = "HR";
 }
@@ -79,7 +80,7 @@ public sealed record AdjustmentView(long Id, int EmployeeId, long AttendanceId, 
     string Reason, string Status, long Version, long? ApprovalId);
 public sealed record ApprovalView(long Id, string RequestType, long ReferenceId, int? EmployeeId, string EmployeeName,
     string RequestedByUserId, string Status, DateTime CreatedAt, long Version, int? CurrentStepNo);
-public sealed record ApprovalStepView(long Id, int StepNo, string ApproverUserId, string Decision, string? Comment, DateTime? DecidedAt);
+public sealed record ApprovalStepView(long Id, int StepNo, string ApproverUserId, string Decision, string? Comment, DateTime? DecidedAt, int? ApproverEmployeeId = null);
 public sealed record ApprovalDetail(ApprovalView Request, IReadOnlyList<ApprovalStepView> Steps, object? Details = null);
 public sealed record WorkflowReceipt(long Id, long ApprovalId, string Status, long Version);
 public sealed record ApprovalReceipt(long Id, string Status, long Version);

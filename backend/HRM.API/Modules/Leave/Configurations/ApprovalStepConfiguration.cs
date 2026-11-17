@@ -11,6 +11,8 @@ public class ApprovalStepConfiguration : IEntityTypeConfiguration<ApprovalStep>
     {
         entity.ToTable("approval_steps");
         entity.HasKey(x => x.ID);
+        entity.Property(x => x.ApproverEmployeeId).HasColumnName("approver_employee_id").HasColumnType("int");
+        entity.HasOne<HRM.API.Modules.Employees.Entities.Employee>().WithMany().HasForeignKey(x => x.ApproverEmployeeId).OnDelete(DeleteBehavior.Restrict);
         entity.HasIndex(x => new { x.ApprovalRequestID, x.StepNo }).IsUnique();
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.ApprovalRequestID).HasColumnName("approval_request_id").HasColumnType("bigint").IsRequired();

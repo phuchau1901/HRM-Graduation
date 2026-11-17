@@ -85,17 +85,21 @@ PUT approval-workflow-settings (GET lấy version hiện tại; danh sách route
 ```
 GET/PUT settings trả `{version,routes}`. Tối đa4 route khác loại, mỗi route1–10 bước. Thêm LEAVE_CANCELLATION để override quy trình hủy. Nhân viên không có Team có thể dùng luồng chỉ DEPARTMENT_MANAGER/HR; thiếu approver cấu hình báo400, không tự bỏ bước. Người vận hành đăng ký Screen/grants/scopes qua Administration API trước; xem [quy tắc và migration](README.md).
 
-## Bước duyệt USER
+## Bước duyệt USER theo EmployeeId
 
-Chọn trực tiếp tài khoản duyệt, không yêu cầu role HR:
+Chọn nhân viên duyệt, backend tự tìm tài khoản User đang ACTIVE liên kết qua users.employee_id; không yêu cầu role HR:
 ```json
 {
   "version": 0,
   "routes": [
     {"requestType":"LEAVE","allowSelfApproval":false,"steps":[
-      {"approverType":"USER","userId":"approver-account"}
+      {"approverType":"USER","employeeId":12}
     ]}
   ]
 }
 ```
-Dùng version từ GET khi cập nhật. USER bắt buộc userId có tài khoản ACTIVE; roleCode không áp dụng. Khi gửi đơn vẫn kiểm tra WEB_APPROVALS VIEW/APPROVE, scope phù hợp, chính sách tự duyệt và không trùng người giữa các cấp. HR cũ vẫn hỗ trợ với kiểm tra roleCode. Không cần migration cho USER, cấu hình lưu JSON hiện có.
+Dùng version từ GET khi cập nhật. USER bắt buộc employeeId của nhân viên ACTIVE có User ACTIVE; userId trong payload USER không được dùng để chọn tài khoản và được chuẩn hóa về null khi lưu, roleCode không áp dụng. HR cũ vẫn dùng userId+roleCode. TEAM_LEAD/DEPARTMENT_MANAGER không nhận nhân viên chọn trực tiếp mà lấy quản lý Team/phòng ban của người gửi.
+
+Khi gửi đơn, backend kiểm tra quyền/scope và chốt ApproverUserID cùng ApproverEmployeeId vào từng bước. Khi approve/reject, ngoài đúng UserID được giao, đúng thứ tự/version và APPROVE scope, phải còn liên kết users.employee_id đúng ApproverEmployeeId đã chốt; đổi/gỡ liên kết trả403, không thay đổi bước/số dư. Approval detail steps trả thêm approverEmployeeId. Chỉnh settings không đổi các bước của đơn đã gửi.
+
+Migration `20261117043059_SnapshotApprovalEmployee` thêm cột nullable approver_employee_id + index/FK trên approval_steps; không tạo lại bảng và không backfill dữ liệu cũ. Chưa apply. Cấu hình USER cũ chỉ có userId cần sửa sang employeeId trước khi gửi đơn mới. Bước cũ có approver_employee_id=null vẫn dùng UserID đã giao, vì không có snapshot lịch sử để xác minh lại nhân viên; không tự đoán/backfill. Bước HR có tài khoản không liên kết nhân viên vẫn hỗ trợ theo chính sách HR cũ.

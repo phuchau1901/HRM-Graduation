@@ -92,8 +92,12 @@ public sealed partial class LeaveWorkflowService(AppDbContext db, EmployeeDataSc
             foreach (var step in route.Steps)
             {
                 if (step is null) throw BusinessException.Invalid("Null approval step."); Validate(step);
-                if (step.ApproverType == "USER" && (string.IsNullOrWhiteSpace(step.UserId) || !await db.Set<User>().AnyAsync(u => u.UserId == step.UserId && u.Status == "ACTIVE", ct)))
-                    throw BusinessException.Invalid("USER step requires an active user.");
+                if (step.ApproverType == "USER")
+                {
+                    if (!step.EmployeeId.HasValue || !await db.Employees.AnyAsync(e => e.Id == step.EmployeeId && e.EmploymentStatus == "ACTIVE" && db.Set<User>().Any(u => u.EmployeeId == e.Id && u.Status == "ACTIVE"), ct))
+                        throw BusinessException.Invalid("USER step requires an active employee linked to an active user.");
+                    step.UserId = null; // USER identity comes exclusively from EmployeeId, never a supplied account.
+                }
                 if (step.ApproverType == "HR" && (string.IsNullOrWhiteSpace(step.UserId) || !await db.Set<User>().AnyAsync(u => u.UserId == step.UserId && u.Status == "ACTIVE" && db.Set<UserRole>().Any(ur => ur.UserID == u.UserId && db.Set<Role>().Any(r => r.ID == ur.RoleID && r.Code == step.RoleCode)), ct)))
                     throw BusinessException.Invalid("HR step requires an active user assigned to its configured role.");
             }
@@ -113,11 +117,12 @@ public sealed partial class LeaveWorkflowService(AppDbContext db, EmployeeDataSc
         var route = routes.SingleOrDefault(r => r.RequestType == kind) ?? (kind == "LEAVE_CANCELLATION" ? routes.SingleOrDefault(r => r.RequestType == "LEAVE") : null)
             ?? throw BusinessException.Conflict("No approval route configured for this request type.");
         var users = new List<string>();
+        var approverEmployees = new List<int?>();
         foreach (var step in route.Steps)
         {
             string? user;
             if (step.ApproverType == "USER")
-                user = await db.Set<User>().Where(u => u.UserId == step.UserId && u.Status == "ACTIVE").Select(u => u.UserId).SingleOrDefaultAsync(ct);
+                user = await db.Set<User>().Where(u => step.EmployeeId != null && u.EmployeeId == step.EmployeeId && u.Status == "ACTIVE" && db.Employees.Any(e => e.Id == step.EmployeeId && e.EmploymentStatus == "ACTIVE")).Select(u => u.UserId).SingleOrDefaultAsync(ct);
             else if (step.ApproverType == "HR")
                 user = await db.Set<User>().Where(u => u.UserId == step.UserId && u.Status == "ACTIVE" && db.Set<UserRole>().Any(ur => ur.UserID == u.UserId && db.Set<Role>().Any(r => r.ID == ur.RoleID && r.Code == step.RoleCode))).Select(u => u.UserId).SingleOrDefaultAsync(ct);
             else
@@ -135,12 +140,13 @@ public sealed partial class LeaveWorkflowService(AppDbContext db, EmployeeDataSc
                 if (!await access.Apply(db.Employees).AnyAsync(e => e.Id == employee.Id, ct)) throw BusinessException.Invalid("Assigned approver's scope does not cover the requesting employee.");
             }
             users.Add(user);
+            approverEmployees.Add(step.ApproverType == "USER" ? step.EmployeeId : await db.Set<User>().Where(u => u.UserId == user).Select(u => u.EmployeeId).SingleAsync(ct));
         }
         if (users.Count == 0 || users.Count != users.Distinct().Count()) throw BusinessException.Invalid("Workflow requires distinct, available approvers.");
         var approval = new ApprovalRequest { RequestType = kind, ReferenceID = reference, RequestedByUserID = actor, EmployeeId = employee.Id, Status = "PENDING", CreatedAt = Now, AllowSelfApproval = route.AllowSelfApproval };
         db.Add(approval); await db.SaveChangesAsync(ct);
-        for (var i = 0; i < users.Count; i++) db.Add(new ApprovalStep { ApprovalRequestID = approval.ID, StepNo = i + 1, ApproverUserID = users[i], Decision = "PENDING" });
-        Audit(actor, approval.ID, "WORKFLOW_SUBMITTED", null, new { approval.RequestType, approval.ReferenceID, employeeId = employee.Id, approvers = users });
+        for (var i = 0; i < users.Count; i++) db.Add(new ApprovalStep { ApprovalRequestID = approval.ID, StepNo = i + 1, ApproverUserID = users[i], ApproverEmployeeId = approverEmployees[i], Decision = "PENDING" });
+        Audit(actor, approval.ID, "WORKFLOW_SUBMITTED", null, new { approval.RequestType, approval.ReferenceID, employeeId = employee.Id, approvers = users, approverEmployeeIds = approverEmployees });
         await db.SaveChangesAsync(ct); await Notify(approval, users[0], "submitted", "A request is awaiting your approval.", ct);
         return approval;
     }

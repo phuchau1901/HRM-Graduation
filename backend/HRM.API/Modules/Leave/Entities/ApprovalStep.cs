@@ -3,6 +3,7 @@ namespace HRM.API.Modules.Leave.Entities;
 
 public class ApprovalStep
 {
+    public int? ApproverEmployeeId { get; set; }
     public long ID { get; set; }
     public long ApprovalRequestID { get; set; }
     public int StepNo { get; set; }

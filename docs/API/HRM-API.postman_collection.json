@@ -233,6 +233,11 @@
       "key": "approverUserId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "approverEmployeeId",
+      "value": "12",
+      "type": "string"
     }
   ],
   "item": [
@@ -2846,10 +2851,10 @@
             "method": "PUT",
             "header": [],
             "url": "{{baseUrl}}/api/approval-workflow-settings",
-            "description": "WEB_APPROVAL_SETTINGS / UPDATE. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution. USER selects an active account directly without HR role membership; runtime approval permission/scope and self-approval policy still apply. HR remains supported for existing configurations.",
+            "description": "WEB_APPROVAL_SETTINGS/UPDATE. USER selects an active employee by employeeId; backend resolves the active linked user and snapshots the employee/user assignment. Approve/reject recheck that the acting user is still linked to that employee. No HR role required for USER. HR legacy still uses userId/roleCode. Use current settings version.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"version\": 0,\n  \"routes\": [\n    {\n      \"requestType\": \"LEAVE\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"USER\",\n          \"userId\": \"{{approverUserId}}\"\n        }\n      ]\n    },\n    {\n      \"requestType\": \"OVERTIME\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"USER\",\n          \"userId\": \"{{approverUserId}}\"\n        }\n      ]\n    },\n    {\n      \"requestType\": \"ATTENDANCE_ADJUSTMENT\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"USER\",\n          \"userId\": \"{{approverUserId}}\"\n        }\n      ]\n    }\n  ]\n}",
+              "raw": "{\n  \"version\": 0,\n  \"routes\": [\n    {\n      \"requestType\": \"LEAVE\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    },\n    {\n      \"requestType\": \"OVERTIME\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    },\n    {\n      \"requestType\": \"ATTENDANCE_ADJUSTMENT\",\n      \"allowSelfApproval\": false,\n      \"steps\": [\n        {\n          \"approverType\": \"USER\",\n          \"employeeId\": {{approverEmployeeId}}\n        }\n      ]\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

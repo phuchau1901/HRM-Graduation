@@ -975,6 +975,10 @@ namespace HRM.API.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("approval_request_id");
 
+                    b.Property<int?>("ApproverEmployeeId")
+                        .HasColumnType("int")
+                        .HasColumnName("approver_employee_id");
+
                     b.Property<string>("ApproverUserID")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1003,6 +1007,8 @@ namespace HRM.API.Migrations
                         .HasColumnName("step_no");
 
                     b.HasKey("ID");
+
+                    b.HasIndex("ApproverEmployeeId");
 
                     b.HasIndex("ApproverUserID");
 
@@ -2479,6 +2485,11 @@ namespace HRM.API.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_approval_steps_approval_request_id");
+
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ApproverEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
                         .WithMany()
