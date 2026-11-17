@@ -60,6 +60,7 @@ Không áp dụng Data Scope, không cần quyền WEB_LEAVE_BALANCES hoặc li�
   "settings": {
     "scheduleVersion": 2,
     "enabled": true,
+    "defaultDaysPerCycle": 1,
     "accrualSchedule": {
       "startDate": "2027-01-01",
       "interval": 2,
@@ -79,7 +80,7 @@ Không áp dụng Data Scope, không cần quyền WEB_LEAVE_BALANCES hoặc li�
 }
 ```
 
-Ví dụ: từ mốc01/01/2027, mỗi2 tháng cấp1.5 ngày cho chức vụ3 và2 ngày cho chức vụ4. Lần đầu01/03/2027, tiếp theo01/05/2027. Lịch thu hồi riêng mỗi1 năm, lần đầu01/01/2028. Số ngày là suất **mỗi chu kỳ**, không nhân thêm theo số tháng.
+Ví dụ: từ mốc01/01/2027, mỗi2 tháng cấp1.5 ngày cho chức vụ3 và2 ngày cho chức vụ4. Các nhân viên đủ điều kiện không có quy tắc chức vụ nhận1 ngày mặc định; không cộng thêm1 ngày cho chức vụ3/4. Lần đầu01/03/2027, tiếp theo01/05/2027. Lịch thu hồi riêng mỗi1 năm, lần đầu01/01/2028. Số ngày là suất **mỗi chu kỳ**, không nhân thêm theo số tháng.
 
 ## Quy tắc lịch
 
@@ -88,7 +89,7 @@ Ví dụ: từ mốc01/01/2027, mỗi2 tháng cấp1.5 ngày cho chức vụ3 v�
 - startDate là mốc tính, **không chạy ngay ngày bắt đầu**. Lần đầu là startDate + interval tháng/năm. Bỏ lịch bằng null. Có thể chỉ cấp, chỉ thu hồi hoặc cả hai; enabled=true cần ít nhất một lịch.
 - Ngày tính theo Asia/Ho_Chi_Minh. Cộng theo lịch, không dùng30/365 ngày cố định. Mốc31/01 +1 tháng thành28/02 (29/02 năm nhuận), kỳ tiếp từ mốc gốc trở lại31/03, không trôi thành28/03. Mốc29/02 +1 năm dùng28/02 năm không nhuận.
 - Worker xử lý kỳ gần nhất đã đến hạn nếu chưa có dấu hoàn tất; không cộng dồn tất cả các kỳ bỏ lỡ. Nếu server tắt qua nhiều kỳ, cần rà soát/cấp thủ công cho kỳ cũ vì không có lịch sử chức vụ để suy đúng quota quá khứ.
-- Updating rules does not repeat completed cycles; changing the anchor still respects permanent cycle receipts.
+- Đổi quy tắc không chạy lại kỳ đã cấp thành công; thay mốc lịch vẫn kiểm tra dấu kỳ để chống cộng trùng.
 
 GET/PUT trả thêm metadata `defaultLeaveTypeId`, `asOfDate`, `firstAccrualDate`, `firstResetDate`. first* là ngày kích hoạt đầu tiên từ mốc, không phải xác nhận kỳ đã chạy. UI hiển thị preview khi sửa lịch.
 
@@ -98,7 +99,7 @@ Rule có `positionId`, `daysPerCycle`, optional `leaveTypeId`. Không truyền/n
 
 Tối đa200 cặp chức vụ/loại phép khác nhau. Position và LeaveType phải active. DaysPerCycle dương, tối đa99999, tối đa2 số thập phân; tổng số dư vẫn phải vừa precision và đủ dùng/đang giữ. Rule chỉ thu hồi không bắt buộc số ngày cấp. Bỏ trống loại rồi lại thêm rule cùng chức vụ với ID ANNUAL được xem là trùng sau resolve, trả400.
 
-Nhân viên phải ACTIVE và thuộc PositionId hiện tại ở lúc xử lý. ACTIVE_ON_DATE: đã vào làm ở ngày đến hạn thì nhận đủ suất. ONE_MONTH: HireDate.AddMonths(1) <= ngày đến hạn. Không tính tỷ lệ theo ngày công. Không suy chức vụ/trạng thái lao động lịch sử khi server bỏ lỡ kỳ.
+Nhân viên phải ACTIVE ở lúc xử lý. Nhân viên chưa có chức vụ hoặc không khớp quy tắc chức vụ dùng mức mặc định. ACTIVE_ON_DATE: đã vào làm ở ngày đến hạn thì nhận đủ suất. ONE_MONTH: HireDate.AddMonths(1) <= ngày đến hạn. Không tính tỷ lệ theo ngày công. Không suy chức vụ/trạng thái lao động lịch sử khi server bỏ lỡ kỳ.
 
 ## Nhân viên chưa có số dư
 
@@ -110,7 +111,7 @@ Nhân viên phải ACTIVE và thuộc PositionId hiện tại ở lúc xử lý.
 
 Thu hồi phần khả dụng chưa dùng bằng giảm adjustmentDays, giữ entitledDays/usedDays/reservedDays và lịch sử. Không zero hoặc xóa số dư. Ngày01/01 thu hồi các năm cũ đến năm trước; ngày khác thu hồi các năm đến năm của ngày đó. Không đụng quota cấp trước cho năm tương lai.
 
-Chỉ áp dụng nhân viên/loại phép thuộc rule hiện hành. Nếu cả hai lịch cùng đến hạn, thu hồi trước, cấp sau. Không cấp lại kỳ có ngày đến hạn nằm trước lần thu hồi gần nhất. Phép đang giữ cho đơn pending được bảo vệ; hủy/từ chối/hoàn phép vẫn theo quy trình Leave hiện có.
+Đối tượng thu hồi dùng cùng cách xác định như cấp phép: khớp chức vụ thì lấy loại phép trong quy tắc riêng; không khớp thì lấy ANNUAL. Nếu cả hai lịch cùng đến hạn, thu hồi trước, cấp sau. Không cấp lại kỳ có ngày đến hạn nằm trước lần thu hồi gần nhất. Phép đang giữ cho đơn pending được bảo vệ; hủy/từ chối/hoàn phép vẫn theo quy trình Leave hiện có.
 
 ## Worker, transaction và chống trùng
 
@@ -153,6 +154,34 @@ Credit completion receipts are written only for creditedBalances > 0. Existing z
 
 Validation of overdue-cycle fix: backend build succeeds; 24 accrual/recurrence tests pass. Full backend suite: 450 passed, 9 existing EmployeeCreationTests failures (NV/TX employee-code expectation). Frontend full suite before added next-date regression: 53 passed; updated settings suite: 7 passed. Production frontend build succeeds. No migration applied or deployment performed.
 
-## Default quota and position overrides
+## Số ngày mặc định và mức riêng theo chức vụ
 
-Version 2 accepts settings.defaultDaysPerCycle (default 1; positive with at most two decimals). rules may be empty while enabled. All ACTIVE employees meeting hire-date eligibility are considered, including employees with no position. A matching active position rule replaces the default allocation; otherwise the employee receives defaultDaysPerCycle for the active balance-tracked ANNUAL leave type. The default is never stacked on top of position-specific grants. Reset applies to the same resolved employee/type targets. A completed positive cycle is not repeated after rules change. Version 1 retains its original position-only behavior. This is a JSON setting change, with no migration.
+- `settings.defaultDaysPerCycle`: mặc định **1 ngày mỗi chu kỳ** nếu không truyền; lớn hơn0, tối đa99999 và tối đa2 chữ số thập phân. Có thể chỉnh trên màn hình cấu hình.
+- `rules: []` hợp lệ khi `enabled=true` với lịch version2. Không cần cấu hình chức vụ để cấp phép mặc định.
+- Nhân viên đủ điều kiện không khớp quy tắc chức vụ, kể cả chưa có chức vụ, nhận mức mặc định cho loại phép ANNUAL đang active và `requires_balance=true`.
+- Nếu khớp chức vụ, chỉ dùng các quy tắc chức vụ đó, **không cộng thêm mức mặc định**, kể cả khi quy tắc riêng chọn loại phép khác ANNUAL.
+- Nếu ANNUAL mặc định chưa được cấu hình hợp lệ, bật lịch version2 trả400. Không tự tạo loại phép.
+- Version1 giữ cách xử lý theo chức vụ cũ. Thay đổi số ngày hoặc quy tắc không cấp lại kỳ đã hoàn tất.
+
+Ví dụ cấu hình cho mọi nhân viên đủ điều kiện, không cần chức vụ:
+
+```json
+{
+  "version": 3,
+  "settings": {
+    "scheduleVersion": 2,
+    "enabled": true,
+    "defaultDaysPerCycle": 1,
+    "accrualSchedule": { "startDate": "2026-10-16", "interval": 1, "unit": "MONTH" },
+    "resetSchedule": null,
+    "newHireEligibility": "ONE_MONTH",
+    "rules": []
+  }
+}
+```
+
+`version` phải lấy từ GET mới nhất, không dùng cố định3. Muốn một chức vụ nhận2 ngày thay cho1 ngày, thêm `{"positionId":3,"daysPerCycle":2}` vào rules, dùng ID chức vụ thực tế. Với ONE_MONTH, nhân viên phải đủ một tháng tại ngày đến hạn, không phải ngày bấm chạy. Mốc16/10/2026, chu kỳ1 tháng, chạy17/11/2026 sẽ xử lý kỳ16/11/2026; thành công trả ngày kế tiếp16/12/2026. Cần lưu cấu hình trước khi bấm chạy.
+
+Cấu hình nằm trong JSON `system_settings` (key `LEAVE_ACCRUAL`); kết quả cộng vào `leave_balances.entitled_days`, thu hồi vào `adjustment_days`, lịch sử ở AuditLog. Không thêm bảng hoặc migration.
+
+Kiểm tra sau thay đổi mức mặc định: backend build thành công,25 tests cấp phép/chu kỳ qua; frontend54 tests qua và production build thành công. Không apply Migration hoặc deploy.

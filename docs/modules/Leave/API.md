@@ -124,3 +124,5 @@ Xem [Leave Balance Management](BALANCES_API.md) để biết công thức còn l
 ## Approvals là module cha
 
 Các endpoint /approvals và /approval-workflow-settings chuyển controller/service sang [module Approvals](../Approvals/API.md), giữ nguyên URL/quyền/JSON. GET /approvals thêm query module=LEAVE để lọc nghỉ phép/hủy phép; không ảnh hưởng scope. UI chuẩn Approvals → Leave.
+
+Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1 ngày/chu kỳ; `rules: []` hợp lệ. Không khớp chức vụ dùng mức mặc định ANNUAL, khớp thì dùng mức riêng và không cộng cả hai. Chi tiết: [ACCRUAL_SETTINGS.md](ACCRUAL_SETTINGS.md).

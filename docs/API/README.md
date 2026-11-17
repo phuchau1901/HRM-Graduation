@@ -184,3 +184,5 @@ Hướng dẫn [Approval Workflow Settings](../modules/Leave/WORKFLOW_SETTINGS.m
 ## Approvals — module cha
 
 Các7 endpoint /api/approvals* và /api/approval-workflow-settings chuyển sang ApprovalsController, giữ URL và quyền hiện có; tổng inventory119 không đổi. GET /api/approvals hỗ trợ module=LEAVE/OVERTIME/ATTENDANCE, lọc trước count/paging và trong scope. [Đặc tả Approvals](../modules/Approvals/API.md) · [Kiến trúc mở rộng](../modules/Approvals/ARCHITECTURE.md).
+
+Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1 ngày/chu kỳ; `rules: []` hợp lệ. Không khớp chức vụ dùng mức mặc định ANNUAL, khớp thì dùng mức riêng và không cộng cả hai. Chi tiết: [Leave Accrual Settings](../modules/Leave/ACCRUAL_SETTINGS.md).

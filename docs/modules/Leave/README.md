@@ -77,3 +77,5 @@ WEB_LEAVE_BALANCES có màn hình riêng Human Resources → Số dư phép tạ
 ## Tách module Approvals
 
 ApprovalRequest/ApprovalStep, query/decision/settings controller và workflow engine chuyển sang Modules/Approvals. Phê duyệt nghỉ phép/hủy phép thuộc Modules/Approvals/Modules/Leave; nghiệp vụ quota dùng LeaveBalanceAccounting. Các loại tăng ca/điều chỉnh công có adapter riêng. [API cha và bộ lọc module](../Approvals/API.md) · [Cách thêm loại duyệt khác](../Approvals/ARCHITECTURE.md). Không đổi bảng hoặc tạo migration cho việc tách module.
+
+Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1 ngày/chu kỳ; `rules: []` hợp lệ. Không khớp chức vụ dùng mức mặc định ANNUAL, khớp thì dùng mức riêng và không cộng cả hai. Chi tiết: [ACCRUAL_SETTINGS.md](ACCRUAL_SETTINGS.md).

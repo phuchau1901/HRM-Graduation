@@ -12,6 +12,8 @@ AuditLog: `GET /api/audit-logs` (lọc/phân trang) và `GET /api/audit-logs/{id
 
 ## Lịch phép tự động
 
-System Settings → Leave Accrual Settings cấu hình suất cấp theo PositionId, điều kiện nhân viên mới và hai lịch cấp/thu hồi độc lập với ngày bắt đầu + khoảng lặp MONTH/YEAR. [API và chính sách](../Leave/ACCRUAL_SETTINGS.md). Cấu hình disabled mặc định; không tự chạy migration/deploy. Quyền xem là WEB_SYSTEM_SETTINGS VIEW, lưu/chạy là WEB_SYSTEM_SETTINGS UPDATE; không áp Data Scope và không yêu cầu quyền số dư phép hoặc liên kết Employee.
+System Settings → Leave Accrual Settings cấu hình suất cấp mặc định defaultDaysPerCycle (mặc định1 ngày/chu kỳ), mức riêng theo PositionId, điều kiện nhân viên mới và hai lịch cấp/thu hồi độc lập với ngày bắt đầu + khoảng lặp MONTH/YEAR. [API và chính sách](../Leave/ACCRUAL_SETTINGS.md). Cấu hình disabled mặc định; không tự chạy migration/deploy. Quyền xem là WEB_SYSTEM_SETTINGS VIEW, lưu/chạy là WEB_SYSTEM_SETTINGS UPDATE; không áp Data Scope và không yêu cầu quyền số dư phép hoặc liên kết Employee.
 
 Lịch phép version2 dùng ngày bắt đầu + khoảng lặp + đơn vị MONTH/YEAR cho cấp và thu hồi độc lập. Lần đầu sau trọn một khoảng lặp; rule daysPerCycle, mặc định ANNUAL nếu bỏ leaveTypeId. Nhân viên chưa có quota không bị tạo số dư khi thu hồi; đến hạn cấp sẽ tạo nếu đủ điều kiện. Cấu hình legacy giữ nguyên đến khi người dùng lưu kiểu lịch mới.
+
+Lịch phép version2 cho phép rules=[]: mọi nhân viên ACTIVE đủ điều kiện nhận mức mặc định ANNUAL, kể cả chưa có chức vụ. Khớp quy tắc chức vụ thì dùng mức riêng và không cộng thêm mức mặc định. Xem payload và điều kiện tại [ACCRUAL_SETTINGS.md](../Leave/ACCRUAL_SETTINGS.md).
