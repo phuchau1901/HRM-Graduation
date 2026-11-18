@@ -47,7 +47,14 @@ public sealed partial class LeaveWorkflowService
 
     public Task<WorkflowReceipt> CreateLeave(string actor, LeaveCreateRequest request, CancellationToken ct) => Transaction(async () =>
     {
-        var employee = await Own(actor, Leave, "NEW", ct);
+        if (!await permissions.HasPermissionAsync(actor, Leave, "NEW", ct))
+            throw new BusinessException(403, "HRM_AUTH_003", "Required permission: WEB_LEAVE_REQUESTS / NEW.", "PERMISSION_DENIED");
+        var employee = await (from user in db.Set<HRM.API.Modules.Authorization.Entities.User>()
+                              join person in db.Employees on user.EmployeeId equals (int?)person.Id
+                              where user.UserId == actor && user.Status == "ACTIVE" && person.EmploymentStatus == "ACTIVE"
+                              select person).SingleOrDefaultAsync(ct)
+            ?? throw new BusinessException(403, "HRM_AUTH_006", "An active linked employee is required.", "EMPLOYEE_LINK_REQUIRED");
+        await db.Employees.Where(e => e.Id == employee.Id).ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt), ct);
         var today = VietnamBusinessDate.Today(clock);
         if (request.FromDate < today || request.ToDate < request.FromDate || request.ToDate.DayNumber - request.FromDate.DayNumber > 366) throw BusinessException.Invalid("Leave dates must be today/future, ordered and at most 367 calendar days.");
         var type = await db.Set<LeaveType>().SingleOrDefaultAsync(t => t.ID == request.LeaveTypeId && t.IsActive, ct) ?? throw BusinessException.Invalid("Active leave type required.");

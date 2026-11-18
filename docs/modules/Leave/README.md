@@ -28,7 +28,7 @@ Frontend trước đó chưa có các màn hình Leave/Approval trong checkout. 
 
 | Screen | Actions dùng | Scope |
 | --- | --- | --- |
-| WEB_LEAVE_REQUESTS | VIEW, NEW, UPDATE | SELF / DEPARTMENT / ALL |
+| WEB_LEAVE_REQUESTS | VIEW, NEW, UPDATE | VIEW/UPDATE: SELF / DEPARTMENT / ALL; NEW: không Scope, chỉ nhân viên đăng nhập |
 | WEB_OVERTIME_REQUESTS | VIEW, NEW, UPDATE | SELF / DEPARTMENT / ALL |
 | WEB_ATTENDANCE_ADJUSTMENTS | VIEW, NEW, UPDATE | SELF / DEPARTMENT / ALL |
 | WEB_LEAVE_BALANCES | VIEW, UPDATE | VIEW ba scope; UPDATE DEPARTMENT / ALL |
@@ -79,3 +79,5 @@ WEB_LEAVE_MANAGEMENT có màn hình riêng Human Resources → Số dư phép t�
 ApprovalRequest/ApprovalStep, query/decision/settings controller và workflow engine chuyển sang Modules/Approvals. Phê duyệt nghỉ phép/hủy phép thuộc Modules/Approvals/Modules/Leave; nghiệp vụ quota dùng LeaveBalanceAccounting. Các loại tăng ca/điều chỉnh công có adapter riêng. [API cha và bộ lọc module](../Approvals/API.md) · [Cách thêm loại duyệt khác](../Approvals/ARCHITECTURE.md). Không đổi bảng hoặc tạo migration cho việc tách module.
 
 Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1 ngày/chu kỳ; `rules: []` hợp lệ. Không khớp chức vụ dùng mức mặc định ANNUAL, khớp thì dùng mức riêng và không cộng cả hai. Chi tiết: [ACCRUAL_SETTINGS.md](ACCRUAL_SETTINGS.md).
+
+POST `/api/leave-requests`: cần `WEB_LEAVE_REQUESTS / NEW`, không yêu cầu cấu hình Data Scope cho action NEW. Backend lấy nhân viên từ user đăng nhập; user và nhân viên phải ACTIVE, có liên kết hợp lệ. Không nhận employeeId để tạo thay người khác. Vẫn kiểm tra quyền NEW hiện hành, trùng lịch, số dư phép và quy trình duyệt. Quyền/scope của GET, hủy đơn và các loại phiếu khác giữ nguyên.

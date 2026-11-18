@@ -2679,7 +2679,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/leave-requests",
-            "description": "WEB_LEAVE_REQUESTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "description": "Requires WEB_LEAVE_REQUESTS / NEW, without data scope. Creates only for the active employee linked to the active signed-in user. A supplied employeeId cannot change ownership. Live NEW permission, overlap, balance and approval checks still apply.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"fromDate\": \"2027-01-04\",\n  \"toDate\": \"2027-01-05\",\n  \"reason\": \"Family\"\n}",

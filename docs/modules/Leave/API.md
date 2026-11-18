@@ -130,3 +130,5 @@ Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1
 GET `/api/leave-balances` includes `employeeCode` (employees.EmployeeCode) in each data item alongside employeeId/employeeName. The field uses the existing scoped employee join, with no additional query. `/me` balance items and single-balance update responses use the same DTO.
 
 GET `/api/leave-types` chấp nhận VIEW trên bất kỳ một màn hình: WEB_LEAVE_TYPES, WEB_LEAVE_REQUESTS, WEB_OVERTIME_REQUESTS, WEB_ATTENDANCE_ADJUSTMENTS. Không yêu cầu đồng thời và không áp Data Scope cho danh mục loại phép. NEW đơn thuần không thay thế VIEW. POST/PUT loại phép vẫn cần WEB_LEAVE_TYPES / NEW hoặc UPDATE tương ứng; quyền đọc danh mục không cấp quyền ghi.
+
+POST `/api/leave-requests`: cần `WEB_LEAVE_REQUESTS / NEW`, không yêu cầu cấu hình Data Scope cho action NEW. Backend lấy nhân viên từ user đăng nhập; user và nhân viên phải ACTIVE, có liên kết hợp lệ. Không nhận employeeId để tạo thay người khác. Vẫn kiểm tra quyền NEW hiện hành, trùng lịch, số dư phép và quy trình duyệt. Quyền/scope của GET, hủy đơn và các loại phiếu khác giữ nguyên.
