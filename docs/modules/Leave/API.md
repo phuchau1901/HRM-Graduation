@@ -6,7 +6,7 @@ Tất cả route dưới `/api`, bearer authentication, ScreenPermission và Bus
 
 | Method | Route | Screen/action |
 | --- | --- | --- |
-| GET | /leave-types | WEB_LEAVE_TYPES / VIEW |
+| GET | /leave-types | VIEW trên một trong WEB_LEAVE_TYPES, WEB_LEAVE_REQUESTS, WEB_OVERTIME_REQUESTS, WEB_ATTENDANCE_ADJUSTMENTS |
 | POST | /leave-types | WEB_LEAVE_TYPES / NEW |
 | PUT | /leave-types/{id:long} | WEB_LEAVE_TYPES / UPDATE |
 | GET | /leave-balances/me | WEB_LEAVE_BALANCES / VIEW + own linked Employee |
@@ -128,3 +128,5 @@ Các endpoint /approvals và /approval-workflow-settings chuyển controller/ser
 Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1 ngày/chu kỳ; `rules: []` hợp lệ. Không khớp chức vụ dùng mức mặc định ANNUAL, khớp thì dùng mức riêng và không cộng cả hai. Chi tiết: [ACCRUAL_SETTINGS.md](ACCRUAL_SETTINGS.md).
 
 GET `/api/leave-balances` includes `employeeCode` (employees.EmployeeCode) in each data item alongside employeeId/employeeName. The field uses the existing scoped employee join, with no additional query. `/me` balance items and single-balance update responses use the same DTO.
+
+GET `/api/leave-types` chấp nhận VIEW trên bất kỳ một màn hình: WEB_LEAVE_TYPES, WEB_LEAVE_REQUESTS, WEB_OVERTIME_REQUESTS, WEB_ATTENDANCE_ADJUSTMENTS. Không yêu cầu đồng thời và không áp Data Scope cho danh mục loại phép. NEW đơn thuần không thay thế VIEW. POST/PUT loại phép vẫn cần WEB_LEAVE_TYPES / NEW hoặc UPDATE tương ứng; quyền đọc danh mục không cấp quyền ghi.

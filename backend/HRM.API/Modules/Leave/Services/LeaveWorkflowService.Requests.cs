@@ -13,7 +13,11 @@ public sealed partial class LeaveWorkflowService
 {
     public async Task<PageResult<LeaveTypeView>> LeaveTypes(string actor, WorkflowQuery q, CancellationToken ct)
     {
-        await Demand(actor, Types, "VIEW", ct); var query = db.Set<LeaveType>().AsNoTracking();
+        var allowed = false;
+        foreach (var screen in new[] { Types, Leave, Overtime, Adjustments })
+            if (await permissions.HasPermissionAsync(actor, screen, "VIEW", ct)) { allowed = true; break; }
+        if (!allowed) throw new BusinessException(403, "HRM_AUTH_003", "Required VIEW permission on leave types, leave requests, overtime requests or attendance adjustments.", "PERMISSION_DENIED");
+        var query = db.Set<LeaveType>().AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(t => t.Code.Contains(q.Search) || t.Name.Contains(q.Search));
         var total = await query.CountAsync(ct);
         return new(true, total, q.Page, q.PageSize, await query.OrderBy(t => t.ID).Skip(Paging.Offset(q)).Take(q.PageSize).Select(t => new LeaveTypeView(t.ID, t.Code, t.Name, t.Paid, t.RequiresBalance, t.IsActive)).ToListAsync(ct));

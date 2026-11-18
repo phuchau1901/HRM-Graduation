@@ -17,7 +17,7 @@ public sealed class LeaveWorkflowController(LeaveWorkflowService service) : Cont
     public async Task<IActionResult> SaveAccrualSettings(LeaveAccrualSettingsRequest r, CancellationToken ct) => Ok(await service.SaveAccrualSettings(Actor, r, ct));
     [HttpPost("api/system-settings/leave-accrual/run"), ScreenPermission(LeaveWorkflowService.AccrualSettingsScreen, "UPDATE")]
     public async Task<IActionResult> RunAccrual(CancellationToken ct) => Ok(await service.RunAccrualNow(Actor, ct));
-    [HttpGet("api/leave-types"), ScreenPermission(LeaveWorkflowService.Types, "VIEW")]
+    [HttpGet("api/leave-types"), AnyScreenPermission("VIEW", LeaveWorkflowService.Types, LeaveWorkflowService.Leave, LeaveWorkflowService.Overtime, LeaveWorkflowService.Adjustments)]
     public async Task<IActionResult> Types([FromQuery] WorkflowQuery q, CancellationToken ct) => Ok(await service.LeaveTypes(Actor, q, ct));
     [HttpPost("api/leave-types"), ScreenPermission(LeaveWorkflowService.Types, "NEW")]
     public async Task<IActionResult> CreateType(LeaveTypeRequest r, CancellationToken ct) => StatusCode(201, await service.SaveType(Actor, null, r, ct));

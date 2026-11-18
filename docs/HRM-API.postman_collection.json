@@ -2582,7 +2582,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/leave-types?page=1&pageSize=20&view=MY",
-            "description": "WEB_LEAVE_TYPES / VIEW. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution."
+            "description": "Requires VIEW on any one of WEB_LEAVE_TYPES, WEB_LEAVE_REQUESTS, WEB_OVERTIME_REQUESTS or WEB_ATTENDANCE_ADJUSTMENTS. No data scope for this catalog. NEW alone does not grant VIEW. Type creation/update still requires WEB_LEAVE_TYPES NEW/UPDATE."
           },
           "response": []
         },

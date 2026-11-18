@@ -35,10 +35,30 @@ public sealed class RequireScreenPermissionAttribute : ScreenPermissionAttribute
     public RequireScreenPermissionAttribute(string screenCode, ScreenAction action) : base(screenCode, action.ToString()) { }
 }
 
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class AnyScreenPermissionAttribute : ScreenPermissionAttribute
+{
+    public AnyScreenPermissionAttribute(string action, params string[] screens) : base(screens.First(), action)
+    {
+        if (screens.Any(s => string.IsNullOrWhiteSpace(s) || s.Contains(':') || s.Contains(',')))
+            throw new ArgumentException("Valid screen codes are required.");
+        Policy = $"HRM.AnyScreen:{ActionCode}:{string.Join(',', screens)}";
+    }
+}
+
 public sealed class ScreenPermissionPolicyProvider(IOptions<AuthorizationOptions> options) : DefaultAuthorizationPolicyProvider(options)
 {
     public override Task<AuthorizationPolicy?> GetPolicyAsync(string policyName)
     {
+        if (policyName.StartsWith("HRM.AnyScreen:", StringComparison.Ordinal))
+        {
+            var anyParts = policyName.Split(':');
+            var operation = anyParts.Length == 3 ? PermissionActions.Normalize(anyParts[1]) : null;
+            var screens = anyParts.Length == 3 ? anyParts[2].Split(',') : [];
+            return Task.FromResult<AuthorizationPolicy?>(new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
+                .RequireAuthenticatedUser().RequireAssertion(c => operation != null && screens.Any(screen =>
+                    HRM.API.Security.JwtPermissions.HasPermission(c.User, screen, operation))).Build());
+        }
         if (!policyName.StartsWith("HRM.Screen:", StringComparison.Ordinal)) return base.GetPolicyAsync(policyName);
         var policy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser();
         var parts = policyName.Split(':');

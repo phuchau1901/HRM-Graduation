@@ -134,7 +134,7 @@ Employee GET list/detail giữ routes, quyền và pagination; EmployeeDto thêm
 
 | Method | URL | Module / đặc tả | Permission |
 | --- | --- | --- | --- |
-| GET | `/api/leave-types` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / VIEW |
+| GET | `/api/leave-types` | [Leave](../modules/Leave/API.md) | VIEW trên một trong WEB_LEAVE_TYPES, WEB_LEAVE_REQUESTS, WEB_OVERTIME_REQUESTS, WEB_ATTENDANCE_ADJUSTMENTS |
 | POST | `/api/leave-types` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / NEW |
 | PUT | `/api/leave-types/{id:long}` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_TYPES / UPDATE |
 | GET | `/api/leave-balances` | [Leave](../modules/Leave/API.md) | WEB_LEAVE_MANAGEMENT / VIEW + scope |
@@ -186,3 +186,5 @@ Hướng dẫn [Approval Workflow Settings](../modules/Leave/WORKFLOW_SETTINGS.m
 Các7 endpoint /api/approvals* và /api/approval-workflow-settings chuyển sang ApprovalsController, giữ URL và quyền hiện có; tổng inventory119 không đổi. GET /api/approvals hỗ trợ module=LEAVE/OVERTIME/ATTENDANCE, lọc trước count/paging và trong scope. [Đặc tả Approvals](../modules/Approvals/API.md) · [Kiến trúc mở rộng](../modules/Approvals/ARCHITECTURE.md).
 
 Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1 ngày/chu kỳ; `rules: []` hợp lệ. Không khớp chức vụ dùng mức mặc định ANNUAL, khớp thì dùng mức riêng và không cộng cả hai. Chi tiết: [Leave Accrual Settings](../modules/Leave/ACCRUAL_SETTINGS.md).
+
+GET `/api/leave-types` chấp nhận VIEW trên bất kỳ một màn hình: WEB_LEAVE_TYPES, WEB_LEAVE_REQUESTS, WEB_OVERTIME_REQUESTS, WEB_ATTENDANCE_ADJUSTMENTS. Không yêu cầu đồng thời và không áp Data Scope cho danh mục loại phép. NEW đơn thuần không thay thế VIEW. POST/PUT loại phép vẫn cần WEB_LEAVE_TYPES / NEW hoặc UPDATE tương ứng; quyền đọc danh mục không cấp quyền ghi.

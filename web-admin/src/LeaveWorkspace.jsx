@@ -13,6 +13,7 @@ export function LeaveWorkspace(props) {
   return props.mode === 'approvals' ? <ApprovalCenter {...props} /> : <LeaveRequestsWorkspace {...props} />;
 }
 function LeaveRequestsWorkspace({ api, permissions, userId, mode }) {
+  const canReadTypes = ['WEB_LEAVE_TYPES', 'WEB_LEAVE_REQUESTS', 'WEB_OVERTIME_REQUESTS', 'WEB_ATTENDANCE_ADJUSTMENTS'].some(code => can(permissions, code, 'VIEW'));
   const allowed = key => can(permissions, key === 'balances' && mode !== 'my' ? 'WEB_LEAVE_MANAGEMENT' : screens[key], 'VIEW');
   const hasSettingsView = mode === 'manage' && can(permissions, 'WEB_APPROVAL_SETTINGS', 'VIEW');
   const keys = mode === 'manage' ? ['leave', 'overtime', 'adjustments', 'balances', 'types'] : ['leave', 'overtime', 'adjustments', 'balances'];
@@ -33,13 +34,13 @@ function LeaveRequestsWorkspace({ api, permissions, userId, mode }) {
     return () => abort.abort();
   }, [api, tab, page, status, year, employee, revision, view, permissions]);
   useEffect(() => {
-    if (!form || !['leave', 'balances'].includes(tab) || !allowed('types')) return;
+    if (!form || !['leave', 'balances'].includes(tab) || !canReadTypes) return;
     const abort = new AbortController(); setTypes(null);
     allPages(api, '/leave-types', abort.signal).then(setTypes).catch(e => { if (!abort.signal.aborted) setError(e.message); });
     return () => abort.abort();
   }, [api, !!form, tab, revision, permissions]);
   function typeField(value) {
-    return allowed('types') ? <label>Loại phép<select name="leaveTypeId" required defaultValue={value || ''} disabled={!types}><option value="">{types ? 'Chọn loại phép' : 'Đang tải loại phép…'}</option>{types?.filter(t => t.isActive || t.id === value).map(t => <option key={t.id} value={t.id}>{t.code} · {t.name}</option>)}</select></label> : <Field name="leaveTypeId" label="ID loại phép" type="number" min="1" defaultValue={value} />;
+    return canReadTypes ? <label>Loại phép<select name="leaveTypeId" required defaultValue={value || ''} disabled={!types}><option value="">{types ? 'Chọn loại phép' : 'Đang tải loại phép…'}</option>{types?.filter(t => t.isActive || t.id === value).map(t => <option key={t.id} value={t.id}>{t.code} · {t.name}</option>)}</select></label> : <Field name="leaveTypeId" label="ID loại phép" type="number" min="1" defaultValue={value} />;
   }
   async function perform(path, method, body) {
     setBusy(true); setError('');
@@ -77,7 +78,7 @@ function LeaveRequestsWorkspace({ api, permissions, userId, mode }) {
       {['leave', 'overtime', 'adjustments'].includes(tab) && <Field name="reason" label="Lý do" maxLength="1000" />}
       {tab === 'balances' && <><Field name="employeeId" label="ID nhân viên" type="number" min="1" defaultValue={form.employeeId} />{typeField(form.leaveTypeId)}<Field name="year" label="Năm" type="number" min="1900" max="9999" defaultValue={form.year || year} /><Field name="entitledDays" label="Tổng ngày được cấp" type="number" min="0" step="0.5" defaultValue={form.entitledDays} /><p>Đã dùng và đang giữ chỗ được hệ thống quản lý.</p></>}
       {tab === 'types' && <><Field name="code" label="Mã loại phép" pattern="[A-Z0-9][A-Z0-9_-]*" defaultValue={form.code} /><Field name="name" label="Tên" defaultValue={form.name} />{[['paid', 'Có lương'], ['requiresBalance', 'Kiểm tra số dư'], ['isActive', 'Đang hoạt động']].map(([name, label]) => <label className="checkbox" key={name}><input type="checkbox" name={name} defaultChecked={form[name] ?? name !== 'paid'} />{label}</label>)}</>}
-      <div className="toolbar"><button disabled={busy || (['leave', 'balances'].includes(tab) && allowed('types') && !types)}>Lưu</button><button type="button" className="subtle" onClick={() => setForm(null)}>Đóng</button></div></form>}
+      <div className="toolbar"><button disabled={busy || (['leave', 'balances'].includes(tab) && canReadTypes && !types)}>Lưu</button><button type="button" className="subtle" onClick={() => setForm(null)}>Đóng</button></div></form>}
     {loading ? <div className="card org-skeleton" aria-label="Đang tải" role="status"><div className="skeleton" /><div className="skeleton" /><div className="skeleton" /></div> : result && <div className="card table-wrap"><table><thead><tr><th>ID / Nhân viên</th><th>Nội dung</th><th>Trạng thái / Số dư</th><th>Thao tác</th></tr></thead><tbody>{result.data.map(r => <tr key={r.id}><td>{r.id}{r.employeeName && <><br />{r.employeeName}</>}</td><td>{tab === 'leave' ? `${r.leaveTypeName}: ${r.fromDate} → ${r.toDate} (${r.requestedDays} ngày)` : tab === 'overtime' ? `${dateTime(r.startAt)} → ${dateTime(r.endAt)} (${r.requestedHours} giờ; duyệt ${r.approvedHours ?? '—'})` : tab === 'adjustments' ? `Công #${r.attendanceId}: ${dateTime(r.proposedCheckIn)} → ${dateTime(r.proposedCheckOut)}` : tab === 'balances' ? `${r.leaveTypeName} / ${r.year}` : `${r.code} · ${r.name}`}</td><td>{tab === 'balances' ? `Còn ${r.availableDays} / ${r.entitledDays}; giữ ${r.reservedDays}; dùng ${r.usedDays}` : tab === 'types' ? r.isActive ? 'Hoạt động' : 'Ngừng' : r.status}</td><td>{['types', 'balances'].includes(tab) ? mode === 'manage' && can(permissions, screens[tab], 'UPDATE') && <button className="subtle" onClick={() => setForm(r)}>Sửa</button> : <button className="subtle" disabled={busy} onClick={() => open(r)}>Chi tiết</button>}</td></tr>)}</tbody></table>{!result.data.length && <p>Chưa có dữ liệu trong phạm vi được xem.</p>}<Pager page={page} total={result.total} onChange={setPage} /></div>}
     {detail && <div className="card editor"><h2>Chi tiết #{row?.id}</h2><><p>{row.reason}</p><p>{row.status} · phiên bản {row.version}</p>{row.fromDate && <p>{row.fromDate} → {row.toDate} · {row.requestedDays} ngày</p>}{row.startAt && <p>{dateTime(row.startAt)} → {dateTime(row.endAt)}</p>}{row.attendanceId && <p>Công #{row.attendanceId}: {dateTime(row.proposedCheckIn)} → {dateTime(row.proposedCheckOut)}</p>}{mode === 'my' && can(permissions, screens[tab], 'UPDATE') && (row.status === 'PENDING' || (tab === 'leave' && row.status === 'APPROVED')) && <form onSubmit={e => { e.preventDefault(); perform(`/${paths[tab]}/${row.id}/cancel`, 'POST', { version: row.version, reason }); }}><label>Lý do hủy<input required maxLength="1000" value={reason} onChange={e => setReason(e.target.value)} /></label><button disabled={busy}>Hủy / Yêu cầu hủy</button></form>}</><button className="subtle" onClick={() => setDetail(null)}>Đóng</button></div>}
     </>}{mode === 'manage' && !keys.some(allowed) && <WorkflowSettings api={api} permissions={permissions} />}</section>;
