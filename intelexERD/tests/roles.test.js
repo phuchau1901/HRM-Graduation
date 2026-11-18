@@ -191,3 +191,32 @@ test('role menu and screen title use Leave Management despite an old API name',(
  const entries=roleMenuGroups([screen]).flatMap(group=>group.entries).filter(item=>item.code===screen.code);
  assert.equal(entries.length,1);assert.equal(entries[0].name,'Leave Management');assert.equal(entries[0].label,'Leave Management');assert.equal(entries[0].id,99);
 });
+
+test('Role shows Leave Management and My Leave with separate screen identities',()=>{
+ const catalog=roleScreenCatalog([{id:1,code:'WEB_LEAVE_MANAGEMENT',name:'Old',platform:'WEB'},{id:2,code:'WEB_LEAVE_BALANCES',name:'Leave Management',platform:'WEB'}]);
+ const entries=roleMenuGroups(catalog).flatMap(group=>group.entries);
+ assert.deepEqual(entries.filter(item=>item.label==='Leave Management').map(item=>item.code),['WEB_LEAVE_MANAGEMENT']);
+ assert.equal(entries.find(item=>item.code==='WEB_LEAVE_BALANCES').label,'Số dư phép');assert.equal(catalog.find(item=>item.code==='WEB_LEAVE_BALANCES').id,2);
+});
+
+test('Leave Management permission editor belongs to Human Resources exactly once with original screen identity',()=>{
+ const screen={id:55,code:'WEB_LEAVE_MANAGEMENT',name:'Leave Management',platform:'WEB',isActive:true};
+ const groups=roleMenuGroups(roleScreenCatalog([screen,{id:56,code:'WEB_LEAVE_BALANCES',platform:'WEB',isActive:true}]));
+ const hr=groups.find(group=>group.name==='Human Resources');
+ const entry=hr.entries.find(item=>item.code==='WEB_LEAVE_MANAGEMENT');assert.equal(entry.id,55);assert.equal(entry.isActive,true);assert.equal(entry.registrationRequired,undefined);
+ assert.equal(groups.flatMap(group=>group.entries).filter(item=>item.code==='WEB_LEAVE_MANAGEMENT').length,1);
+ assert.ok(!groups.find(group=>group.name==='My Workspace')?.entries.some(item=>item.code==='WEB_LEAVE_MANAGEMENT'));
+ assert.equal(groups.find(group=>group.name==='My Workspace').entries.find(item=>item.code==='WEB_LEAVE_BALANCES').label,'Số dư phép');
+ const patch=rolePermissionPatch(new Map([['WEB_LEAVE_MANAGEMENT',{VIEW:false,UPDATE:true}]]),new Set(['WEB_LEAVE_MANAGEMENT']));
+ assert.equal(patch[0].screenCode,'WEB_LEAVE_MANAGEMENT');assert.equal(patch[0].standard.UPDATE,true);
+});
+
+test('Leave Management exposes separate VIEW and UPDATE scopes and saves them on its own screen code',async()=>{
+ const {roleScopeSelect,roleHasScopeAction,roleScopeDraft}=await import('../assets/js/pages/administration/roles.js');
+ for(const flag of ['VIEW','UPDATE']){assert.equal(roleHasScopeAction('WEB_LEAVE_MANAGEMENT',flag),true);const html=roleScopeSelect('WEB_LEAVE_MANAGEMENT',flag,'Quyền','DEPARTMENT');assert.ok(html.includes('Chính mình'));assert.ok(html.includes('Cùng phòng ban'));assert.ok(html.includes('Tất cả'));assert.ok(html.includes('value="DEPARTMENT" selected'));}
+ for(const flag of ['NEW','DELETE','APPROVE','EXPORT'])assert.equal(roleHasScopeAction('WEB_LEAVE_MANAGEMENT',flag),false);
+ const scopes=roleScopeDraft([{code:'WEB_LEAVE_MANAGEMENT'}],[{screenCode:'WEB_LEAVE_MANAGEMENT',dataScopes:{VIEW:'ALL',UPDATE:'DEPARTMENT'}}]);
+ assert.deepEqual(scopes.get('WEB_LEAVE_MANAGEMENT'),{VIEW:'ALL',UPDATE:'DEPARTMENT'});
+ const patch=rolePermissionPatch(new Map([['WEB_LEAVE_MANAGEMENT',{VIEW:true,UPDATE:true}]]),new Set(['WEB_LEAVE_MANAGEMENT']),new Set(),scopes);
+ assert.deepEqual(patch.find(item=>item.screenCode==='WEB_LEAVE_MANAGEMENT').dataScopes,{VIEW:'ALL',UPDATE:'DEPARTMENT'});
+});

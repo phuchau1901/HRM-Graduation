@@ -139,3 +139,9 @@ test('notification read failure is shown in the popup without marking the item r
   assert.equal(feedback.textContent,'Bạn không có quyền thực hiện thao tác này.');assert.equal(item.readAt,null);
  }finally{if(original===undefined)delete globalThis.document;else globalThis.document=original;}
 });
+
+test('unread count becomes visible even while inbox is still loading',async()=>{
+ let finishInbox;const f=fixture({rest:{list:()=>new Promise(resolve=>finishInbox=resolve),count:async()=>({count:7})}});
+ await f.service.syncAuth();await settle();assert.equal(f.service.snapshot().count,7);assert.equal(f.service.snapshot().loaded,false);
+ finishInbox({items:[],nextBeforeId:null});await settle();await f.service.stop();
+});

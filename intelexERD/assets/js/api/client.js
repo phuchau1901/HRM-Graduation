@@ -13,6 +13,11 @@ export function apiLogout(){session=null;try{localStorage.removeItem(SESSION_KEY
  globalThis.window?.dispatchEvent?.(new Event('auth-change'));
 }
 
+function reportApiMutation(path,options,ok,message=''){
+ const method=options.method||'GET';if(!['POST','PUT','PATCH','DELETE'].includes(method)||path==='/api/auth/login'||path.startsWith('/api/notifications'))return;
+ if(typeof globalThis.window?.dispatchEvent==='function'&&typeof CustomEvent==='function')globalThis.window.dispatchEvent(new CustomEvent('api-mutation',{detail:{path,method,ok,message}}));
+}
+
 async function request(path,options={}){
  const headers=new Headers(options.headers||{});
  headers.set('Accept','application/json');
@@ -21,10 +26,11 @@ async function request(path,options={}){
  if(requestToken)headers.set('Authorization',`Bearer ${requestToken}`);
  const transport=globalThis['fetch'];
  if(typeof transport!=='function')throw Error('Trình duyệt hiện tại không hỗ trợ kết nối API.');
- const response=await transport(apiBaseUrl()+path,{...options,headers});
+ let response;try{response=await transport(apiBaseUrl()+path,{...options,headers});}catch(error){reportApiMutation(path,options,false,'Không kết nối được API. Vui lòng thử lại.');throw error;}
+ if(response.ok&&response.status===204){reportApiMutation(path,options,true);return null;}
  let body=null;try{body=await response.json();}catch{}
- if(!response.ok){if(response.status===401&&requestToken&&session?.accessToken===requestToken)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;throw error;}
- return body;
+ if(!response.ok){if(response.status===401&&requestToken&&session?.accessToken===requestToken)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;reportApiMutation(path,options,false,error.message);throw error;}
+ reportApiMutation(path,options,true);return body;
 }
 
 export async function login(userId,password){

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {approvalTabs,visibleApprovalTabs,workflowGrant,workflowCreatePayload,workflowCanCancel,workflowRows,mountApprovals} from '../assets/js/pages/approval-center/approvals.js';
-import {apiWorkflowList,apiWorkflowDetail,apiCreateWorkflow,apiWorkflowAction} from '../assets/js/api/client.js';
+import {apiWorkflowList,apiWorkflowDetail,apiCreateWorkflow,apiWorkflowAction,login,apiLogout} from '../assets/js/api/client.js';
 import {screenRoutes} from '../assets/js/permissions.js';
 import {roleMenuGroups,roleScreenCatalog,roleScopeSelect,rolePermissionPatch} from '../assets/js/pages/administration/roles.js';
 
@@ -15,9 +15,9 @@ test('each request tab requires its own screen grant and menu entry',()=>{
  assert.deepEqual(visibleApprovalTabs(session('WEB_APPROVALS')),['all']);
  assert.deepEqual(visibleApprovalTabs(session('WEB_LEAVE')),[]);
 });
-test('role menu lists three independent screens under Approval Center and offers view scopes',()=>{
- const screens=roleScreenCatalog([]),group=roleMenuGroups(screens).find(group=>group.name==='Approval Center');
- assert.equal(group.nested,true);assert.deepEqual(group.entries.map(entry=>entry.code),['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS']);
+test('role menu lists request screens under My Workspace with independent view scopes',()=>{
+ const screens=roleScreenCatalog([]),group=roleMenuGroups(screens).find(group=>group.name==='My Workspace');
+ assert.equal(group.nested,true);assert.deepEqual(group.entries.filter(entry=>entry.code!=='WEB_LEAVE_BALANCES').map(entry=>entry.code),['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS']);
  for(const code of group.entries.map(entry=>entry.code)){
   const html=roleScopeSelect(code,'VIEW','Xem','DEPARTMENT');for(const label of ['Chính mình','Cùng phòng ban','Tất cả'])assert.ok(html.includes(label));
   assert.equal(roleScopeSelect(code,'NEW','Thêm mới'), '');
@@ -72,4 +72,17 @@ test('request scope editor labels controls and persists SELF defaults as display
  assert.ok(roleScopeSelect('WEB_LEAVE_REQUESTS','VIEW','Xem').includes('Phạm vi dữ liệu'));
  const patch=rolePermissionPatch(new Map([['WEB_OVERTIME_REQUESTS',{VIEW:true,NEW:true}]]),new Set(['WEB_OVERTIME_REQUESTS']),new Set(),scopes);
  assert.deepEqual(patch[0].dataScopes,{VIEW:'SELF'});
+});
+
+test('workspace request tabs use only their matching permission and always query MY without nested tabs',async()=>{
+ const previous=globalThis.fetch,calls=[];
+ try{
+ globalThis.fetch=async(url)=>{calls.push(url);return {ok:true,json:async()=>url.endsWith('/api/auth/login')?{accessToken:'test',user:{userId:'self'},permissions:['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'].map(code=>({platform:'WEB',code,canView:'Y',canNew:'Y'}))}:{success:true,total:0,data:[]}};};
+ await login('self','test');
+ for(const kind of ['leave','overtime','adjustment']){
+ const control={elements:{status:{value:''}},addEventListener(){}},root={innerHTML:'',isConnected:true,querySelector:()=>control,querySelectorAll:()=>[]};
+ await mountApprovals(root,{}, {kind,own:true});
+ assert.equal(new URL(calls.at(-1)).searchParams.get('view'),'MY');assert.ok(!root.innerHTML.includes('name="view"'));assert.ok(!root.innerHTML.includes('role="tablist"'));assert.ok(root.innerHTML.includes('workflow-create'));
+ }
+ }finally{apiLogout();globalThis.fetch=previous;}
 });

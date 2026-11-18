@@ -19,7 +19,10 @@ export const screenRoutes={
  '/workspace/tasks':['WEB_MY_TASKS'],
  '/workspace/projects':['WEB_MY_PROJECTS'],
  '/workspace/attendance':['WEB_MY_ATTENDANCE'],
- '/workspace/leave':['WEB_LEAVE_MANAGEMENT'],
+ '/workspace/leave':['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
+ '/workspace/leave-requests':['WEB_LEAVE_REQUESTS'],
+ '/workspace/overtime':['WEB_OVERTIME_REQUESTS'],
+ '/workspace/attendance-adjustments':['WEB_ATTENDANCE_ADJUSTMENTS'],
  '/projects':['WEB_PROJECTS'],
  '/approvals':['WEB_APPROVALS','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
  '/reports':['WEB_REPORTS'],
@@ -30,7 +33,7 @@ export const screenRoutes={
  '/hr/contracts':['WEB_CONTRACTS'],
  '/hr/attendance':['WEB_ATTENDANCE'],
  '/hr/attendance-reports':['WEB_ATTENDANCE_REPORTS'],
- '/hr/leave':['WEB_LEAVE_BALANCES'],
+ '/hr/leave':['WEB_LEAVE_MANAGEMENT'],
  '/hr/reports':['WEB_HR_REPORTS'],
  '/admin/users':['WEB_USERS'],
  '/admin/roles':['WEB_ROLES'],
@@ -41,6 +44,8 @@ export const screenRoutes={
 };
 // Permission editor placement follows menu ownership, independently of route access aliases.
 export const roleScreenRoutes={...screenRoutes,
+ '/workspace/leave':['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
+ '/hr/leave':['WEB_LEAVE_MANAGEMENT'],
  '/hr/organization':['WEB_ORGANIZATION'],
  '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_LEAVE_TYPES','WEB_SHIFTS']
 };

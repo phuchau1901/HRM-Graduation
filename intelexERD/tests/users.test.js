@@ -130,3 +130,22 @@ test('registration dates accept manual day/month/year and reject impossible date
  assert.equal(registrationDateValue('01/13/2026'),null);
  assert.equal(registrationDateValue(''), '');
 });
+
+test('reset password 204 succeeds without parsing a body and refreshes version before the next save',async()=>{
+ const {saveSystemUserChanges}=await import('../assets/js/pages/administration/users.js');
+ const current={userId:'target',email:'x@example.com',employeeId:null,roles:[],version:'v1'},calls=[];
+ globalThis.fetch=async(url,options)=>{calls.push({url,options});if(url.endsWith('/reset-password'))return {ok:true,status:204,json:async()=>{throw Error('must not parse 204');}};return ok({...current,version:options.method==='PUT'?'v3':'v2'});};
+ const saved=await saveSystemUserChanges(current,{newPassword:'test-new-password'});assert.equal(saved,current);assert.equal(current.version,null);assert.equal(calls.length,1);
+ await saveSystemUserChanges(current,{profile:{email:'new@example.com',employeeId:null}});
+ assert.ok(calls[1].url.endsWith('/api/users/target'));assert.equal(calls[2].options.method,'PUT');assert.equal(calls[2].options.headers.get('If-Match'),'"v2"');
+});
+
+test('mutation alerts support 204 and errors without including passwords or request bodies',async()=>{
+ const {apiResetUserPassword}=await import('../assets/js/api/client.js');
+ const originalWindow=globalThis.window,originalFetch=globalThis.fetch,events=[];
+ try{globalThis.window={dispatchEvent:event=>events.push(event)};
+ globalThis.fetch=async()=>({ok:true,status:204});await apiResetUserPassword('target',null,{type:'ADMIN_RESET',newPassword:'private-value'});
+ assert.equal(events.length,1);assert.equal(events[0].type,'api-mutation');assert.equal(events[0].detail.ok,true);assert.equal(JSON.stringify(events).includes('private-value'),false);assert.equal(events[0].detail.body,undefined);
+ globalThis.fetch=async()=>({ok:false,status:409,json:async()=>({message:'Version changed'})});await assert.rejects(apiResetUserPassword('target',null,{type:'ADMIN_RESET',newPassword:'private-value'}));assert.equal(events.at(-1).detail.ok,false);assert.equal(events.at(-1).detail.message,'Version changed');
+ }finally{globalThis.window=originalWindow;globalThis.fetch=originalFetch;}
+});

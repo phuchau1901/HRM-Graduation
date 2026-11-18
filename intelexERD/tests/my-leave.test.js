@@ -5,9 +5,9 @@ import {apiMyLeaveBalances} from '../assets/js/api/client.js';
 import {screenRoutes} from '../assets/js/permissions.js';
 const response=()=>({success:true,data:{employeeId:12,year:2027,asOfDate:'2027-06-15',totalDays:13,usedDays:3,remainingDays:10,reservedDays:2,availableDays:8,balances:[{id:10,employeeId:12,leaveTypeId:1,leaveTypeName:'Phép năm',year:2027,entitledDays:12,carriedOverDays:2,adjustmentDays:-1,usedDays:3,reservedDays:2,remainingDays:10,availableDays:8,version:4}]}});
 
-test('My Leave uses WEB_LEAVE_MANAGEMENT and checks separate API balance VIEW permission',async()=>{
- assert.deepEqual(screenRoutes['/workspace/leave'],['WEB_LEAVE_MANAGEMENT']);
- assert.ok(!screenRoutes['/hr/leave'].includes('WEB_LEAVE_MANAGEMENT'));
+test('My Leave uses WEB_LEAVE_BALANCES independently of Leave Management',async()=>{
+ assert.deepEqual(screenRoutes['/workspace/leave'],['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS']);
+ assert.deepEqual(screenRoutes['/hr/leave'],['WEB_LEAVE_MANAGEMENT']);
  assert.equal(myLeaveGrant('WEB_LEAVE_MANAGEMENT',{permissions:[{platform:'WEB',code:'WEB_LEAVE_MANAGEMENT',canView:'Y'}]}),true);
  assert.equal(myLeaveGrant('WEB_LEAVE_BALANCES',{permissions:[{platform:'WEB',code:'WEB_LEAVE_MANAGEMENT',canView:'Y'}]}),false);
  const original=globalThis.fetch;let called=false;
@@ -35,4 +35,19 @@ test('my balances API is no-store, accepts only year/type filters and never sele
   globalThis.fetch=async()=>({ok:false,status:403,json:async()=>({message:'Chưa liên kết nhân viên'})});
   await assert.rejects(apiMyLeaveBalances(),/Chưa liên kết nhân viên/);
  }finally{globalThis.fetch=original;}
+});
+
+test('leave creation requires leave request NEW, not the balance or management NEW flag',async()=>{
+ const {workflowGrant,openWorkflowCreate}=await import('../assets/js/pages/approval-center/approvals.js');
+ const permission={platform:'WEB',code:'WEB_LEAVE_REQUESTS',canView:'Y',canNew:'Y'};
+ assert.equal(workflowGrant('leave','canNew',{permissions:[permission]}),true);
+ for(const patch of [{canNew:'N'},{code:'WEB_LEAVE_BALANCES'},{code:'WEB_LEAVE_MANAGEMENT'}])assert.equal(workflowGrant('leave','canNew',{permissions:[{...permission,...patch}]}),false);
+ assert.doesNotThrow(()=>openWorkflowCreate('leave'));
+});
+
+test('My Leave owns four independently permitted child tabs',async()=>{
+ const {myLeaveTabs,visibleMyLeaveTabs}=await import('../assets/js/pages/my-workspace/my-leave.js');
+ assert.deepEqual(Object.values(myLeaveTabs).map(tab=>tab.label),['Số dư phép','Nghỉ phép','Tăng ca','Điều chỉnh công']);
+ for(const [key,tab] of Object.entries(myLeaveTabs))assert.deepEqual(visibleMyLeaveTabs({permissions:[{platform:'WEB',code:tab.screen,canView:'Y'}]}),[key]);
+ assert.deepEqual(visibleMyLeaveTabs({permissions:[]}),[]);
 });

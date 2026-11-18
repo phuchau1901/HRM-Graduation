@@ -75,7 +75,7 @@ export class NotificationService{
  this.state.loading=true;this.state.error='';this.emit();
  const task={generation,promise:null};this.refreshTask=task;
  task.promise=(async()=>{
- const [inbox,count]=await Promise.allSettled([this.rest.list(30,null),this.rest.count()]);
+ const [inbox,count]=await Promise.allSettled([this.rest.list(30,null),Promise.resolve().then(()=>this.rest.count()).then(result=>{if(this.current(generation)&&Number.isSafeInteger(result?.count)&&result.count>=0){this.state.count=result.count;this.emit();}return result;})]);
  if(!this.current(generation))return;
  let error=null;
  if(inbox.status==='fulfilled'&&Array.isArray(inbox.value?.items)){

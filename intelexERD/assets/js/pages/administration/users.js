@@ -115,6 +115,7 @@ export function mountUserRolePicker(container,roles,initial=[],disabled=false){
  draw();return ()=>[...selected.keys()].map(Number);
 }
 export async function saveSystemUserChanges(current,changes){
+ if(!current.version)Object.assign(current,await apiUserDetail(current.userId));
  let saved=current;
  if(changes.profile&&(changes.profile.email!==current.email||changes.profile.employeeId!==(current.employeeId??null))){
  saved=await apiUpdateUser(current.userId,current.version,changes.profile);
@@ -127,8 +128,8 @@ export async function saveSystemUserChanges(current,changes){
  }
  if(changes.newPassword){
  saved=await apiResetUserPassword(current.userId,current.version,{type:'ADMIN_RESET',newPassword:changes.newPassword});
- if(!saved?.version)throw Error('Chưa nhận phiên bản sau đổi mật khẩu. Hãy mở lại tài khoản để xác nhận.');
- Object.assign(current,saved);
+ if(saved?.version)Object.assign(current,saved);
+ else{current.version=null;saved=current;} // A successful empty response has no aggregate version; reload before the next save.
  }
  return saved;
 }
