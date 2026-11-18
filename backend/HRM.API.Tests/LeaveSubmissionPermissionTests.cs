@@ -52,4 +52,36 @@ public sealed class LeaveSubmissionPermissionTests
         }
         Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.PostAsJsonAsync("/api/leave-requests", new { leaveTypeId = f.TypeId, fromDate = "2026-11-23", toDate = "2026-11-23", reason = "Permission test" })).StatusCode);
     }
+    [Theory]
+    [InlineData("VIEW", true)]
+    [InlineData("APPROVE", true)]
+    [InlineData("VIEW", false)]
+    [InlineData("APPROVE", false)]
+    public async Task SubmissionSucceedsBeforeApproverPermissionsAreConfigured(string action, bool missingScope)
+    {
+        await using var f = await Fixture.Create();
+        using (var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var role = await db.Set<Role>().SingleAsync(r => r.Code == "LEAD");
+            var screen = await db.Screens.SingleAsync(s => s.Code == "WEB_APPROVALS");
+            if (missingScope) await db.Set<RoleScreenAction>().Where(g => g.RoleID == role.ID && g.ScreenID == screen.ID && g.ActionCode == action).ExecuteDeleteAsync();
+            else if (action == "VIEW") await db.Set<RoleDetail>().Where(g => g.RoleID == role.ID && g.ScreenID == screen.ID).ExecuteUpdateAsync(s => s.SetProperty(g => g.CanView, "N"));
+            else await db.Set<RoleDetail>().Where(g => g.RoleID == role.ID && g.ScreenID == screen.ID).ExecuteUpdateAsync(s => s.SetProperty(g => g.CanApprove, "N"));
+        }
+        var response = await f.H.Client.PostAsJsonAsync("/api/leave-requests", new { leaveTypeId = f.TypeId, fromDate = "2026-11-23", toDate = "2026-11-23", reason = "Approver config test" });
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var receipt = (await response.Content.ReadFromJsonAsync<HRM.API.Modules.Leave.DTOs.WorkflowReceipt>())!;
+        using (var check = f.H.App.Services.CreateScope())
+        {
+            var state = check.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.True(await state.Set<LeaveRequest>().AnyAsync());
+            Assert.Equal(1m, (await state.Set<LeaveBalance>().SingleAsync(b => b.EmployeeID == f.H.Self)).ReservedDays);
+            Assert.Equal("lead", (await state.Set<HRM.API.Modules.Approvals.Entities.ApprovalStep>().SingleAsync(s => s.ApprovalRequestID == receipt.ApprovalId && s.StepNo == 1)).ApproverUserID);
+        }
+        if (action == "APPROVE")
+            Assert.Equal(HttpStatusCode.Forbidden, (await f.Decide(receipt.ApprovalId, "lead")).StatusCode);
+
+    }
+
 }

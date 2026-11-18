@@ -2679,7 +2679,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/leave-requests",
-            "description": "Requires WEB_LEAVE_REQUESTS / NEW, without data scope. Creates only for the active employee linked to the active signed-in user. A supplied employeeId cannot change ownership. Live NEW permission, overlap, balance and approval checks still apply.",
+            "description": "Requires WEB_LEAVE_REQUESTS / NEW, without data scope. Creates only for the active employee linked to the active signed-in user. A supplied employeeId cannot change ownership. Live NEW permission, overlap, balance and approval checks still apply.\nSubmission resolves valid configured approvers without requiring their VIEW/APPROVE permission or data scope. Those are enforced when the approver views or decides the request; assignment/order/self-approval rules still apply.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"leaveTypeId\": {{leaveTypeId}},\n  \"fromDate\": \"2027-01-04\",\n  \"toDate\": \"2027-01-05\",\n  \"reason\": \"Family\"\n}",
@@ -2737,7 +2737,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/overtime-requests",
-            "description": "WEB_OVERTIME_REQUESTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "description": "WEB_OVERTIME_REQUESTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.\nSubmission resolves valid configured approvers without requiring their VIEW/APPROVE permission or data scope. Those are enforced when the approver views or decides the request; assignment/order/self-approval rules still apply.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"startAt\": \"2027-01-04T18:00:00+07:00\",\n  \"endAt\": \"2027-01-04T20:00:00+07:00\",\n  \"reason\": \"Work\"\n}",
@@ -2785,7 +2785,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/attendance-adjustments",
-            "description": "WEB_ATTENDANCE_ADJUSTMENTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.",
+            "description": "WEB_ATTENDANCE_ADJUSTMENTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.\nSubmission resolves valid configured approvers without requiring their VIEW/APPROVE permission or data scope. Those are enforced when the approver views or decides the request; assignment/order/self-approval rules still apply.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"attendanceId\": {{attendanceId}},\n  \"proposedCheckIn\": \"2026-11-16T08:00:00+07:00\",\n  \"proposedCheckOut\": \"2026-11-16T17:00:00+07:00\",\n  \"reason\": \"Missed device\"\n}",

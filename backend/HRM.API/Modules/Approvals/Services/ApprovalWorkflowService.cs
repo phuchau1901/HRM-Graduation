@@ -115,12 +115,8 @@ public sealed partial class ApprovalWorkflowService(AppDbContext db, EmployeeDat
                 user = await db.Set<User>().Where(u => u.EmployeeId == approverEmployee && approverEmployee != null && u.Status == "ACTIVE").Select(u => u.UserId).SingleOrDefaultAsync(ct);
             }
             if (user is null || (!route.AllowSelfApproval && user == actor)) throw BusinessException.Invalid("Configured approver is unavailable or would self-approve.");
-            await Demand(user, Approvals, "VIEW", ct); await Demand(user, Approvals, "APPROVE", ct);
-            foreach (var action in new[] { "VIEW", "APPROVE" })
-            {
-                var access = await scopes.GetAsync(user, Approvals, action, ct);
-                if (!await access.Apply(db.Employees).AnyAsync(e => e.Id == employee.Id, ct)) throw BusinessException.Invalid("Assigned approver's scope does not cover the requesting employee.");
-            }
+            // Submission resolves the assigned recipient only. Live approval permission,
+            // data scope and assignment are enforced when that recipient acts.
             users.Add(user);
             approverEmployees.Add(step.ApproverType == "USER" ? step.EmployeeId : await db.Set<User>().Where(u => u.UserId == user).Select(u => u.EmployeeId).SingleAsync(ct));
         }

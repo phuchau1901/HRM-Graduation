@@ -24,7 +24,7 @@ API cấp các quyền trên cho role là PUT `/api/roles/{id}/permissions`, yê
 
 USER chọn **nhân viên**, không nhập tài khoản User. Ví dụ `{"approverType":"USER","employeeId":12}`. Nhân viên phải ACTIVE và có tài khoản ACTIVE liên kết; role HR không bắt buộc. Với USER, userId gửi kèm không được dùng để chọn tài khoản và được chuẩn hóa về null khi lưu.
 
-Các bước Team Lead/Trưởng phòng tự lấy người quản lý từ bảng Team/Department của người gửi, không bắt người cấu hình chọn lại quản lý. Team phải active và thuộc phòng ban tương ứng; phòng ban phải active. Thiếu quản lý/tài khoản hoặc quyền phù hợp báo lỗi lúc gửi đơn, không bỏ bước. Nhân viên không có Team cần một luồng không có TEAM_LEAD, ví dụ DEPARTMENT_MANAGER → USER. Hiện cấu hình theo loại yêu cầu toàn hệ thống, chưa có nhánh điều kiện theo từng Team/phòng ban.
+Các bước Team Lead/Trưởng phòng tự lấy người quản lý từ bảng Team/Department của người gửi, không bắt người cấu hình chọn lại quản lý. Team phải active và thuộc phòng ban tương ứng; phòng ban phải active. Thiếu quản lý/tài khoản hợp lệ báo lỗi lúc gửi đơn, không bỏ bước. Quyền và Scope của người duyệt được kiểm tra khi họ xem hoặc quyết định phiếu, không chặn người gửi tạo phiếu. Nhân viên không có Team cần một luồng không có TEAM_LEAD, ví dụ DEPARTMENT_MANAGER → USER. Hiện cấu hình theo loại yêu cầu toàn hệ thống, chưa có nhánh điều kiện theo từng Team/phòng ban.
 
 ## Ví dụ tạo hoặc sửa luồng
 
@@ -64,7 +64,7 @@ Employee12 chỉ là ví dụ; thay bằng ID nhân viên duyệt thực tế. T
 
 ## Kiểm tra khi gửi đơn và khi duyệt
 
-Khi lưu cấu hình, backend kiểm tra định dạng/route trùng/version và nhân viên-tài khoản USER hợp lệ. Khi gửi đơn, backend xác định toàn bộ người duyệt, kiểm tra từng người có WEB_APPROVALS VIEW và APPROVE với scope bao phủ người gửi. Các cấp phải là những người khác nhau, không tự duyệt nếu allowSelfApproval=false. Không đủ điều kiện thì rollback cả tạo đơn/giữ phép.
+Khi lưu cấu hình, backend kiểm tra định dạng/route trùng/version và nhân viên-tài khoản USER hợp lệ. Khi gửi đơn, backend chỉ xác định toàn bộ người duyệt hợp lệ và tạo bước PENDING, không yêu cầu họ đã có WEB_APPROVALS VIEW/APPROVE hoặc Scope. Quyền và Scope được kiểm tra khi người duyệt thao tác. Các cấp phải là những người khác nhau, không tự duyệt nếu allowSelfApproval=false. Không đủ điều kiện thì rollback cả tạo đơn/giữ phép.
 
 Backend chốt ApproverUserID và ApproverEmployeeId vào ApprovalStep. Khi approve **hoặc reject**, phải đồng thời:
 

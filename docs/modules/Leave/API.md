@@ -132,3 +132,9 @@ GET `/api/leave-balances` includes `employeeCode` (employees.EmployeeCode) in ea
 GET `/api/leave-types` chấp nhận VIEW trên bất kỳ một màn hình: WEB_LEAVE_TYPES, WEB_LEAVE_REQUESTS, WEB_OVERTIME_REQUESTS, WEB_ATTENDANCE_ADJUSTMENTS. Không yêu cầu đồng thời và không áp Data Scope cho danh mục loại phép. NEW đơn thuần không thay thế VIEW. POST/PUT loại phép vẫn cần WEB_LEAVE_TYPES / NEW hoặc UPDATE tương ứng; quyền đọc danh mục không cấp quyền ghi.
 
 POST `/api/leave-requests`: cần `WEB_LEAVE_REQUESTS / NEW`, không yêu cầu cấu hình Data Scope cho action NEW. Backend lấy nhân viên từ user đăng nhập; user và nhân viên phải ACTIVE, có liên kết hợp lệ. Không nhận employeeId để tạo thay người khác. Vẫn kiểm tra quyền NEW hiện hành, trùng lịch, số dư phép và quy trình duyệt. Quyền/scope của GET, hủy đơn và các loại phiếu khác giữ nguyên.
+
+### Thời điểm kiểm tra quyền người duyệt
+
+Khi gửi phiếu, hệ thống xác định người duyệt theo workflow và tạo các bước PENDING; không kiểm tra WEB_APPROVALS VIEW/APPROVE hoặc Data Scope của người duyệt ở bước gửi. Người nhận phải tồn tại, hoạt động, không trùng bước và tuân thủ chính sách tự duyệt. Người gửi nghỉ phép chỉ cần WEB_LEAVE_REQUESTS / NEW và nhân viên liên kết ACTIVE, không cần Scope NEW.
+
+Quyền và Scope của người duyệt được kiểm tra khi xem/duyệt/từ chối. Chỉ người được giao ở bước hiện tại có WEB_APPROVALS / APPROVE và Scope phù hợp mới được quyết định. Chưa được cấp quyền duyệt không làm người gửi bị chặn tạo phiếu; người duyệt cần được cấu hình quyền trước khi xử lý.
