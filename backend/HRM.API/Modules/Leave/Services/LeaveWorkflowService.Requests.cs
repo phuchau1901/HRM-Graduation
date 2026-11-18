@@ -47,14 +47,7 @@ public sealed partial class LeaveWorkflowService
 
     public Task<WorkflowReceipt> CreateLeave(string actor, LeaveCreateRequest request, CancellationToken ct) => Transaction(async () =>
     {
-        if (!await permissions.HasPermissionAsync(actor, Leave, "NEW", ct))
-            throw new BusinessException(403, "HRM_AUTH_003", "Required permission: WEB_LEAVE_REQUESTS / NEW.", "PERMISSION_DENIED");
-        var employee = await (from user in db.Set<HRM.API.Modules.Authorization.Entities.User>()
-                              join person in db.Employees on user.EmployeeId equals (int?)person.Id
-                              where user.UserId == actor && user.Status == "ACTIVE" && person.EmploymentStatus == "ACTIVE"
-                              select person).SingleOrDefaultAsync(ct)
-            ?? throw new BusinessException(403, "HRM_AUTH_006", "An active linked employee is required.", "EMPLOYEE_LINK_REQUIRED");
-        await db.Employees.Where(e => e.Id == employee.Id).ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt), ct);
+        var employee = await OwnSubmission(actor, Leave, ct);
         var today = VietnamBusinessDate.Today(clock);
         if (request.FromDate < today || request.ToDate < request.FromDate || request.ToDate.DayNumber - request.FromDate.DayNumber > 366) throw BusinessException.Invalid("Leave dates must be today/future, ordered and at most 367 calendar days.");
         var type = await db.Set<LeaveType>().SingleOrDefaultAsync(t => t.ID == request.LeaveTypeId && t.IsActive, ct) ?? throw BusinessException.Invalid("Active leave type required.");
@@ -81,7 +74,7 @@ public sealed partial class LeaveWorkflowService
     }, ct);
     public Task<WorkflowReceipt> CreateOvertime(string actor, OvertimeCreateRequest request, CancellationToken ct) => Transaction(async () =>
     {
-        var employee = await Own(actor, Overtime, "NEW", ct); var start = request.StartAt.UtcDateTime; var end = request.EndAt.UtcDateTime;
+        var employee = await OwnSubmission(actor, Overtime, ct); var start = request.StartAt.UtcDateTime; var end = request.EndAt.UtcDateTime;
         if (start.Year < 1000 || end <= start || (end - start).TotalMinutes < 1 || (end - start).TotalHours > 24) throw BusinessException.Invalid("Overtime must last between one minute and 24 hours.");
         if (await db.Set<OvertimeRequest>().AnyAsync(r => r.EmployeeID == employee.Id && (r.Status == "PENDING" || r.Status == "APPROVED") && r.StartAt < end && r.EndAt > start, ct)) throw BusinessException.Conflict("Overtime overlaps another live request.");
         var row = new OvertimeRequest { EmployeeID = employee.Id, StartAt = start, EndAt = end, RequestedHours = decimal.Round((decimal)(end - start).TotalHours, 2), ApprovedHours = null, Reason = request.Reason.Trim(), Status = "PENDING", CreatedAt = Now };

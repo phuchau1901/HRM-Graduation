@@ -2737,7 +2737,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/overtime-requests",
-            "description": "WEB_OVERTIME_REQUESTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.\nSubmission resolves valid configured approvers without requiring their VIEW/APPROVE permission or data scope. Those are enforced when the approver views or decides the request; assignment/order/self-approval rules still apply.",
+            "description": "Requires WEB_OVERTIME_REQUESTS / NEW, no NEW data scope. Creates only for the active employee linked to the active signed-in user. Supplied employeeId cannot change ownership. Preserves duration/overlap/workflow validation. Assigned approver permissions are checked when they act, not at submission.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"startAt\": \"2027-01-04T18:00:00+07:00\",\n  \"endAt\": \"2027-01-04T20:00:00+07:00\",\n  \"reason\": \"Work\"\n}",

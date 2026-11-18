@@ -40,6 +40,18 @@ public sealed partial class LeaveWorkflowService(AppDbContext db, EmployeeDataSc
         || e.InnerException is not null && IsLockConflict(e.InnerException);
     private async Task Demand(string actor, string screen, string action, CancellationToken ct)
     { if (!await permissions.HasPermissionAsync(actor, screen, action, ct)) throw BusinessException.Scope(); }
+    private async Task<Employee> OwnSubmission(string actor, string screen, CancellationToken ct)
+    {
+        if (!await permissions.HasPermissionAsync(actor, screen, "NEW", ct))
+            throw new BusinessException(403, "HRM_AUTH_003", $"Required permission: {screen} / NEW.", "PERMISSION_DENIED");
+        var employee = await (from user in db.Set<HRM.API.Modules.Authorization.Entities.User>()
+                              join person in db.Employees on user.EmployeeId equals (int?)person.Id
+                              where user.UserId == actor && user.Status == "ACTIVE" && person.EmploymentStatus == "ACTIVE"
+                              select person).SingleOrDefaultAsync(ct)
+            ?? throw new BusinessException(403, "HRM_AUTH_006", "An active linked employee is required.", "EMPLOYEE_LINK_REQUIRED");
+        await db.Employees.Where(e => e.Id == employee.Id).ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt), ct);
+        return employee;
+    }
     private async Task<Employee> Own(string actor, string screen, string action, CancellationToken ct)
     {
         var access = await scopes.GetAsync(actor, screen, action, ct);
