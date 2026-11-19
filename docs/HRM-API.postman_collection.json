@@ -2785,7 +2785,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/attendance-adjustments",
-            "description": "WEB_ATTENDANCE_ADJUSTMENTS / NEW + own employee. See docs/modules/Leave/API.md. Use current resource version for cancel; approval version for approve/reject. Dates are examples; adjust before execution.\nSubmission resolves valid configured approvers without requiring their VIEW/APPROVE permission or data scope. Those are enforced when the approver views or decides the request; assignment/order/self-approval rules still apply.",
+            "description": "Requires WEB_ATTENDANCE_ADJUSTMENTS / NEW, no NEW data scope. Active signed-in user must have an active linked employee; the attendance WorkSchedule must belong to that employee. Supplied employeeId cannot change ownership. Keeps correction-time, snapshot and pending-overlap validation. Approver authorization is checked when they act.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"attendanceId\": {{attendanceId}},\n  \"proposedCheckIn\": \"2026-11-16T08:00:00+07:00\",\n  \"proposedCheckOut\": \"2026-11-16T17:00:00+07:00\",\n  \"reason\": \"Missed device\"\n}",

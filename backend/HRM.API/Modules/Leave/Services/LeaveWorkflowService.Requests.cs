@@ -86,7 +86,7 @@ public sealed partial class LeaveWorkflowService
         => HRM.API.Modules.Attendance.Services.AttendanceCorrectionRules.Validate(schedule, checkIn, checkOut, clock);
     public Task<WorkflowReceipt> CreateAdjustment(string actor, AdjustmentCreateRequest request, CancellationToken ct) => Transaction(async () =>
     {
-        var employee = await Own(actor, Adjustments, "NEW", ct);
+        var employee = await OwnSubmission(actor, Adjustments, ct);
         var attendance = await db.Set<AttendanceEntity>().SingleOrDefaultAsync(a => a.ID == request.AttendanceId, ct) ?? throw BusinessException.Missing();
         var schedule = await db.Set<WorkSchedule>().SingleOrDefaultAsync(s => s.ID == attendance.ScheduleID && s.EmployeeID == employee.Id, ct) ?? throw BusinessException.Missing();
         await db.Set<WorkSchedule>().Where(s => s.ID == schedule.ID).ExecuteUpdateAsync(s => s.SetProperty(x => x.Version, x => x.Version), ct);

@@ -30,7 +30,7 @@ Frontend trước đó chưa có các màn hình Leave/Approval trong checkout. 
 | --- | --- | --- |
 | WEB_LEAVE_REQUESTS | VIEW, NEW, UPDATE | VIEW/UPDATE: SELF / DEPARTMENT / ALL; NEW: không Scope, chỉ nhân viên đăng nhập |
 | WEB_OVERTIME_REQUESTS | VIEW, NEW, UPDATE | VIEW/UPDATE: SELF / DEPARTMENT / ALL; NEW: không Scope, chỉ nhân viên đăng nhập |
-| WEB_ATTENDANCE_ADJUSTMENTS | VIEW, NEW, UPDATE | SELF / DEPARTMENT / ALL |
+| WEB_ATTENDANCE_ADJUSTMENTS | VIEW, NEW, UPDATE | VIEW/UPDATE: SELF / DEPARTMENT / ALL; NEW: không Scope, chỉ công của người đăng nhập |
 | WEB_LEAVE_BALANCES | VIEW, UPDATE | VIEW ba scope; UPDATE DEPARTMENT / ALL |
 | WEB_APPROVALS | VIEW, APPROVE | SELF / DEPARTMENT / ALL theo từng action |
 | WEB_LEAVE_TYPES | VIEW, NEW, UPDATE | Danh mục chung, không lọc nhân viên |
@@ -83,3 +83,5 @@ Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1
 POST `/api/leave-requests`: cần `WEB_LEAVE_REQUESTS / NEW`, không yêu cầu cấu hình Data Scope cho action NEW. Backend lấy nhân viên từ user đăng nhập; user và nhân viên phải ACTIVE, có liên kết hợp lệ. Không nhận employeeId để tạo thay người khác. Vẫn kiểm tra quyền NEW hiện hành, trùng lịch, số dư phép và quy trình duyệt. Quyền/scope của GET, hủy đơn và các loại phiếu khác giữ nguyên.
 
 POST `/api/overtime-requests`: chỉ cần `WEB_OVERTIME_REQUESTS / NEW`, không kiểm tra Data Scope NEW. Backend dùng nhân viên liên kết ACTIVE của user đăng nhập ACTIVE; employeeId gửi kèm không cho tạo thay. Thiếu quyền NEW trả403 HRM_AUTH_003; thiếu liên kết hoặc nhân viên không ACTIVE trả403 HRM_AUTH_006. Giữ kiểm tra thời gian, trùng lịch và khởi tạo workflow. GET, chi tiết, hủy và duyệt vẫn kiểm tra quyền/Scope như hiện tại.
+
+POST `/api/attendance-adjustments`: cần `WEB_ATTENDANCE_ADJUSTMENTS / NEW`, không kiểm tra Data Scope NEW. Backend lấy nhân viên ACTIVE liên kết với tài khoản ACTIVE đăng nhập; chỉ nhận bản ghi Attendance có WorkSchedule thuộc nhân viên đó. Không cho tạo thay bằng employeeId trong payload. Vẫn kiểm tra giờ đề xuất, snapshot lịch và trùng phiếu pending. GET, hủy và duyệt giữ quyền/Scope hiện có.
