@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **124 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **130 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -206,3 +206,18 @@ Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày l
 | POST | /api/work-schedules/bulk | Như preview, cần previewToken |
 | POST | /api/work-schedules/copy | Như bulk, thêm VIEW + Scope nguồn |
 | GET | /api/work-schedules/export | WEB_WORK_SCHEDULES EXPORT + Scope; CSV trang đang chọn |
+
+Tự động phân lịch hàng tuần: cấu hình `autoScheduleEnabled` trong GET/PUT `/api/system-settings/attendance` (mặc định true). Job Work đầu Chủ nhật giờ Việt Nam sao chép tuần có lịch gần nhất của từng nhân viên ACTIVE còn hợp đồng ACTIVE, chỉ điền ngày trống và không ghi đè. [Chi tiết lịch chạy, hợp đồng và retry](../modules/Work/WORK_SCHEDULES.md).
+
+## Attendance Management và My Attendance
+
+[Đặc tả daily, statistics, Excel, drawer và phiếu điều chỉnh](../modules/Attendance/MANAGEMENT.md). Các endpoint mới dùng WEB_ATTENDANCE VIEW/EXPORT với Scope theo action, cùng bộ lọc dữ liệu. Không tạo Attendance giả cho người chưa chấm công.
+
+| Method | API | Quyền |
+| --- | --- | --- |
+| GET | /api/attendances/daily | WEB_ATTENDANCE VIEW + Scope |
+| GET | /api/attendances/statistics | WEB_ATTENDANCE VIEW + Scope |
+| GET | /api/attendances/filters | WEB_ATTENDANCE VIEW + Scope |
+| GET | /api/attendances/daily/detail | WEB_ATTENDANCE VIEW + Scope |
+| GET | /api/attendances/me | WEB_ATTENDANCE VIEW + Scope, chỉ nhân viên đăng nhập |
+| GET | /api/attendances/export | WEB_ATTENDANCE EXPORT + Scope, file .xlsx |

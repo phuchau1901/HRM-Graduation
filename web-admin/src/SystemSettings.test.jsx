@@ -62,3 +62,11 @@ it('shows schedule cancellation for DELETE grant and sends version without delet
   const call = api.mock.calls.find(([, options]) => options?.method === 'PATCH');
   expect(call[0]).toBe('/work-schedules/1/cancel'); expect(call[1].headers['If-Match']).toBe('"2"');
 });
+it('configures weekly schedule automation through versioned system attendance settings', async () => {
+  const api = vi.fn(async (path, options = {}) => ({ settings: options.method === 'PUT' ? JSON.parse(options.body) : path.endsWith('/attendance') ? attendance : policy, version: 2 }));
+  const user = userEvent.setup(); render(<SystemSettings api={api} permissions={permissions} />);
+  await screen.findByLabelText('Độ dài tối thiểu'); await user.click(screen.getByRole('button', { name: 'Attendance Settings' }));
+  const enabled = await screen.findByLabelText('Tự động điền lịch còn thiếu vào Chủ nhật từ tuần có lịch gần nhất'); expect(enabled.checked).toBe(true);
+  await user.click(enabled); await user.click(screen.getByRole('button', { name: 'Lưu cấu hình' })); await screen.findByText('Đã lưu cấu hình.');
+  const call = api.mock.calls.find(([, options]) => options.method === 'PUT'); expect(call[0]).toBe('/system-settings/attendance'); expect(JSON.parse(call[1].body).autoScheduleEnabled).toBe(false); expect(call[1].headers['If-Match']).toBe('"2"');
+});

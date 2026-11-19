@@ -89,10 +89,20 @@ public sealed partial class LeaveWorkflowService
     public Task<WorkflowReceipt> CreateAdjustment(string actor, AdjustmentCreateRequest request, CancellationToken ct) => Transaction(async () =>
     {
         var employee = await OwnSubmission(actor, Adjustments, ct);
-        var attendance = await db.Set<AttendanceEntity>().SingleOrDefaultAsync(a => a.ID == request.AttendanceId, ct) ?? throw BusinessException.Missing();
-        var schedule = await db.Set<WorkSchedule>().SingleOrDefaultAsync(s => s.ID == attendance.ScheduleID && s.EmployeeID == employee.Id, ct) ?? throw BusinessException.Missing();
+        if (request.AttendanceId.HasValue == request.ScheduleId.HasValue) throw BusinessException.Invalid("Provide exactly one of AttendanceId or ScheduleId.");
+        var attendance = request.AttendanceId.HasValue ? await db.Set<AttendanceEntity>().SingleOrDefaultAsync(a => a.ID == request.AttendanceId, ct) ?? throw BusinessException.Missing() : null;
+        var scheduleId = attendance?.ScheduleID ?? request.ScheduleId!.Value;
+        var schedule = await db.Set<WorkSchedule>().SingleOrDefaultAsync(s => s.ID == scheduleId && s.EmployeeID == employee.Id, ct) ?? throw BusinessException.Missing();
         await db.Set<WorkSchedule>().Where(s => s.ID == schedule.ID).ExecuteUpdateAsync(s => s.SetProperty(x => x.Version, x => x.Version), ct);
+        await HRM.API.Modules.Payroll.Services.TimesheetLocks.RequireOpen(db, schedule.WorkDate, ct);
         ValidateCorrection(schedule, request.ProposedCheckIn?.UtcDateTime, request.ProposedCheckOut?.UtcDateTime);
+        attendance ??= await db.Set<AttendanceEntity>().SingleOrDefaultAsync(a => a.ScheduleID == schedule.ID, ct);
+        if (attendance == null)
+        {
+            // A pending correction may reference an unpunched shift. No actual punch is invented.
+            attendance = new AttendanceEntity { ScheduleID = schedule.ID, Status = "INCOMPLETE" };
+            db.Add(attendance); await db.SaveChangesAsync(ct);
+        }
         if (await db.Set<AttendanceAdjustment>().AnyAsync(a => a.AttendanceID == attendance.ID && a.Status == "PENDING", ct)) throw BusinessException.Conflict("Attendance already has a pending adjustment.");
         var row = new AttendanceAdjustment { AttendanceID = attendance.ID, EmployeeID = employee.Id, ProposedCheckIn = request.ProposedCheckIn?.UtcDateTime, ProposedCheckOut = request.ProposedCheckOut?.UtcDateTime, OriginalAttendanceJson = AttendanceSnapshot(attendance), ExpectedScheduleVersion = schedule.Version, Reason = request.Reason.Trim(), Status = "PENDING" };
         db.Add(row); await db.SaveChangesAsync(ct); var approval = await Start(actor, employee, "ATTENDANCE_ADJUSTMENT", row.ID, ct);

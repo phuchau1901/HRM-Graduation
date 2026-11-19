@@ -28,6 +28,7 @@ public sealed class AttendanceLocation
 public static class MissingPunchRules { public const string Incomplete = "INCOMPLETE", Reject = "REJECT_CHECKOUT_WITHOUT_CHECKIN"; }
 public sealed class AttendanceSettingsRequest : IValidatableObject
 {
+    public bool AutoScheduleEnabled { get; set; } = true;
     [Required, MaxLength(3660)] public DateOnly[] HolidayDates { get; set; } = [];
     [Required, MaxLength(100)] public string Timezone { get; set; } = "Asia/Ho_Chi_Minh";
     [Range(0, 1440)] public int CheckInBeforeStartMinutes { get; set; } = 60;

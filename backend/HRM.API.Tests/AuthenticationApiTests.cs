@@ -189,6 +189,7 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("AuthSeed:Enabled", "false");
         builder.UseSetting("Notifications:WorkerEnabled", "false");
         builder.UseSetting("LeaveAccrual:WorkerEnabled", "false");
+        builder.UseSetting("WorkScheduleAutomation:WorkerEnabled", "false");
         if (EmployeeScope is not null) builder.UseSetting("EmployeeDataScopes:Users:api-user", EmployeeScope);
         if (NotificationOrigin is not null) builder.UseSetting("Notifications:AllowedOrigins:0", NotificationOrigin);
         builder.ConfigureTestServices(services =>

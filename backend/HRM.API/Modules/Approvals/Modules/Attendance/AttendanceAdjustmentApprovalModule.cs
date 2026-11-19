@@ -24,6 +24,7 @@ public sealed class AttendanceAdjustmentApprovalModule(AppDbContext db, TimeProv
             var attendance = await db.Set<AttendanceEntity>().SingleAsync(a => a.ID == adjustment.AttendanceID, ct);
             await db.Set<WorkSchedule>().Where(s => s.ID == attendance.ScheduleID).ExecuteUpdateAsync(s => s.SetProperty(r => r.Version, r => r.Version), ct);
             var schedule = await db.Set<WorkSchedule>().SingleAsync(s => s.ID == attendance.ScheduleID && s.EmployeeID == adjustment.EmployeeID, ct);
+            await HRM.API.Modules.Payroll.Services.TimesheetLocks.RequireOpen(db, schedule.WorkDate, ct);
             if (adjustment.OriginalAttendanceJson != AttendanceCorrectionRules.Snapshot(attendance) || adjustment.ExpectedScheduleVersion != schedule.Version)
                 throw BusinessException.Conflict("Attendance or schedule changed after submission; reject and resubmit correction.");
             var rules = AttendanceCorrectionRules.Validate(schedule, adjustment.ProposedCheckIn, adjustment.ProposedCheckOut, clock);

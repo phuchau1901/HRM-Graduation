@@ -41,3 +41,16 @@ GET /api/qr-sessions: WEB_QR_SESSIONS/VIEW, pagination; chỉ id/locationCode/va
 
 POST /api/qr-sessions: WEB_QR_SESSIONS/NEW, body `{"locationCode":"HQ","lifetimeSeconds":60}`; lifetime15..300 giây, location tồn tại trong cấu hình hiện tại. 201 `{session,token}`, token random32 bytes chỉ trả lần tạo, DB chỉ SHA256. Không tự lưu token vào Postman collection/export/log. Phiên QR có thể dùng cho nhiều nhân viên tại địa điểm trong TTL; không phải OTP cá nhân.
 
+
+## Attendance Management và My Attendance
+
+[Đặc tả daily, statistics, Excel, drawer và phiếu điều chỉnh](MANAGEMENT.md). Các endpoint mới dùng WEB_ATTENDANCE VIEW/EXPORT với Scope theo action, cùng bộ lọc dữ liệu. Không tạo Attendance giả cho người chưa chấm công.
+
+| Method | API | Quyền |
+| --- | --- | --- |
+| GET | /api/attendances/daily | WEB_ATTENDANCE VIEW + Scope |
+| GET | /api/attendances/statistics | WEB_ATTENDANCE VIEW + Scope |
+| GET | /api/attendances/filters | WEB_ATTENDANCE VIEW + Scope |
+| GET | /api/attendances/daily/detail | WEB_ATTENDANCE VIEW + Scope |
+| GET | /api/attendances/me | WEB_ATTENDANCE VIEW + Scope, chỉ nhân viên đăng nhập |
+| GET | /api/attendances/export | WEB_ATTENDANCE EXPORT + Scope, file .xlsx |

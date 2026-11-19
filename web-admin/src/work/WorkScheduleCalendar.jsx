@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { can } from '../api';
+import { can, newRequestId } from '../api';
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 function add(value, n) { const d = new Date(`${value}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 function period(value, mode) {
@@ -28,7 +28,7 @@ export function WorkScheduleCalendar({ api, permissions }) {
       if (!allowed('UPDATE')) return;
       setForm({ single: true, id: existing.id, version: existing.version, employeeId: employee.id, workDate: date, shiftId: existing.shiftId }); return;
     }
-    setForm({ operationId: crypto.randomUUID(), target: 'EMPLOYEE', employeeIds: employee ? [employee.id] : selected, shiftId: existing?.shiftId || data?.shifts.find(s => s.isActive)?.id || '', from: date || from, to: date || to, weekdays: [1, 2, 3, 4, 5, 6, 7], excludeHolidays: true, overwrite: !!existing, copyFrom: null });
+    setForm({ operationId: newRequestId(), target: 'EMPLOYEE', employeeIds: employee ? [employee.id] : selected, shiftId: existing?.shiftId || data?.shifts.find(s => s.isActive)?.id || '', from: date || from, to: date || to, weekdays: [1, 2, 3, 4, 5, 6, 7], excludeHolidays: true, overwrite: !!existing, copyFrom: null });
   }
   function change(key, value) { setForm(f => ({ ...f, [key]: value })); setPreview(null); }
   async function inspect(event) {

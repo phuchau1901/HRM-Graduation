@@ -52,6 +52,7 @@ public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsS
             var existing = await db.Set<AttendanceEntity>().SingleOrDefaultAsync(x => x.ID == previous.AttendanceID && x.ScheduleID == schedule.ID, ct) ?? throw BusinessException.Conflict("Request key belongs to another schedule.");
             await tx.CommitAsync(ct); return Dto(existing, schedule);
         }
+        await HRM.API.Modules.Payroll.Services.TimesheetLocks.RequireOpen(db, schedule.WorkDate, ct);
         var rules = Rules(schedule); var now = clock.GetUtcNow().UtcDateTime; AttendanceRules.Window(rules, now, checkIn);
         var qr = await Evidence(rules, r, now, ct);
         var attendance = await db.Set<AttendanceEntity>().SingleOrDefaultAsync(x => x.ScheduleID == schedule.ID, ct) ?? new AttendanceEntity { ScheduleID = schedule.ID };
@@ -95,6 +96,7 @@ public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsS
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var schedule = await schedules.Find(actor, id, AttendanceScreens.Attendance, "APPROVE", true, ct);
+        await HRM.API.Modules.Payroll.Services.TimesheetLocks.RequireOpen(db, schedule.WorkDate, ct);
         var rules = Rules(schedule);
         if (clock.GetUtcNow().UtcDateTime <= rules.CheckOutCloseUtc) throw BusinessException.Conflict("Attendance window has not closed.");
         if (schedule.Status == "CANCELLED") throw BusinessException.Conflict("Schedule is cancelled.");

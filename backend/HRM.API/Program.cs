@@ -146,6 +146,10 @@ builder.Services.AddOptions<HRM.API.Modules.Leave.Services.LeaveAccrualWorkerOpt
     .Bind(builder.Configuration.GetSection("LeaveAccrual"))
     .Validate(o => o.PollSeconds is >= 30 and <= 3600, "LeaveAccrual PollSeconds must be between 30 and 3600.").ValidateOnStart();
 builder.Services.AddHostedService<HRM.API.Modules.Leave.Services.LeaveAccrualWorker>();
+builder.Services.AddOptions<HRM.API.Modules.Work.Services.WorkScheduleWorkerOptions>()
+    .Bind(builder.Configuration.GetSection("WorkScheduleAutomation"))
+    .Validate(o => o.PollSeconds is >= 30 and <= 3600, "WorkScheduleAutomation PollSeconds must be between 30 and 3600.").ValidateOnStart();
+builder.Services.AddHostedService<HRM.API.Modules.Work.Services.WorkScheduleWorker>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractTypeService>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractNumberGenerator>();
 builder.Services.AddScoped<HRM.API.Modules.Employees.Services.ContractStatisticsService>();
@@ -189,6 +193,7 @@ builder.Services.AddScoped<HRM.API.Modules.System.Services.AuditLogService>();
 builder.Services.AddScoped<HRM.API.Modules.System.Services.PasswordPolicyService>();
 builder.Services.AddScoped<HRM.API.Modules.Work.Services.WorkScheduleService>();
 builder.Services.AddScoped<HRM.API.Modules.Attendance.Services.AttendanceOperationsService>();
+builder.Services.AddScoped<HRM.API.Modules.Attendance.Services.AttendanceManagementService>();
 builder.Services.AddScoped<PasswordResetAuditFilter>();
 builder.Services.AddRateLimiter(options =>
 {

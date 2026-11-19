@@ -85,7 +85,7 @@ public sealed partial class WorkScheduleService
     private static bool Overlaps(AttendanceRuleSnapshot a, AttendanceRuleSnapshot b) => a.StartAtUtc < b.EndAtUtc && b.StartAtUtc < a.EndAtUtc;
     private static string Hash(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value, SettingsDefaults.Json))));
     private static object RequestIdentity(ScheduleBulkRequest r) => new { r.OperationId, r.Target, r.DepartmentId, r.TeamId, r.EmployeeIds, r.ShiftId, r.From, r.To, r.Weekdays, r.ExcludeHolidays, r.Overwrite, r.CopyFrom };
-    private async Task<SchedulePreview> Plan(string actor, ScheduleBulkRequest r, Employee[] employees, CancellationToken ct)
+    private async Task<SchedulePreview> Plan(string actor, ScheduleBulkRequest r, Employee[] employees, CancellationToken ct, Dictionary<int, DateOnly>? sourceWeeks = null)
     {
         var config = await settings.Read<AttendanceSettingsRequest>(SettingsDefaults.AttendanceKey, ct);
         var ids = employees.Select(e => e.Id).ToArray(); var low = r.From.AddDays(-1); var high = r.To.AddDays(1);
@@ -96,7 +96,21 @@ public sealed partial class WorkScheduleService
         var locked = await LockedPeriods(ct);
         var shifts = await db.Set<Shift>().AsNoTracking().OrderBy(s => s.ID).ToArrayAsync(ct);
         var source = new List<WorkSchedule>();
-        if (r.CopyFrom is { } copyFrom)
+        if (sourceWeeks != null)
+        {
+            var parameter = global::System.Linq.Expressions.Expression.Parameter(typeof(WorkSchedule), "s");
+            global::System.Linq.Expressions.Expression predicate = global::System.Linq.Expressions.Expression.Constant(false);
+            foreach (var pair in sourceWeeks)
+            {
+                var id = global::System.Linq.Expressions.Expression.Equal(global::System.Linq.Expressions.Expression.Property(parameter, nameof(WorkSchedule.EmployeeID)), global::System.Linq.Expressions.Expression.Constant(pair.Key));
+                var date = global::System.Linq.Expressions.Expression.Property(parameter, nameof(WorkSchedule.WorkDate));
+                var window = global::System.Linq.Expressions.Expression.AndAlso(global::System.Linq.Expressions.Expression.GreaterThanOrEqual(date, global::System.Linq.Expressions.Expression.Constant(pair.Value)), global::System.Linq.Expressions.Expression.LessThanOrEqual(date, global::System.Linq.Expressions.Expression.Constant(pair.Value.AddDays(6))));
+                predicate = global::System.Linq.Expressions.Expression.OrElse(predicate, global::System.Linq.Expressions.Expression.AndAlso(id, window));
+            }
+            var filter = global::System.Linq.Expressions.Expression.Lambda<Func<WorkSchedule, bool>>(predicate, parameter);
+            source = await db.Set<WorkSchedule>().AsNoTracking().Where(filter).Where(s => s.Status != "CANCELLED" && s.WorkDate < r.From).OrderBy(s => s.ID).ToListAsync(ct);
+        }
+        else if (r.CopyFrom is { } copyFrom)
         {
             var end = copyFrom.AddDays(r.To.DayNumber - r.From.DayNumber);
             source = await db.Set<WorkSchedule>().AsNoTracking().Where(s => ids.Contains(s.EmployeeID) && s.WorkDate >= copyFrom && s.WorkDate <= end && s.Status != "CANCELLED").OrderBy(s => s.ID).ToListAsync(ct);
@@ -110,8 +124,10 @@ public sealed partial class WorkScheduleService
             var date = r.From.AddDays(n); if (!r.Weekdays.Contains(((int)date.DayOfWeek + 6) % 7 + 1)) continue;
             var existing = rows.Where(s => s.EmployeeID == employee.Id && s.WorkDate == date).ToArray();
             var live = existing.Where(s => s.Status != "CANCELLED").ToArray();
-            var copies = r.CopyFrom.HasValue ? source.Where(s => s.EmployeeID == employee.Id && s.WorkDate == r.CopyFrom.Value.AddDays(n)).ToArray() : [];
-            var shiftId = r.CopyFrom.HasValue ? copies.FirstOrDefault()?.ShiftID : r.ShiftId;
+            var copyDate = sourceWeeks != null ? (sourceWeeks.TryGetValue(employee.Id, out var sourceWeek) ? (DateOnly?)sourceWeek.AddDays(n) : null) : r.CopyFrom?.AddDays(n);
+            var copying = sourceWeeks != null || r.CopyFrom.HasValue;
+            var copies = copyDate.HasValue ? source.Where(s => s.EmployeeID == employee.Id && s.WorkDate == copyDate.Value).ToArray() : [];
+            var shiftId = copying ? copies.FirstOrDefault()?.ShiftID : r.ShiftId;
             var shift = shifts.SingleOrDefault(s => s.ID == shiftId && s.IsActive);
             var target = live.Length == 1 ? live[0] : existing.FirstOrDefault(s => s.ShiftID == shiftId);
             string outcome = "READY"; AttendanceRuleSnapshot? snapshot = null;
@@ -122,7 +138,7 @@ public sealed partial class WorkScheduleService
             else if (!config.Settings.WorkingDays.Contains(((int)date.DayOfWeek + 6) % 7 + 1)) outcome = "NON_WORKING_DAY";
             else if (PeriodLocked(locked, date)) outcome = "PERIOD_LOCKED";
             else if (leaves.Any(l => l.EmployeeID == employee.Id && l.FromDate <= date && l.ToDate >= date)) outcome = "APPROVED_LEAVE";
-            else if (r.CopyFrom.HasValue && copies.Length != 1) outcome = "SOURCE_MISSING_OR_MULTIPLE";
+            else if (copying && copies.Length != 1) outcome = "SOURCE_MISSING_OR_MULTIPLE";
             else if (shift == null) outcome = "SHIFT_INACTIVE";
             else if (live.Length > 1) outcome = "MULTIPLE_SCHEDULES";
             else if (target != null && attended.Contains(target.ID)) outcome = "ATTENDANCE_OR_CLOSED";

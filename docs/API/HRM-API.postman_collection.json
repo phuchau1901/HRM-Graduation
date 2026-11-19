@@ -296,6 +296,16 @@
     {
       "key": "schedulePreviewToken",
       "value": ""
+    },
+    {
+      "key": "attendanceEmployeeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "attendanceScheduleId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -1987,7 +1997,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/system-settings/attendance",
-            "description": "WEB_SYSTEM_SETTINGS/VIEW, cấu hình global không dùng Employee data scope. 200 {settings,version,updatedAtUtc} + ETag. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+            "description": "WEB_SYSTEM_SETTINGS/VIEW, cấu hình global không dùng Employee data scope. 200 {settings,version,updatedAtUtc} + ETag. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.\nAttendance setting autoScheduleEnabled (default true) controls the internal Work weekly scheduler. Sunday 00:00 Asia/Ho_Chi_Minh activates the next Monday-Sunday; delayed startup fills only unstarted dates of the current week. ACTIVE employees need an effective ACTIVE contract; clones each employee latest schedule week into empty dates only, with holiday/leave/locked-period checks. PUT full settings with If-Match; no new worker HTTP endpoint."
           },
           "response": [],
           "event": [
@@ -2019,10 +2029,10 @@
               }
             ],
             "url": "{{baseUrl}}/api/system-settings/attendance",
-            "description": "WEB_SYSTEM_SETTINGS/UPDATE live; PUT toàn bộ cấu hình. If-Match bắt buộc, stale412/thiếu428. Audit/version transaction. Không vô hiệu mật khẩu cũ, không sửa snapshot lịch cũ. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "description": "WEB_SYSTEM_SETTINGS/UPDATE live; PUT toàn bộ cấu hình. If-Match bắt buộc, stale412/thiếu428. Audit/version transaction. Không vô hiệu mật khẩu cũ, không sửa snapshot lịch cũ. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.\nAttendance setting autoScheduleEnabled (default true) controls the internal Work weekly scheduler. Sunday 00:00 Asia/Ho_Chi_Minh activates the next Monday-Sunday; delayed startup fills only unstarted dates of the current week. ACTIVE employees need an effective ACTIVE contract; clones each employee latest schedule week into empty dates only, with holiday/leave/locked-period checks. PUT full settings with If-Match; no new worker HTTP endpoint.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"timezone\": \"Asia/Ho_Chi_Minh\",\n  \"checkInBeforeStartMinutes\": 60,\n  \"checkInAfterStartMinutes\": 240,\n  \"checkOutBeforeEndMinutes\": 240,\n  \"checkOutAfterEndMinutes\": 120,\n  \"lateGraceMinutes\": 5,\n  \"earlyLeaveGraceMinutes\": 5,\n  \"workingDays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"requireQr\": false,\n  \"requireGps\": false,\n  \"allowOvernightShifts\": true,\n  \"missingPunchRule\": \"REJECT_CHECKOUT_WITHOUT_CHECKIN\",\n  \"locations\": []\n}",
+              "raw": "{\n  \"timezone\": \"Asia/Ho_Chi_Minh\",\n  \"checkInBeforeStartMinutes\": 60,\n  \"checkInAfterStartMinutes\": 240,\n  \"checkOutBeforeEndMinutes\": 240,\n  \"checkOutAfterEndMinutes\": 120,\n  \"lateGraceMinutes\": 5,\n  \"earlyLeaveGraceMinutes\": 5,\n  \"workingDays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"requireQr\": false,\n  \"requireGps\": false,\n  \"allowOvernightShifts\": true,\n  \"missingPunchRule\": \"REJECT_CHECKOUT_WITHOUT_CHECKIN\",\n  \"locations\": [],\n  \"autoScheduleEnabled\": true\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2465,7 +2475,7 @@
             "method": "POST",
             "header": [],
             "url": "{{baseUrl}}/api/attendance-adjustments",
-            "description": "Requires WEB_ATTENDANCE_ADJUSTMENTS / NEW, no NEW data scope. Active signed-in user must have an active linked employee; the attendance WorkSchedule must belong to that employee. Supplied employeeId cannot change ownership. Keeps correction-time, snapshot and pending-overlap validation. Approver authorization is checked when they act.",
+            "description": "Requires WEB_ATTENDANCE_ADJUSTMENTS / NEW, no NEW data scope. Active signed-in user must have an active linked employee; the attendance WorkSchedule must belong to that employee. Supplied employeeId cannot change ownership. Keeps correction-time, snapshot and pending-overlap validation. Approver authorization is checked when they act.\nProvide exactly one of attendanceId or scheduleId. Use scheduleId for an unpunched shift; creates a null-punch reference only and writes actual proposed timestamps at final approval. Schedule must belong to the signed-in employee; snapshot and open timesheet period required. Unknown ownership is404; pending duplicate or locked period is409.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"attendanceId\": {{attendanceId}},\n  \"proposedCheckIn\": \"2026-11-16T08:00:00+07:00\",\n  \"proposedCheckOut\": \"2026-11-16T17:00:00+07:00\",\n  \"reason\": \"Missed device\"\n}",
@@ -3135,7 +3145,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/attendances/check-in",
-            "description": "WEB_ATTENDANCE/NEW + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "description": "WEB_ATTENDANCE/NEW + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.\nNew punches are rejected when the work-date timesheet period is locked. Existing requestKey replay does not create another punch.",
             "body": {
               "mode": "raw",
               "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
@@ -3159,7 +3169,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/attendances/check-out",
-            "description": "WEB_ATTENDANCE/UPDATE + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "description": "WEB_ATTENDANCE/UPDATE + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.\nNew punches are rejected when the work-date timesheet period is locked. Existing requestKey replay does not create another punch.",
             "body": {
               "mode": "raw",
               "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
@@ -3218,6 +3228,66 @@
               }
             }
           ]
+        },
+        {
+          "name": "GET /attendances/daily",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/daily?date=2026-11-23&page=1&pageSize=20",
+            "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /attendances/statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/statistics?date=2026-11-23",
+            "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /attendances/filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/filters",
+            "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /attendances/daily/detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/daily/detail?employeeId={{attendanceEmployeeId}}&date=2026-11-23&scheduleId={{attendanceScheduleId}}",
+            "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /attendances/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/me?from=2026-11-22&to=2026-11-23&pageSize=20",
+            "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /attendances/export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/export?from=2026-11-23&to=2026-11-29",
+            "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+          },
+          "response": []
         }
       ]
     }

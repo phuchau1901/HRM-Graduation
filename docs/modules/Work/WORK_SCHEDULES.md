@@ -98,3 +98,34 @@ Không có Migration mới. Không apply migration, không deploy Railway, khôn
 API, DTO, WorkScheduleService, Entity/Configuration ca và lịch nằm trong Modules/Work. Namespace EF legacy của Shift/WorkSchedule được giữ để không đổi model/schema. AttendanceOperationsService, AttendanceRules và API chấm công/QR thuộc Modules/Attendance. System chỉ giữ settings/password policy và audit dùng chung. Frontend WorkWorkspace/WorkScheduleCalendar nằm tại web-admin/src/work. URL, screen code, scope, snapshot, idempotency và số route giữ nguyên.
 
 Build Backend/Frontend thành công; bộ kiểm thử liên quan tách module61/61 qua và frontend61/61 qua. Không có Migration mới, không apply Migration hoặc deploy.
+
+## Tự động phân lịch đầu tuần
+
+Job thuộc `Modules/Work`: WorkScheduleWorker và RunAutomaticSchedules (internal, không mở API bỏ qua RBAC). Từ 00:00 Chủ nhật theo **Asia/Ho_Chi_Minh**, cửa sổ đích là thứ Hai–Chủ nhật ngay sau đó. Worker kiểm tra khi khởi động và mỗi300 giây (mặc định), đồng thời rút ngắn thời gian chờ khi sắp đến00:00 Chủ nhật để đánh thức ở mốc tuần mới. Việc xử lý còn phụ thuộc API đang chạy và độ trễ hệ thống. Nếu server khởi động muộn từ thứ Hai–thứ Bảy, chỉ điền các ngày/ca chưa bắt đầu trong tuần hiện tại, không backfill những tuần đã qua.
+
+Ví dụ: Chủ nhật22/11/2026, job tạo lịch23–29/11/2026. Với từng nhân viên, tìm tuần thứ Hai–Chủ nhật gần nhất trước tuần đích có lịch SCHEDULED/CLOSED, rồi map đúng thứ sang tuần đích. Mỗi nhân viên có thể dùng tuần nguồn khác nhau. Không có lịch nguồn thì bỏ qua, không tự đoán ca hoặc áp ca của người khác. Ô nguồn nhiều ca, ca đã inactive hoặc cấu hình ca không hợp lệ không được tự ghi đè lịch sử. Snapshot mới dùng cấu hình ca/quy tắc hiện hành, không sửa nguồn.
+
+Điều kiện nhân viên/hợp đồng:
+
+- Nhân viên ACTIVE, đã tới HireDate.
+- Có ít nhất một hợp đồng status ACTIVE, StartDate đã bắt đầu và EndDate chưa qua hoặc null ở ngày chạy; không dùng DRAFT/CANCELLED/TERMINATED/EXPIRED để phân tự động.
+- Từng ca đích phải được một hợp đồng ACTIVE bao phủ từ ngày bắt đầu đến ngày kết thúc ca, gồm ca qua đêm. Hết hợp đồng giữa tuần thì chỉ phân các ngày còn hiệu lực; không dùng thời gian trống giữa hợp đồng để phân ca.
+- Chỉ điền ô hoàn toàn chưa có WorkSchedule. Lịch đã tạo thủ công hoặc đã CANCELLED đều giữ nguyên, không tự khôi phục lịch đã hủy. Giữ kiểm tra ngày làm việc, ngày lễ, phép đã duyệt, trùng ca, Attendance, snapshot và kỳ công khóa.
+
+Cấu hình dùng API System hiện có:
+
+```http
+GET /api/system-settings/attendance
+PUT /api/system-settings/attendance
+If-Match: "version-tu-GET"
+```
+
+Gửi **toàn bộ cấu hình Attendance** cùng `"autoScheduleEnabled":true` để bật, false để tắt. Khi field chưa tồn tại, mặc định true theo yêu cầu tự phân lịch. Giao diện: System Settings → Attendance Settings → Tự động phân lịch hàng tuần. GET cần WEB_SYSTEM_SETTINGS VIEW, PUT cần UPDATE; không Scope. Không có API chạy job nội bộ bằng quyền nhân viên.
+
+Tắt toàn bộ hosted worker bằng biến môi trường `WorkScheduleAutomation__WorkerEnabled=false`. `WorkScheduleAutomation__PollSeconds` nhận30..3600, mặc định300. Không cần cron/job Railway ngoài ứng dụng. Backend phải đang chạy để thực thi; server khởi động lại sẽ tiếp tục kiểm tra kỳ hiện tại.
+
+Mỗi transaction tối đa100 nhân viên, khóa settings/employee và dùng unique key hiện có. Receipt theo nhân viên/tuần ở AuditLog: EntityType=ScheduleAutomation, EntityID=`weekly:yyyyMMdd:employeeId` (yyyyMMdd là thứ Hai), Action=SCHEDULE_AUTO_COMPLETED, actor=null. Chỉ ghi hoàn tất khi đã tạo ít nhất một lịch. Không tạo được ngày nào thì không đánh dấu để có thể thử lại sau khi cấu hình/hợp đồng/lịch nguồn được sửa. Khi đã ghi receipt, thay đổi hợp đồng/quy tắc trong tuần không tự chạy lại kỳ đó; dùng phân ca thủ công có kiểm soát nếu cần bổ sung.
+
+Lịch, audit và notification/outbox commit cùng transaction. Lỗi giữa đợt rollback cả đợt; đợt đã commit không bị chạy lại. Nhiều replica không tạo trùng receipt/lịch/thông báo. Gom một notification cho mỗi nhân viên/tuần. Log `Weekly scheduling evaluated` chứa weekFrom/status/created/employees/skipped; lỗi được retry lần kiểm tra sau. Không có bảng hoặc Migration mới, không apply Migration hoặc deploy tự động.
+
+Không tự xóa lịch đã phân khi hợp đồng thay đổi sau đó; lịch hiện có cần được xử lý bằng nghiệp vụ phân/hủy lịch với quyền tương ứng. Kiểm thử cuối: backend build thành công; full suite527 tests có518 qua,9 lỗi cũ prefix NV/TX; frontend62/62 qua và build thành công.

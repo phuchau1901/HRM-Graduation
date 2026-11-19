@@ -24,9 +24,14 @@ public sealed class OvertimeCreateRequest
     public DateTimeOffset EndAt { get; set; }
     [Required, MaxLength(1000)] public string Reason { get; set; } = "";
 }
-public sealed class AdjustmentCreateRequest
+public sealed class AdjustmentCreateRequest : IValidatableObject
 {
-    [Range(1, long.MaxValue)] public long AttendanceId { get; set; }
+    [Range(1, long.MaxValue)] public long? AttendanceId { get; set; }
+    [Range(1, long.MaxValue)] public long? ScheduleId { get; set; }
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (AttendanceId.HasValue == ScheduleId.HasValue) yield return new ValidationResult("Provide exactly one of AttendanceId or ScheduleId.", [nameof(AttendanceId), nameof(ScheduleId)]);
+    }
     public DateTimeOffset? ProposedCheckIn { get; set; }
     public DateTimeOffset? ProposedCheckOut { get; set; }
     [Required, MaxLength(1000)] public string Reason { get; set; } = "";
