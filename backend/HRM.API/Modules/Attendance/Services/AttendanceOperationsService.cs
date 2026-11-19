@@ -39,10 +39,15 @@ public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsS
     public async Task<AttendanceView> Punch(string actor, PunchRequest r, bool checkIn, CancellationToken ct)
     {
         SettingsDefaults.Validate(r); await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var action = checkIn ? "NEW" : "UPDATE";
-        var schedule = await schedules.Find(actor, r.ScheduleId, AttendanceScreens.Attendance, action, true, ct);
-        var ownEmployee = await db.Set<User>().AsNoTracking().Where(x => x.UserId == actor && x.Status == "ACTIVE").Select(x => x.EmployeeId).SingleAsync(ct);
-        if (ownEmployee != schedule.EmployeeID) throw BusinessException.Scope();
+        await settings.Demand(actor, AttendanceScreens.MyAttendance, "UPDATE", ct);
+        var ownEmployee = await (from user in db.Set<User>().AsNoTracking()
+                                 join employee in db.Employees.AsNoTracking() on user.EmployeeId equals (int?)employee.Id
+                                 where user.UserId == actor && user.Status == "ACTIVE"
+                                 select (int?)employee.Id).SingleOrDefaultAsync(ct)
+            ?? throw new BusinessException(403,"HRM_AUTH_006","An employee link is required.","EMPLOYEE_LINK_REQUIRED");
+        var owned = db.Set<WorkSchedule>().Where(s=>s.ID==r.ScheduleId && s.EmployeeID==ownEmployee);
+        if (await owned.ExecuteUpdateAsync(s=>s.SetProperty(r=>r.Version,r=>r.Version),ct)!=1) throw BusinessException.Missing();
+        var schedule = await owned.SingleAsync(ct);
         if (schedule.Status != "SCHEDULED") throw BusinessException.Conflict("Schedule is not open.");
         var operation = checkIn ? "CHECK_IN" : "CHECK_OUT";
         var previous = await db.Set<AttendanceRequest>().AsNoTracking().SingleOrDefaultAsync(x => x.RequestKey == r.RequestKey, ct);

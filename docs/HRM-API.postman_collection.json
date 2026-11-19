@@ -3145,7 +3145,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/attendances/check-in",
-            "description": "WEB_ATTENDANCE/NEW + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.\nNew punches are rejected when the work-date timesheet period is locked. Existing requestKey replay does not create another punch.",
+            "description": "Requires WEB_MY_ATTENDANCE / UPDATE only; no data scope and no WEB_ATTENDANCE NEW/UPDATE. Active user must have a valid linked employee and own the schedule (other schedules404). Existing snapshot time windows, QR/GPS, timesheet locks, idempotent requestKey, transactions and audit remain enforced. VIEW is needed only to load personal history, not to call the punch endpoint.",
             "body": {
               "mode": "raw",
               "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
@@ -3169,7 +3169,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/attendances/check-out",
-            "description": "WEB_ATTENDANCE/UPDATE + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.\nNew punches are rejected when the work-date timesheet period is locked. Existing requestKey replay does not create another punch.",
+            "description": "Requires WEB_MY_ATTENDANCE / UPDATE only; no data scope and no WEB_ATTENDANCE NEW/UPDATE. Active user must have a valid linked employee and own the schedule (other schedules404). Existing snapshot time windows, QR/GPS, timesheet locks, idempotent requestKey, transactions and audit remain enforced. VIEW is needed only to load personal history, not to call the punch endpoint.",
             "body": {
               "mode": "raw",
               "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
@@ -3275,7 +3275,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/attendances/me?from=2026-11-22&to=2026-11-23&pageSize=20",
-            "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+            "description": "Requires WEB_MY_ATTENDANCE / VIEW only, no data scope and no WEB_ATTENDANCE VIEW. Uses employee linked to active signed-in user; employeeId query cannot change ownership. Missing employee link returns HRM_AUTH_006. Existing date/status/paging filters preserved. Management/detail/export and punch endpoints retain separate existing permissions."
           },
           "response": []
         },

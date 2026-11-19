@@ -19,7 +19,7 @@ AttendanceManagementService, DTO daily/statistics/detail và file Excel OpenXML 
 
 ## API và RBAC
 
-Tất cả cần JWT. VIEW và EXPORT dùng Data Scope SELF/DEPARTMENT/ALL **của action tương ứng**, không lấy scope từ screen khác. Screen active và quyền hiện hành vẫn được kiểm tra ở service. Không cần WEB_EMPLOYEES/WEB_SHIFTS VIEW để xem tên/ca trong dữ liệu Attendance đã được phép xem.
+Tất cả cần JWT. Các API quản lý dùng WEB_ATTENDANCE với Data Scope SELF/DEPARTMENT/ALL **của action tương ứng**; riêng /me chỉ dùng WEB_MY_ATTENDANCE / VIEW, không kiểm tra Scope. VIEW và EXPORT của quản lý dùng Scope riêng, không lấy scope từ screen khác. Screen active và quyền hiện hành vẫn được kiểm tra ở service. Không cần WEB_EMPLOYEES/WEB_SHIFTS VIEW để xem tên/ca trong dữ liệu Attendance đã được phép xem.
 
 | Method | API | Quyền |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ Tất cả cần JWT. VIEW và EXPORT dùng Data Scope SELF/DEPARTMENT/ALL **c�
 | GET | /api/attendances/statistics | WEB_ATTENDANCE / VIEW + scope, cùng query/bộ lọc với daily |
 | GET | /api/attendances/filters | WEB_ATTENDANCE / VIEW + scope; department/Team chỉ trong phạm vi |
 | GET | /api/attendances/daily/detail | WEB_ATTENDANCE / VIEW + scope; resource ngoài phạm vi trả404 |
-| GET | /api/attendances/me | WEB_ATTENDANCE / VIEW + scope, bổ sung ràng buộc nhân viên đăng nhập |
+| GET | /api/attendances/me | WEB_MY_ATTENDANCE / VIEW, không Scope; chỉ nhân viên đăng nhập |
 | GET | /api/attendances/export | WEB_ATTENDANCE / EXPORT + scope EXPORT |
 
 Không mở API PATCH/PUT thay check-in/check-out. Các API tạo/hủy/duyệt phiếu điều chỉnh hiện có giữ nguyên quyền riêng.
@@ -123,7 +123,7 @@ Kỳ TimesheetPeriod có ClosedAt hoặc status khác OPEN/DRAFT bị khóa. B�
 
 ### My Attendance và punch
 
-Màn cá nhân dùng `/me`, không lấy danh sách ALL rồi lọc ở client. Dùng nguyên POST `/attendances/check-in`, `/check-out` với quyền NEW/UPDATE và Scope của action hiện có; backend vẫn ràng buộc nhân viên đăng nhập. Trong cửa sổ server asOfUtc, nút hành động được bật khi thiếu punch tương ứng, có snapshot, không phải phép và kỳ không khóa.
+Màn cá nhân dùng `/me`, không lấy danh sách ALL rồi lọc ở client. Dùng nguyên POST `/attendances/check-in`, `/check-out` với WEB_MY_ATTENDANCE / UPDATE, không kiểm tra Scope; backend vẫn ràng buộc nhân viên đăng nhập. Trong cửa sổ server asOfUtc, nút hành động được bật khi thiếu punch tương ứng, có snapshot, không phải phép và kỳ không khóa.
 
 Form cung cấp qrSessionId/qrToken khi snapshot yêu cầu QR; GPS lấy bằng geolocation khi snapshot yêu cầu. Client không gửi giờ punch hoặc employeeId. requestKey được giữ nguyên khi retry trong form để không ghi trùng sau lỗi mạng. Backend luôn kiểm tra lại thời gian/evidence; nút ở client không cấp quyền. Không có cơ chế bypass QR/GPS để chấm công.
 
@@ -161,3 +161,7 @@ Ngày/giờ đề xuất phải hợp lệ và không ở tương lai tại lúc
 - Full backend suite:542 tests,533 qua,9 lỗi cũ trong EmployeeCreationTests do kỳ vọng NV nhưng source hiện dùng TX. Không sửa quy tắc mã nhân viên trong thay đổi này.
 - Frontend70/70 tests qua; npm run build thành công. File Excel được kiểm tra ZIP/XML, kiểu số và không chứa công thức từ tên nhân viên.
 - Tests dùng database SQLite riêng; không sửa dữ liệu MySQL thật. Không có Migration mới, không apply Migration hoặc deploy Railway.
+
+GET `/api/attendances/me` chỉ cần `WEB_MY_ATTENDANCE / VIEW`, không đọc Data Scope và không yêu cầu WEB_ATTENDANCE / VIEW. Backend lấy EmployeeId từ tài khoản ACTIVE đăng nhập, có hồ sơ nhân viên tồn tại; không liên kết trả HRM_AUTH_006. employeeId trong query không thay được người xem. Quyền quản lý daily/statistics/detail/filters/export vẫn theo WEB_ATTENDANCE; check-in/check-out dùng WEB_MY_ATTENDANCE / UPDATE không Scope; WEB_MY_ATTENDANCE VIEW không cấp quyền ghi hoặc xem người khác. Frontend My Attendance hiển thị theo screen mới; drawer quản lý chỉ hiển thị khi có WEB_ATTENDANCE VIEW. Cần cấp screen mới active và VIEW qua API phân quyền hiện có, không tự chuyển grant hoặc sửa DB.
+
+Check-in và check-out: POST `/api/attendances/check-in` và `/api/attendances/check-out` chỉ cần `WEB_MY_ATTENDANCE / UPDATE`, không đọc Data Scope, không cần WEB_ATTENDANCE NEW/UPDATE. Server bắt buộc user ACTIVE có nhân viên liên kết hợp lệ và ca thuộc đúng nhân viên đó; ca của người khác trả404. API punch không bắt buộc VIEW, nhưng màn My Attendance cần thêm VIEW để tải danh sách. Giữ cửa sổ snapshot, QR/GPS, kỳ công khóa, requestKey/idempotency, transaction và audit. Các API quản lý vẫn giữ Scope theo action.

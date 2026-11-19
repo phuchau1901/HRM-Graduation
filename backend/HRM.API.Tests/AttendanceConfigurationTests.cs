@@ -28,7 +28,7 @@ public sealed class AttendanceConfigurationTests
         internal async Task Start(AttendanceSettingsRequest? config = null)
         {
             await Base.Start();
-            foreach (var code in new[] { "WEB_SYSTEM_SETTINGS", WorkScreens.Shifts, WorkScreens.Schedules, AttendanceScreens.Attendance, AttendanceScreens.Qr }) await OrganizationApiTests.Grant(App, code);
+            foreach (var code in new[] { "WEB_SYSTEM_SETTINGS", WorkScreens.Shifts, WorkScreens.Schedules, AttendanceScreens.Attendance, AttendanceScreens.MyAttendance, AttendanceScreens.Qr }) await OrganizationApiTests.Grant(App, code);
             using var scope = App.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var department = new Department { DepartmentCode = "ATT", DepartmentName = "Attendance" }; db.Add(department); await db.SaveChangesAsync();
             var employee = new Employee { EmployeeCode = "ATT-1", FullName = "Employee", Email = "att@example.invalid", DepartmentId = department.Id }; db.Add(employee); await db.SaveChangesAsync(); Employee = employee.Id;
@@ -114,7 +114,7 @@ public sealed class AttendanceConfigurationTests
         var otherResponse = await f.Client.PostAsJsonAsync("/api/work-schedules", new ScheduleRequest { EmployeeId = otherId, ShiftId = shift.Id, WorkDate = own.WorkDate });
         Assert.Equal(HttpStatusCode.Created, otherResponse.StatusCode); var otherSchedule = (await otherResponse.Content.ReadFromJsonAsync<ScheduleView>())!;
         f.Clock.Now = new DateTimeOffset(own.Rules!.StartAtUtc);
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.PostAsJsonAsync("/api/attendances/check-in", new PunchRequest { ScheduleId = otherSchedule.Id, RequestKey = "proxy" })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await f.Client.PostAsJsonAsync("/api/attendances/check-in", new PunchRequest { ScheduleId = otherSchedule.Id, RequestKey = "proxy" })).StatusCode);
         using (var scope = f.App.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); await db.Set<RoleScreenAction>().ExecuteUpdateAsync(x => x.SetProperty(r => r.DataScope, "SELF"));

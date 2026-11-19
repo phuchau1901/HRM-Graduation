@@ -41,8 +41,8 @@ Có **130 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | PATCH | `/api/work-schedules/{id}/cancel` | [Work](../modules/Work/API.md) | WEB_WORK_SCHEDULES/DELETE + write scope + If-Match |
 | POST | `/api/work-schedules/{id}/close` | [Work](../modules/Work/API.md) | WEB_ATTENDANCE/APPROVE + scope |
 | GET | `/api/attendances` | [Attendance](../modules/Attendance/API.md) | WEB_ATTENDANCE/VIEW + scope |
-| POST | `/api/attendances/check-in` | [Attendance](../modules/Attendance/API.md) | WEB_ATTENDANCE/NEW + scope + own Employee |
-| POST | `/api/attendances/check-out` | [Attendance](../modules/Attendance/API.md) | WEB_ATTENDANCE/UPDATE + scope + own Employee |
+| POST | `/api/attendances/check-in` | [Attendance](../modules/Attendance/API.md) | WEB_MY_ATTENDANCE/UPDATE, không Scope, own Employee |
+| POST | `/api/attendances/check-out` | [Attendance](../modules/Attendance/API.md) | WEB_MY_ATTENDANCE/UPDATE, không Scope, own Employee |
 | GET | `/api/qr-sessions` | [Attendance](../modules/Attendance/API.md) | WEB_QR_SESSIONS/VIEW |
 | POST | `/api/qr-sessions` | [Attendance](../modules/Attendance/API.md) | WEB_QR_SESSIONS/NEW |
 | POST | `/api/auth/login` | [Auth](../modules/Auth/API.md) | Anonymous + LoginRateLimiter |
@@ -219,5 +219,9 @@ Tự động phân lịch hàng tuần: cấu hình `autoScheduleEnabled` trong 
 | GET | /api/attendances/statistics | WEB_ATTENDANCE VIEW + Scope |
 | GET | /api/attendances/filters | WEB_ATTENDANCE VIEW + Scope |
 | GET | /api/attendances/daily/detail | WEB_ATTENDANCE VIEW + Scope |
-| GET | /api/attendances/me | WEB_ATTENDANCE VIEW + Scope, chỉ nhân viên đăng nhập |
+| GET | /api/attendances/me | WEB_MY_ATTENDANCE VIEW, không Scope; chỉ nhân viên đăng nhập |
 | GET | /api/attendances/export | WEB_ATTENDANCE EXPORT + Scope, file .xlsx |
+
+GET `/api/attendances/me` chỉ cần `WEB_MY_ATTENDANCE / VIEW`, không đọc Data Scope và không yêu cầu WEB_ATTENDANCE / VIEW. Backend lấy EmployeeId từ tài khoản ACTIVE đăng nhập, có hồ sơ nhân viên tồn tại; không liên kết trả HRM_AUTH_006. employeeId trong query không thay được người xem. Quyền quản lý daily/statistics/detail/filters/export vẫn theo WEB_ATTENDANCE; check-in/check-out dùng WEB_MY_ATTENDANCE / UPDATE không Scope; WEB_MY_ATTENDANCE VIEW không cấp quyền ghi hoặc xem người khác. Frontend My Attendance hiển thị theo screen mới; drawer quản lý chỉ hiển thị khi có WEB_ATTENDANCE VIEW. Cần cấp screen mới active và VIEW qua API phân quyền hiện có, không tự chuyển grant hoặc sửa DB.
+
+Check-in và check-out: POST `/api/attendances/check-in` và `/api/attendances/check-out` chỉ cần `WEB_MY_ATTENDANCE / UPDATE`, không đọc Data Scope, không cần WEB_ATTENDANCE NEW/UPDATE. Server bắt buộc user ACTIVE có nhân viên liên kết hợp lệ và ca thuộc đúng nhân viên đó; ca của người khác trả404. API punch không bắt buộc VIEW, nhưng màn My Attendance cần thêm VIEW để tải danh sách. Giữ cửa sổ snapshot, QR/GPS, kỳ công khóa, requestKey/idempotency, transaction và audit. Các API quản lý vẫn giữ Scope theo action.

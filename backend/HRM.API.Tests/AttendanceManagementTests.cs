@@ -23,6 +23,7 @@ public sealed class AttendanceManagementTests
     private static async Task<(long Self,long Peer,long Other)> Setup(Fixture f)
     {
         await OrganizationApiTests.Grant(f.H.App,AttendanceScreens.Attendance);
+        await OrganizationApiTests.Grant(f.H.App,AttendanceScreens.MyAttendance);
         ((AttendanceTestClock)f.H.App.Services.GetRequiredService<TimeProvider>()).Now=new(2026,11,23,1,30,0,TimeSpan.Zero);
         using(var scope=f.H.App.Services.CreateScope())
         {
@@ -181,6 +182,76 @@ public sealed class AttendanceManagementTests
         Assert.Equal(HttpStatusCode.NotFound,(await f.H.Client.PostAsJsonAsync("/api/attendance-adjustments",new{scheduleId=ids.Other,proposedCheckIn="2026-11-23T08:00:00+07:00",reason="Not mine"})).StatusCode);
         (await f.Decide(receipt.ApprovalId,"lead")).EnsureSuccessStatusCode();
         using var check=f.H.App.Services.CreateScope();var actual=await check.ServiceProvider.GetRequiredService<AppDbContext>().Set<HRM.API.Modules.Attendance.Entities.Attendance>().SingleAsync(a=>a.ScheduleID==ids.Self);Assert.Equal(new DateTime(2026,11,23,1,0,0),actual.CheckInAt);Assert.Equal(new DateTime(2026,11,23,10,0,0),actual.CheckOutAt);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("SELF")]
+    [InlineData("DEPARTMENT")]
+    [InlineData("ALL")]
+    [InlineData("INVALID")]
+    public async Task MeOnlyRequiresPersonalViewAndIgnoresScopes(string? dataScope)
+    {
+        await using var f=await Fixture.Create();await Setup(f);
+        using(var scope=f.H.App.Services.CreateScope())
+        {
+            var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();var management=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.Attendance);var me=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.MyAttendance);
+            await db.RoleDetails.Where(d=>d.ScreenID==management.ID).ExecuteDeleteAsync();await db.Set<RoleScreenAction>().Where(g=>g.ScreenID==management.ID).ExecuteDeleteAsync();
+            var grants=db.Set<RoleScreenAction>().Where(g=>g.ScreenID==me.ID);
+            if(dataScope==null)await grants.ExecuteDeleteAsync();else await grants.ExecuteUpdateAsync(s=>s.SetProperty(g=>g.DataScope,dataScope));
+            if(dataScope!=null && !await grants.AnyAsync()) { var role=await db.Set<Role>().SingleAsync(r=>r.Code=="HR");db.Add(new RoleScreenAction{RoleID=role.ID,ScreenID=me.ID,ActionCode="VIEW",DataScope=dataScope});await db.SaveChangesAsync(); }
+        }
+        var page=(await f.H.Client.GetFromJsonAsync<DailyAttendancePage>($"/api/attendances/me?date=2026-11-23&employeeId={f.H.Other}"))!;Assert.NotEmpty(page.Data);Assert.All(page.Data,r=>Assert.Equal(f.H.Self,r.EmployeeId));
+        Assert.Equal(HttpStatusCode.Forbidden,(await f.H.Client.GetAsync("/api/attendances/daily?date=2026-11-23")).StatusCode);
+        using(var scope=f.H.App.Services.CreateScope())
+        {
+            var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();var me=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.MyAttendance);await db.RoleDetails.Where(d=>d.ScreenID==me.ID).ExecuteUpdateAsync(s=>s.SetProperty(d=>d.CanView,"N"));
+        }
+        Assert.Equal(HttpStatusCode.Forbidden,(await f.H.Client.GetAsync("/api/attendances/me?date=2026-11-23")).StatusCode);
+    }
+    [Fact]
+    public async Task MeRequiresLinkedEmployeeAndCannotUseManagementViewInstead()
+    {
+        await using var f=await Fixture.Create();await Setup(f);
+        using(var scope=f.H.App.Services.CreateScope())await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<User>().Where(u=>u.UserId=="api-user").ExecuteUpdateAsync(s=>s.SetProperty(u=>u.EmployeeId,(int?)null));
+        var response=await f.H.Client.GetAsync("/api/attendances/me?date=2026-11-23");Assert.Equal(HttpStatusCode.Forbidden,response.StatusCode);var body=await response.Content.ReadFromJsonAsync<JsonElement>();Assert.Equal("HRM_AUTH_006",body.GetProperty("code").GetString());
+        using(var scope=f.H.App.Services.CreateScope())
+        {
+            var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();await db.Set<User>().Where(u=>u.UserId=="api-user").ExecuteUpdateAsync(s=>s.SetProperty(u=>u.EmployeeId,(int?)f.H.Self));
+            var me=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.MyAttendance);await db.RoleDetails.Where(d=>d.ScreenID==me.ID).ExecuteDeleteAsync();
+        }
+        Assert.Equal(HttpStatusCode.Forbidden,(await f.H.Client.GetAsync("/api/attendances/me?date=2026-11-23")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,(await f.H.Client.GetAsync("/api/attendances/daily?date=2026-11-23")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("SELF")]
+    [InlineData("DEPARTMENT")]
+    [InlineData("ALL")]
+    [InlineData("INVALID")]
+    public async Task PersonalUpdateCanPunchBothWaysWithoutAnyScopeOrManagementPermission(string? dataScope)
+    {
+        await using var f=await Fixture.Create();var ids=await Setup(f);
+        using(var scope=f.H.App.Services.CreateScope())
+        {
+            var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();var management=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.Attendance);var me=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.MyAttendance);
+            await db.RoleDetails.Where(d=>d.ScreenID==management.ID).ExecuteDeleteAsync();await db.Set<RoleScreenAction>().Where(g=>g.ScreenID==management.ID).ExecuteDeleteAsync();
+            await db.Set<RoleScreenAction>().Where(g=>g.ScreenID==me.ID).ExecuteDeleteAsync();
+            await db.RoleDetails.Where(d=>d.ScreenID==me.ID).ExecuteUpdateAsync(s=>s.SetProperty(d=>d.CanView,"N").SetProperty(d=>d.CanNew,"N"));
+            if(dataScope!=null){var role=await db.Set<Role>().SingleAsync(r=>r.Code=="HR");db.Add(new RoleScreenAction{RoleID=role.ID,ScreenID=me.ID,ActionCode="UPDATE",DataScope=dataScope});await db.SaveChangesAsync();}
+        }
+        var body=new {scheduleId=ids.Self,requestKey="my-check-in"};
+        Assert.Equal(HttpStatusCode.OK,(await f.H.Client.PostAsJsonAsync("/api/attendances/check-in",body)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,(await f.H.Client.PostAsJsonAsync("/api/attendances/check-in",body)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,(await f.H.Client.PostAsJsonAsync("/api/attendances/check-in",new{scheduleId=ids.Other,requestKey="other"})).StatusCode);
+        ((AttendanceTestClock)f.H.App.Services.GetRequiredService<TimeProvider>()).Now=new(2026,11,23,10,0,0,TimeSpan.Zero);
+        Assert.Equal(HttpStatusCode.OK,(await f.H.Client.PostAsJsonAsync("/api/attendances/check-out",new{scheduleId=ids.Self,requestKey="my-check-out"})).StatusCode);
+        using(var scope=f.H.App.Services.CreateScope())
+        {
+            var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();var me=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.MyAttendance);await db.RoleDetails.Where(d=>d.ScreenID==me.ID).ExecuteUpdateAsync(s=>s.SetProperty(d=>d.CanUpdate,"N"));
+        }
+        Assert.Equal(HttpStatusCode.Forbidden,(await f.H.Client.PostAsJsonAsync("/api/attendances/check-out",new{scheduleId=ids.Self,requestKey="my-check-out"})).StatusCode);
     }
 
 }

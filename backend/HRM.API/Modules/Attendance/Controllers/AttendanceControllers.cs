@@ -20,7 +20,7 @@ public sealed class AttendancesController(AttendanceOperationsService service, A
     public async Task<IActionResult> Daily([FromQuery] DailyAttendanceQuery q, CancellationToken ct) => Ok(await management.Daily(Actor,q,ct));
     [HttpGet("statistics"), ScreenPermission(AttendanceScreens.Attendance, "VIEW")]
     public async Task<IActionResult> Statistics([FromQuery] DailyAttendanceQuery q, CancellationToken ct) => Ok(await management.Statistics(Actor,q,ct));
-    [HttpGet("me"), ScreenPermission(AttendanceScreens.Attendance, "VIEW")]
+    [HttpGet("me"), ScreenPermission(AttendanceScreens.MyAttendance, "VIEW")]
     public async Task<IActionResult> Me([FromQuery] DailyAttendanceQuery q, CancellationToken ct) => Ok(await management.Daily(Actor,q,ct,me:true));
     [HttpGet("filters"), ScreenPermission(AttendanceScreens.Attendance, "VIEW")]
     public async Task<IActionResult> Filters(CancellationToken ct) => Ok(await management.Filters(Actor,ct));
@@ -28,9 +28,9 @@ public sealed class AttendancesController(AttendanceOperationsService service, A
     public async Task<IActionResult> Detail([FromQuery] int employeeId,[FromQuery] DateOnly date,[FromQuery] long? scheduleId,CancellationToken ct) => Ok(await management.Detail(Actor,employeeId,date,scheduleId,ct));
     [HttpGet("export"), ScreenPermission(AttendanceScreens.Attendance, "EXPORT")]
     public async Task<IActionResult> Export([FromQuery] DailyAttendanceQuery q,CancellationToken ct) => File(await management.Export(Actor,q,ct),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","attendance.xlsx");
-    [HttpPost("check-in"), ScreenPermission(AttendanceScreens.Attendance, "NEW")]
+    [HttpPost("check-in"), ScreenPermission(AttendanceScreens.MyAttendance, "UPDATE")]
     public async Task<IActionResult> CheckIn(PunchRequest request, CancellationToken ct) => Ok(await service.Punch(Actor, request, true, ct));
-    [HttpPost("check-out"), ScreenPermission(AttendanceScreens.Attendance, "UPDATE")]
+    [HttpPost("check-out"), ScreenPermission(AttendanceScreens.MyAttendance, "UPDATE")]
     public async Task<IActionResult> CheckOut(PunchRequest request, CancellationToken ct) => Ok(await service.Punch(Actor, request, false, ct));
 }
 [ApiController, Authorize, Route("api/qr-sessions"), ServiceFilter(typeof(BusinessExceptionFilter))]

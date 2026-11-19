@@ -21,9 +21,23 @@ public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataSco
     private async Task<IQueryable<DailyAttendanceRow>> Query(string actor, DailyAttendanceQuery q, string action, bool me, DateTime now, CancellationToken ct)
     {
         var (from, to) = Dates(q);
-        await settings.Demand(actor, AttendanceScreens.Attendance, action, ct);
-        var access = await scopes.GetAsync(actor, AttendanceScreens.Attendance, action, ct);
-        if (me && !access.EmployeeId.HasValue) throw new BusinessException(403, "HRM_AUTH_006", "An employee link is required.", "EMPLOYEE_LINK_REQUIRED");
+        EmployeeAccess access;
+        if (me)
+        {
+            await settings.Demand(actor, AttendanceScreens.MyAttendance, "VIEW", ct);
+            var employee = await (from user in db.Set<HRM.API.Modules.Authorization.Entities.User>().AsNoTracking()
+                                  join person in db.Employees.AsNoTracking() on user.EmployeeId equals (int?)person.Id
+                                  where user.UserId==actor && user.Status=="ACTIVE"
+                                  select new { person.Id,person.DepartmentId }).SingleOrDefaultAsync(ct)
+                ?? throw new BusinessException(403,"HRM_AUTH_006","An employee link is required.","EMPLOYEE_LINK_REQUIRED");
+            // Ownership filter only: never read data-scope grants for the personal endpoint.
+            access=new EmployeeAccess("SELF",employee.Id,employee.DepartmentId);
+        }
+        else
+        {
+            await settings.Demand(actor, AttendanceScreens.Attendance, action, ct);
+            access=await scopes.GetAsync(actor, AttendanceScreens.Attendance, action, ct);
+        }
         var config = await settings.Read<AttendanceSettingsRequest>(SettingsDefaults.AttendanceKey, ct);
         var sqlite = db.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite";
         var args = new List<object> { from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), now,

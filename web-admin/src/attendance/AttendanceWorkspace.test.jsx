@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { AttendanceWorkspace } from './AttendanceWorkspace';
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
-const permissions = [{ code: 'WEB_ATTENDANCE', canView: 'Y', canExport: 'Y', canNew: 'Y', canUpdate: 'Y' }, { code: 'WEB_ATTENDANCE_ADJUSTMENTS', canNew: 'Y' }];
+const permissions = [{ code: 'WEB_MY_ATTENDANCE', canView: 'Y', canUpdate: 'Y' }, { code: 'WEB_ATTENDANCE', canView: 'Y', canExport: 'Y', canNew: 'Y', canUpdate: 'Y' }, { code: 'WEB_ATTENDANCE_ADJUSTMENTS', canNew: 'Y' }];
 const row = { employeeId: 1, employeeCode: 'NV001', employeeName: 'Alice', departmentName: 'Engineering', teamName: 'Core', workDate: '2026-11-23', scheduleId: 7, attendanceId: 11, shiftCode: 'DAY', timezone: 'Asia/Ho_Chi_Minh', shiftStartAtUtc: '2026-11-23T01:00:00Z', shiftEndAtUtc: '2026-11-23T10:00:00Z', checkInOpenUtc: '2026-11-23T00:00:00Z', checkInCloseUtc: '2026-11-23T05:00:00Z', checkOutOpenUtc: '2026-11-23T06:00:00Z', checkOutCloseUtc: '2026-11-23T12:00:00Z', checkInAtUtc: '2026-11-23T01:10:00Z', checkOutAtUtc: null, workedMinutes: null, lateMinutes: 5, earlyMinutes: 10, isLate: true, isEarly: true, status: 'WORKING' };
 const page = { total: 21, asOfUtc: '2026-11-23T08:30:00Z', data: [row] };
 const stats = { scheduled: 3, checkedIn: 2, working: 1, late: 2, early: 1, notPunched: 1, onLeave: 0, absent: 0, missingCheckOut: 0 };
@@ -71,6 +71,25 @@ describe('AttendanceWorkspace', () => {
     const drawer = await screen.findByRole('dialog', { name: 'Chi tiết chấm công' }); fireEvent.click(await within(drawer).findByText('Tạo phiếu điều chỉnh'));
     fireEvent.change(within(drawer).getByLabelText('Check-in đề xuất'), { target: { value: '2026-11-23T08:00' } }); fireEvent.change(within(drawer).getByLabelText('Lý do điều chỉnh'), { target: { value: 'Missing punch' } }); fireEvent.click(within(drawer).getByText('Gửi phiếu điều chỉnh'));
     await screen.findByText('Đã gửi phiếu điều chỉnh. Giờ công chỉ thay đổi sau khi duyệt cuối.'); const write = api.mock.calls.find(([path]) => path === '/attendance-adjustments'); const body = JSON.parse(write[1].body); expect(body.scheduleId).toBe(7); expect(body).not.toHaveProperty('attendanceId');
+  });
+
+  it('opens personal history with only WEB_MY_ATTENDANCE VIEW', async () => {
+    const api = vi.fn(async () => page);
+    render(<AttendanceWorkspace api={api} permissions={[{ code: 'WEB_MY_ATTENDANCE', canView: 'Y' }]} personal employeeId={1} />);
+    await screen.findByText('Alice'); expect(api.mock.calls.every(([path]) => path.startsWith('/attendances/me?'))).toBe(true);
+    expect(screen.queryByText('Chi tiết')).toBeNull(); expect(screen.queryByRole('button', { name: 'Check-out' })).toBeNull(); cleanup(); api.mockClear();
+    render(<AttendanceWorkspace api={api} permissions={[{ code: 'WEB_ATTENDANCE', canView: 'Y' }]} personal employeeId={1} />);
+    expect(api).not.toHaveBeenCalled();
+  });
+
+  it('shows both punch actions with personal UPDATE and no management grants', async () => {
+    const grants = [{ code: 'WEB_MY_ATTENDANCE', canView: 'Y', canUpdate: 'Y' }];
+    render(<AttendanceWorkspace api={vi.fn(async () => ({ ...page, asOfUtc: '2026-11-23T01:30:00Z', data: [{ ...row, attendanceId: null, checkInAtUtc: null }] }))} permissions={grants} personal employeeId={1} />);
+    expect(await screen.findByRole('button', { name: 'Check-in' })).toHaveProperty('disabled', false); cleanup();
+    render(<AttendanceWorkspace api={vi.fn(async () => page)} permissions={grants} personal employeeId={1} />);
+    expect(await screen.findByRole('button', { name: 'Check-out' })).toHaveProperty('disabled', false); cleanup();
+    render(<AttendanceWorkspace api={vi.fn(async () => page)} permissions={[{ code: 'WEB_MY_ATTENDANCE', canView: 'Y' }, { code: 'WEB_ATTENDANCE', canUpdate: 'Y', canNew: 'Y' }]} personal employeeId={1} />);
+    await screen.findByText('Alice'); expect(screen.queryByRole('button', { name: 'Check-out' })).toBeNull();
   });
 
 });
