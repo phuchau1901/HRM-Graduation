@@ -1,7 +1,9 @@
+using HRM.API.Modules.System.Services;
+using HRM.API.Modules.Attendance.DTOs;
 using HRM.API.Common;
 using HRM.API.Modules.Attendance.Entities;
 using HRM.API.Modules.System.DTOs;
-namespace HRM.API.Modules.System.Services;
+namespace HRM.API.Modules.Attendance.Services;
 public static class AttendanceRules
 {
     public static DateOnly LocalDate(DateTime utc, string zone) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(Utc(utc), TimeZoneInfo.FindSystemTimeZoneById(zone)));

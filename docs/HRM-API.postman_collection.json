@@ -1927,7 +1927,7 @@
       ]
     },
     {
-      "name": "System — Settings & Attendance",
+      "name": "System — Settings",
       "description": "Tái sử dụng shifts/work_schedules/attendances/qr_sessions. Không có mock. Cấu hình global; data Employee phải có scope. Migration System phải được operator review/apply trước khi sử dụng, collection không apply.",
       "item": [
         {
@@ -2029,468 +2029,6 @@
                 }
               }
             }
-          },
-          "response": []
-        },
-        {
-          "name": "GET /api/shifts?page=1&pageSize=30",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/api/shifts?page=1&pageSize=30",
-            "description": "WEB_SHIFTS/VIEW, catalog global dùng bảng shifts hiện có. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
-          },
-          "response": []
-        },
-        {
-          "name": "GET /api/shifts/{{shiftId}}",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/api/shifts/{{shiftId}}",
-            "description": "WEB_SHIFTS/VIEW, trả ETag/version. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
-                  "  pm.collectionVariables.set('shiftEtag', pm.response.headers.get('ETag'));",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/shifts",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/api/shifts",
-            "description": "WEB_SHIFTS/NEW. Giờ địa phương; overnight nếu end<start; break nhỏ hơn ca; lateGrace null lấy mặc định settings, không thay ca cũ. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"code\": \"DAY\",\n  \"name\": \"Day shift\",\n  \"startTime\": \"08:00:00\",\n  \"endTime\": \"17:00:00\",\n  \"breakMinutes\": 60,\n  \"lateGraceMinutes\": null,\n  \"isActive\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
-                  "  pm.collectionVariables.set('shiftId', String(pm.response.json().id));",
-                  "  pm.collectionVariables.set('shiftEtag', pm.response.headers.get('ETag'));",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "PUT /api/shifts/{{shiftId}}",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "If-Match",
-                "value": "{{shiftEtag}}"
-              }
-            ],
-            "url": "{{baseUrl}}/api/shifts/{{shiftId}}",
-            "description": "WEB_SHIFTS/UPDATE + If-Match. Chỉnh ca không sửa snapshot lịch đã phân; isActive=false để ngừng dùng. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"code\": \"DAY\",\n  \"name\": \"Day shift\",\n  \"startTime\": \"08:00:00\",\n  \"endTime\": \"17:00:00\",\n  \"breakMinutes\": 60,\n  \"lateGraceMinutes\": null,\n  \"isActive\": true\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "GET /api/work-schedules?page=1&pageSize=30",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/api/work-schedules?page=1&pageSize=30",
-            "description": "WEB_WORK_SCHEDULES/VIEW + SELF/DEPARTMENT/ALL. Filters employeeId/from/to; Count trước paging. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
-          },
-          "response": []
-        },
-        {
-          "name": "GET /api/work-schedules/{{scheduleId}}",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/api/work-schedules/{{scheduleId}}",
-            "description": "WEB_WORK_SCHEDULES/VIEW + scope. Snapshot/version/ETag; lịch legacy có rules=null. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
-                  "  pm.collectionVariables.set('scheduleEtag', pm.response.headers.get('ETag'));",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/work-schedules",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/api/work-schedules",
-            "description": "WEB_WORK_SCHEDULES/NEW + scope ghi ALL/DEPARTMENT; Employee ACTIVE, Shift ACTIVE, workDate từ hôm nay địa phương và là ngày làm việc. Chọn lại workDate trước khi chạy; lưu snapshot đầy đủ. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\"employeeId\": {{employeeId}}, \"shiftId\": {{shiftId}}, \"workDate\": \"{{workDate}}\"}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
-                  "  pm.collectionVariables.set('scheduleId', String(pm.response.json().id));",
-                  "  pm.collectionVariables.set('scheduleEtag', pm.response.headers.get('ETag'));",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "PUT /api/work-schedules/{{scheduleId}}",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "If-Match",
-                "value": "{{scheduleEtag}}"
-              }
-            ],
-            "url": "{{baseUrl}}/api/work-schedules/{{scheduleId}}",
-            "description": "WEB_WORK_SCHEDULES/UPDATE + scope + If-Match. Chỉ lịch chưa bắt đầu, chưa chấm công, không quá khứ; tái snapshot theo quy tắc được duyệt. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\"employeeId\": {{employeeId}}, \"shiftId\": {{shiftId}}, \"workDate\": \"{{workDate}}\"}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "PATCH /api/work-schedules/{{scheduleId}}/cancel",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              {
-                "key": "If-Match",
-                "value": "{{scheduleEtag}}"
-              }
-            ],
-            "url": "{{baseUrl}}/api/work-schedules/{{scheduleId}}/cancel",
-            "description": "WEB_WORK_SCHEDULES/DELETE + scope ghi + If-Match. Hủy mềm, không xóa dữ liệu; không hủy lịch đã bắt đầu/chấm công. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
-          },
-          "response": []
-        },
-        {
-          "name": "POST /api/work-schedules/{{scheduleId}}/close",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": "{{baseUrl}}/api/work-schedules/{{scheduleId}}/close",
-            "description": "WEB_ATTENDANCE/APPROVE + scope. Chỉ sau checkout close UTC trong snapshot; phân loại ABSENT/MISSING_CHECK_IN/MISSING_CHECK_OUT/COMPLETE, không nhận thời gian từ client. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
-          },
-          "response": []
-        },
-        {
-          "name": "GET /api/attendances?page=1&pageSize=30",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/api/attendances?page=1&pageSize=30",
-            "description": "WEB_ATTENDANCE/VIEW + scope Employee. UTC actual timestamps, workDate theo timezone snapshot. Không recompute bằng ca mới. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
-          },
-          "response": []
-        },
-        {
-          "name": "POST /api/attendances/check-in",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/api/attendances/check-in",
-            "description": "WEB_ATTENDANCE/NEW + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "POST /api/attendances/check-out",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/api/attendances/check-out",
-            "description": "WEB_ATTENDANCE/UPDATE + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "GET /api/qr-sessions?page=1&pageSize=30",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/api/qr-sessions?page=1&pageSize=30",
-            "description": "WEB_QR_SESSIONS/VIEW. Danh sách không chứa token hoặc nonce hash. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
-          },
-          "response": []
-        },
-        {
-          "name": "POST /api/qr-sessions",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/api/qr-sessions",
-            "description": "WEB_QR_SESSIONS/NEW. LocationCode phải có trong settings; valid15..300s theo server UTC. Token chỉ trả lần tạo, DB lưu SHA256. Không log/export token; đặt qrToken trong secret environment nếu cần dùng, không tự lưu vào collection. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"locationCode\": \"{{locationCode}}\",\n  \"lifetimeSeconds\": 60\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
-                  "  pm.collectionVariables.set('qrSessionId', String(pm.response.json().session.id));",
-                  "}"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "GET /work-schedules/calendar",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": "{{baseUrl}}/api/work-schedules/calendar?from=2026-11-23&to=2026-11-29&page=1&pageSize=20",
-            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page."
-          },
-          "response": []
-        },
-        {
-          "name": "POST /work-schedules/bulk/preview",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/api/work-schedules/bulk/preview",
-            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": 3,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": [],
-          "event": [
-            {
-              "listen": "prerequest",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (!pm.collectionVariables.get(\"scheduleOperationId\")) pm.collectionVariables.set(\"scheduleOperationId\", pm.variables.replaceIn(\"{{$guid}}\"));"
-                ]
-              }
-            },
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "if (pm.response.code === 200) pm.collectionVariables.set(\"schedulePreviewToken\", pm.response.json().previewToken);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /work-schedules/bulk",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/api/work-schedules/bulk",
-            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": 3,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false,\n  \"previewToken\": \"{{schedulePreviewToken}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "POST /work-schedules/copy",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/api/work-schedules/copy",
-            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": null,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false,\n  \"copyFrom\": \"2026-11-16\",\n  \"previewToken\": \"{{schedulePreviewToken}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "GET /work-schedules/export",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": "{{baseUrl}}/api/work-schedules/export?from=2026-11-23&to=2026-11-29&page=1&pageSize=20",
-            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page."
           },
           "response": []
         }
@@ -3206,6 +2744,478 @@
                 "description": "WEB_APPROVALS/VIEW + live employee scope. Child module filter applies before count/paging and never widens scope. Leave includes LEAVE and LEAVE_CANCELLATION. Unknown module400. See docs/modules/Approvals/API.md."
               },
               "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Work — Shifts & Work Schedules",
+      "item": [
+        {
+          "name": "GET /api/shifts?page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/shifts?page=1&pageSize=30",
+            "description": "WEB_SHIFTS/VIEW, catalog global dùng bảng shifts hiện có. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/shifts/{{shiftId}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/shifts/{{shiftId}}",
+            "description": "WEB_SHIFTS/VIEW, trả ETag/version. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  pm.collectionVariables.set('shiftEtag', pm.response.headers.get('ETag'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/shifts",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/shifts",
+            "description": "WEB_SHIFTS/NEW. Giờ địa phương; overnight nếu end<start; break nhỏ hơn ca; lateGrace null lấy mặc định settings, không thay ca cũ. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"DAY\",\n  \"name\": \"Day shift\",\n  \"startTime\": \"08:00:00\",\n  \"endTime\": \"17:00:00\",\n  \"breakMinutes\": 60,\n  \"lateGraceMinutes\": null,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  pm.collectionVariables.set('shiftId', String(pm.response.json().id));",
+                  "  pm.collectionVariables.set('shiftEtag', pm.response.headers.get('ETag'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/shifts/{{shiftId}}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{shiftEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/shifts/{{shiftId}}",
+            "description": "WEB_SHIFTS/UPDATE + If-Match. Chỉnh ca không sửa snapshot lịch đã phân; isActive=false để ngừng dùng. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"DAY\",\n  \"name\": \"Day shift\",\n  \"startTime\": \"08:00:00\",\n  \"endTime\": \"17:00:00\",\n  \"breakMinutes\": 60,\n  \"lateGraceMinutes\": null,\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/work-schedules?page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/work-schedules?page=1&pageSize=30",
+            "description": "WEB_WORK_SCHEDULES/VIEW + SELF/DEPARTMENT/ALL. Filters employeeId/from/to; Count trước paging. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/work-schedules/{{scheduleId}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/work-schedules/{{scheduleId}}",
+            "description": "WEB_WORK_SCHEDULES/VIEW + scope. Snapshot/version/ETag; lịch legacy có rules=null. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  pm.collectionVariables.set('scheduleEtag', pm.response.headers.get('ETag'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/work-schedules",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules",
+            "description": "WEB_WORK_SCHEDULES/NEW + scope ghi ALL/DEPARTMENT; Employee ACTIVE, Shift ACTIVE, workDate từ hôm nay địa phương và là ngày làm việc. Chọn lại workDate trước khi chạy; lưu snapshot đầy đủ. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"employeeId\": {{employeeId}}, \"shiftId\": {{shiftId}}, \"workDate\": \"{{workDate}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  pm.collectionVariables.set('scheduleId', String(pm.response.json().id));",
+                  "  pm.collectionVariables.set('scheduleEtag', pm.response.headers.get('ETag'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/work-schedules/{{scheduleId}}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{scheduleEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/{{scheduleId}}",
+            "description": "WEB_WORK_SCHEDULES/UPDATE + scope + If-Match. Chỉ lịch chưa bắt đầu, chưa chấm công, không quá khứ; tái snapshot theo quy tắc được duyệt. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"employeeId\": {{employeeId}}, \"shiftId\": {{shiftId}}, \"workDate\": \"{{workDate}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /api/work-schedules/{{scheduleId}}/cancel",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "If-Match",
+                "value": "{{scheduleEtag}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/{{scheduleId}}/cancel",
+            "description": "WEB_WORK_SCHEDULES/DELETE + scope ghi + If-Match. Hủy mềm, không xóa dữ liệu; không hủy lịch đã bắt đầu/chấm công. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/work-schedules/{{scheduleId}}/close",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/work-schedules/{{scheduleId}}/close",
+            "description": "WEB_ATTENDANCE/APPROVE + scope. Chỉ sau checkout close UTC trong snapshot; phân loại ABSENT/MISSING_CHECK_IN/MISSING_CHECK_OUT/COMPLETE, không nhận thời gian từ client. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /work-schedules/calendar",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/calendar?from=2026-11-23&to=2026-11-29&page=1&pageSize=20",
+            "description": "Work schedule management: see docs/modules/Work/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /work-schedules/bulk/preview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/bulk/preview",
+            "description": "Work schedule management: see docs/modules/Work/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": 3,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"scheduleOperationId\")) pm.collectionVariables.set(\"scheduleOperationId\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"schedulePreviewToken\", pm.response.json().previewToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /work-schedules/bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/bulk",
+            "description": "Work schedule management: see docs/modules/Work/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": 3,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false,\n  \"previewToken\": \"{{schedulePreviewToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /work-schedules/copy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/copy",
+            "description": "Work schedule management: see docs/modules/Work/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": null,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false,\n  \"copyFrom\": \"2026-11-16\",\n  \"previewToken\": \"{{schedulePreviewToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /work-schedules/export",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/export?from=2026-11-23&to=2026-11-29&page=1&pageSize=20",
+            "description": "Work schedule management: see docs/modules/Work/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Attendance — Timekeeping & QR",
+      "item": [
+        {
+          "name": "GET /api/attendances?page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances?page=1&pageSize=30",
+            "description": "WEB_ATTENDANCE/VIEW + scope Employee. UTC actual timestamps, workDate theo timezone snapshot. Không recompute bằng ca mới. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/attendances/check-in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/attendances/check-in",
+            "description": "WEB_ATTENDANCE/NEW + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/attendances/check-out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/attendances/check-out",
+            "description": "WEB_ATTENDANCE/UPDATE + scope và phải là nhân viên liên kết JWT. Server UTC time; field thời gian lạ bị 400. Snapshot windows/QR/GPS; requestKey unique chống ghi lặp. Qr fields bỏ nếu snapshot không yêu cầu. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/qr-sessions?page=1&pageSize=30",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/qr-sessions?page=1&pageSize=30",
+            "description": "WEB_QR_SESSIONS/VIEW. Danh sách không chứa token hoặc nonce hash. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/qr-sessions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/qr-sessions",
+            "description": "WEB_QR_SESSIONS/NEW. LocationCode phải có trong settings; valid15..300s theo server UTC. Token chỉ trả lần tạo, DB lưu SHA256. Không log/export token; đặt qrToken trong secret environment nếu cần dùng, không tự lưu vào collection. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationCode\": \"{{locationCode}}\",\n  \"lifetimeSeconds\": 60\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  pm.collectionVariables.set('qrSessionId', String(pm.response.json().session.id));",
+                  "}"
+                ]
+              }
             }
           ]
         }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { allPages, can } from './api';
+import { allPages, can } from '../api';
 import { WorkScheduleCalendar } from './WorkScheduleCalendar';
-export function AttendanceSetup({ api, permissions }) {
+export function WorkWorkspace({ api, permissions }) {
   const [tab, setTab] = useState(can(permissions, 'WEB_SHIFTS', 'VIEW') ? 'shifts' : 'work-schedules'), [data, setData] = useState({ data: [], total: 0 }), [page, setPage] = useState(1), [reload, setReload] = useState(0);
   const [editor, setEditor] = useState(null), [shifts, setShifts] = useState([]), [employees, setEmployees] = useState([]), [error, setError] = useState(''), [loading, setLoading] = useState(false), [saving, setSaving] = useState(false);
   const screen = tab === 'shifts' ? 'WEB_SHIFTS' : 'WEB_WORK_SCHEDULES'; const allowed = action => can(permissions, screen, action);

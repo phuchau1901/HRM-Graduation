@@ -1,3 +1,7 @@
+using HRM.API.Modules.Attendance.DTOs;
+using HRM.API.Modules.Attendance.Services;
+using HRM.API.Modules.Work.DTOs;
+using HRM.API.Modules.Work.Services;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -24,13 +28,13 @@ public sealed class AttendanceConfigurationTests
         internal async Task Start(AttendanceSettingsRequest? config = null)
         {
             await Base.Start();
-            foreach (var code in new[] { "WEB_SYSTEM_SETTINGS", SystemScreens.Shifts, SystemScreens.Schedules, SystemScreens.Attendance, SystemScreens.Qr }) await OrganizationApiTests.Grant(App, code);
+            foreach (var code in new[] { "WEB_SYSTEM_SETTINGS", WorkScreens.Shifts, WorkScreens.Schedules, AttendanceScreens.Attendance, AttendanceScreens.Qr }) await OrganizationApiTests.Grant(App, code);
             using var scope = App.Services.CreateScope(); var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var department = new Department { DepartmentCode = "ATT", DepartmentName = "Attendance" }; db.Add(department); await db.SaveChangesAsync();
             var employee = new Employee { EmployeeCode = "ATT-1", FullName = "Employee", Email = "att@example.invalid", DepartmentId = department.Id }; db.Add(employee); await db.SaveChangesAsync(); Employee = employee.Id;
             await db.Set<User>().Where(x => x.UserId == "api-user").ExecuteUpdateAsync(x => x.SetProperty(u => u.EmployeeId, Employee));
             var role = await db.Set<Role>().SingleAsync(x => x.Code == "HR");
-            foreach (var code in new[] { SystemScreens.Schedules, SystemScreens.Attendance })
+            foreach (var code in new[] { WorkScreens.Schedules, AttendanceScreens.Attendance })
             {
                 var screen = await db.Screens.SingleAsync(x => x.Code == code);
                 await db.RoleDetails.Where(x => x.ScreenID == screen.ID).ExecuteUpdateAsync(x => x.SetProperty(r => r.CanApprove, "Y"));

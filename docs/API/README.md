@@ -30,21 +30,21 @@ Có **124 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | PUT | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/UPDATE + If-Match |
 | GET | `/api/system-settings/attendance` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/VIEW |
 | PUT | `/api/system-settings/attendance` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/UPDATE + If-Match |
-| GET | `/api/shifts` | [System](../modules/System/API.md) | WEB_SHIFTS/VIEW |
-| GET | `/api/shifts/{id}` | [System](../modules/System/API.md) | WEB_SHIFTS/VIEW |
-| POST | `/api/shifts` | [System](../modules/System/API.md) | WEB_SHIFTS/NEW |
-| PUT | `/api/shifts/{id}` | [System](../modules/System/API.md) | WEB_SHIFTS/UPDATE + If-Match |
-| GET | `/api/work-schedules` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/VIEW + scope |
-| GET | `/api/work-schedules/{id}` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/VIEW + scope |
-| POST | `/api/work-schedules` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/NEW + write scope |
-| PUT | `/api/work-schedules/{id}` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/UPDATE + write scope + If-Match |
-| PATCH | `/api/work-schedules/{id}/cancel` | [System](../modules/System/API.md) | WEB_WORK_SCHEDULES/DELETE + write scope + If-Match |
-| POST | `/api/work-schedules/{id}/close` | [System](../modules/System/API.md) | WEB_ATTENDANCE/APPROVE + scope |
-| GET | `/api/attendances` | [System](../modules/System/API.md) | WEB_ATTENDANCE/VIEW + scope |
-| POST | `/api/attendances/check-in` | [System](../modules/System/API.md) | WEB_ATTENDANCE/NEW + scope + own Employee |
-| POST | `/api/attendances/check-out` | [System](../modules/System/API.md) | WEB_ATTENDANCE/UPDATE + scope + own Employee |
-| GET | `/api/qr-sessions` | [System](../modules/System/API.md) | WEB_QR_SESSIONS/VIEW |
-| POST | `/api/qr-sessions` | [System](../modules/System/API.md) | WEB_QR_SESSIONS/NEW |
+| GET | `/api/shifts` | [Work](../modules/Work/API.md) | WEB_SHIFTS/VIEW |
+| GET | `/api/shifts/{id}` | [Work](../modules/Work/API.md) | WEB_SHIFTS/VIEW |
+| POST | `/api/shifts` | [Work](../modules/Work/API.md) | WEB_SHIFTS/NEW |
+| PUT | `/api/shifts/{id}` | [Work](../modules/Work/API.md) | WEB_SHIFTS/UPDATE + If-Match |
+| GET | `/api/work-schedules` | [Work](../modules/Work/API.md) | WEB_WORK_SCHEDULES/VIEW + scope |
+| GET | `/api/work-schedules/{id}` | [Work](../modules/Work/API.md) | WEB_WORK_SCHEDULES/VIEW + scope |
+| POST | `/api/work-schedules` | [Work](../modules/Work/API.md) | WEB_WORK_SCHEDULES/NEW + write scope |
+| PUT | `/api/work-schedules/{id}` | [Work](../modules/Work/API.md) | WEB_WORK_SCHEDULES/UPDATE + write scope + If-Match |
+| PATCH | `/api/work-schedules/{id}/cancel` | [Work](../modules/Work/API.md) | WEB_WORK_SCHEDULES/DELETE + write scope + If-Match |
+| POST | `/api/work-schedules/{id}/close` | [Work](../modules/Work/API.md) | WEB_ATTENDANCE/APPROVE + scope |
+| GET | `/api/attendances` | [Attendance](../modules/Attendance/API.md) | WEB_ATTENDANCE/VIEW + scope |
+| POST | `/api/attendances/check-in` | [Attendance](../modules/Attendance/API.md) | WEB_ATTENDANCE/NEW + scope + own Employee |
+| POST | `/api/attendances/check-out` | [Attendance](../modules/Attendance/API.md) | WEB_ATTENDANCE/UPDATE + scope + own Employee |
+| GET | `/api/qr-sessions` | [Attendance](../modules/Attendance/API.md) | WEB_QR_SESSIONS/VIEW |
+| POST | `/api/qr-sessions` | [Attendance](../modules/Attendance/API.md) | WEB_QR_SESSIONS/NEW |
 | POST | `/api/auth/login` | [Auth](../modules/Auth/API.md) | Anonymous + LoginRateLimiter |
 | GET | `/api/auth/me` | [Auth](../modules/Auth/API.md) | JWT, User ACTIVE, session version hợp lệ |
 | GET | `/api/auth/me/permissions` | [Auth](../modules/Auth/API.md) | JWT, User ACTIVE, session version hợp lệ |
@@ -197,7 +197,7 @@ POST `/api/attendance-adjustments`: cần `WEB_ATTENDANCE_ADJUSTMENTS / NEW`, kh
 
 ## Phân ca hàng loạt và lịch tuần/tháng
 
-Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày lễ và transaction tại [Work Schedule Management](../modules/System/WORK_SCHEDULES.md). Dùng bảng hiện có, không có Migration mới.
+Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày lễ và transaction tại [Work Schedule Management](../modules/Work/WORK_SCHEDULES.md). Dùng bảng hiện có, không có Migration mới.
 
 | Method | API | Quyền |
 | --- | --- | --- |

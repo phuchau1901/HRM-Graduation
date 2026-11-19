@@ -1,8 +1,8 @@
-# System — Settings, Password Policy & Attendance Configuration
+# System — Settings, Password Policy & Shared Audit
 
 [AuditLog — cấu trúc và sự kiện](AUDIT_LOG.md) · [API Specification](API.md) · [Audit/triển khai](IMPLEMENTATION.md) · [Tests](TESTS.md) · [Database](../../guides/DATABASE.md)
 
-Module System sở hữu cấu hình toàn cục, PasswordPolicyService và các controller/service cấu hình/chấm công. Tái sử dụng entity/table của module Attendance; không dựng bộ bảng Shift/Schedule/Attendance thứ hai. Frontend có hai tab Password Policy, Attendance Settings và màn Ca & lịch làm việc dùng các bảng/API thực.
+Module System sở hữu cấu hình toàn cục, PasswordPolicyService và AuditLog dùng chung. API/DTO/service ca và phân lịch đã chuyển sang [Work](../Work/README.md); nghiệp vụ chấm công/QR và AttendanceRules sang [Attendance](../Attendance/README.md). SystemSettingsController vẫn sở hữu password-policy, attendance settings và các cấu hình chung.
 
 Các quyền cần được quản trị viên đăng ký/cấp có chọn lọc: WEB_SYSTEM_SETTINGS (VIEW/UPDATE), WEB_SHIFTS, WEB_WORK_SCHEDULES, WEB_ATTENDANCE, WEB_QR_SESSIONS. Không seed grant hoặc dựa vào tên role ADMIN. Cấu hình/ca/QR là global qua grant; dữ liệu lịch/chấm công Employee phải có scope theo screen/action.
 
@@ -20,7 +20,7 @@ Lịch phép version2 cho phép rules=[]: mọi nhân viên ACTIVE đủ điều
 
 ## Phân ca hàng loạt và lịch tuần/tháng
 
-Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày lễ và transaction tại [Work Schedule Management](WORK_SCHEDULES.md). Dùng bảng hiện có, không có Migration mới.
+Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày lễ và transaction tại [Work Schedule Management](../Work/WORK_SCHEDULES.md). Dùng bảng hiện có, không có Migration mới.
 
 | Method | API | Quyền |
 | --- | --- | --- |

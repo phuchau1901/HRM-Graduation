@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { can } from './api';
+import { can } from '../api';
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 function add(value, n) { const d = new Date(`${value}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 function period(value, mode) {

@@ -1,3 +1,7 @@
+using HRM.API.Modules.System.Services;
+using HRM.API.Modules.Attendance.DTOs;
+using HRM.API.Modules.Work.DTOs;
+using HRM.API.Modules.Work.Services;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
@@ -8,8 +12,8 @@ using HRM.API.Modules.Authorization.Entities;
 using HRM.API.Modules.System.DTOs;
 using Microsoft.EntityFrameworkCore;
 using AttendanceEntity = HRM.API.Modules.Attendance.Entities.Attendance;
-namespace HRM.API.Modules.System.Services;
-public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsService settings, AttendanceConfigurationService schedules, TimeProvider clock)
+namespace HRM.API.Modules.Attendance.Services;
+public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsService settings, WorkScheduleService schedules, TimeProvider clock)
 {
     private static AttendanceRuleSnapshot Rules(WorkSchedule schedule) => schedule.RulesSnapshotJson is null
         ? throw BusinessException.Conflict("Legacy schedule has no reviewed rules snapshot; do not infer historical rules.") : SettingsDefaults.Read<AttendanceRuleSnapshot>(schedule.RulesSnapshotJson);
@@ -24,8 +28,8 @@ public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsS
     }
     public async Task<PageResult<AttendanceView>> List(string actor, ScheduleQuery q, CancellationToken ct)
     {
-        await settings.Demand(actor, SystemScreens.Attendance, "VIEW", ct);
-        var visible = (await schedules.Scoped(actor, SystemScreens.Attendance, "VIEW", ct)).AsNoTracking();
+        await settings.Demand(actor, AttendanceScreens.Attendance, "VIEW", ct);
+        var visible = (await schedules.Scoped(actor, AttendanceScreens.Attendance, "VIEW", ct)).AsNoTracking();
         if (q.EmployeeId.HasValue) visible = visible.Where(x => x.EmployeeID == q.EmployeeId);
         if (q.From.HasValue) visible = visible.Where(x => x.WorkDate >= q.From); if (q.To.HasValue) visible = visible.Where(x => x.WorkDate <= q.To);
         var query = from a in db.Set<AttendanceEntity>().AsNoTracking() join s in visible on a.ScheduleID equals s.ID select new { Attendance = a, Schedule = s };
@@ -36,7 +40,7 @@ public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsS
     {
         SettingsDefaults.Validate(r); await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var action = checkIn ? "NEW" : "UPDATE";
-        var schedule = await schedules.Find(actor, r.ScheduleId, SystemScreens.Attendance, action, true, ct);
+        var schedule = await schedules.Find(actor, r.ScheduleId, AttendanceScreens.Attendance, action, true, ct);
         var ownEmployee = await db.Set<User>().AsNoTracking().Where(x => x.UserId == actor && x.Status == "ACTIVE").Select(x => x.EmployeeId).SingleAsync(ct);
         if (ownEmployee != schedule.EmployeeID) throw BusinessException.Scope();
         if (schedule.Status != "SCHEDULED") throw BusinessException.Conflict("Schedule is not open.");
@@ -90,7 +94,7 @@ public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsS
     public async Task<AttendanceView> Close(string actor, long id, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var schedule = await schedules.Find(actor, id, SystemScreens.Attendance, "APPROVE", true, ct);
+        var schedule = await schedules.Find(actor, id, AttendanceScreens.Attendance, "APPROVE", true, ct);
         var rules = Rules(schedule);
         if (clock.GetUtcNow().UtcDateTime <= rules.CheckOutCloseUtc) throw BusinessException.Conflict("Attendance window has not closed.");
         if (schedule.Status == "CANCELLED") throw BusinessException.Conflict("Schedule is cancelled.");
@@ -102,14 +106,14 @@ public sealed class AttendanceOperationsService(AppDbContext db, SystemSettingsS
     }
     public async Task<PageResult<QrView>> QrList(string actor, PageQuery q, CancellationToken ct)
     {
-        await settings.Demand(actor, SystemScreens.Qr, "VIEW", ct); var query = db.Set<QRSession>().AsNoTracking(); var total = await query.CountAsync(ct);
+        await settings.Demand(actor, AttendanceScreens.Qr, "VIEW", ct); var query = db.Set<QRSession>().AsNoTracking(); var total = await query.CountAsync(ct);
         var rows = await query.OrderByDescending(x => x.ID).Skip(Paging.Offset(q)).Take(q.PageSize).Select(x => new QrView(x.ID, x.LocationCode, DateTime.SpecifyKind(x.ValidFrom, DateTimeKind.Utc), DateTime.SpecifyKind(x.ExpiresAt, DateTimeKind.Utc), x.Status)).ToListAsync(ct);
         return new(true, total, q.Page, q.PageSize, rows);
     }
     public async Task<QrCreated> CreateQr(string actor, QrCreateRequest r, CancellationToken ct)
     {
         SettingsDefaults.Validate(r); await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        await settings.Demand(actor, SystemScreens.Qr, "NEW", ct);
+        await settings.Demand(actor, AttendanceScreens.Qr, "NEW", ct);
         var config = await settings.Read<AttendanceSettingsRequest>(SettingsDefaults.AttendanceKey, ct);
         if (!config.Settings.Locations.Any(x => x.Code == r.LocationCode)) throw BusinessException.Invalid("Location is not configured.");
         var now = clock.GetUtcNow().UtcDateTime; var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));

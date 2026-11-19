@@ -17,7 +17,7 @@ public sealed class ApiInventoryTests
         var routes = actions.SelectMany(x => x.ActionConstraints!.OfType<HttpMethodActionConstraint>()
             .SelectMany(c => c.HttpMethods.Select(method => method + " " + x.AttributeRouteInfo!.Template))).ToArray();
         Assert.Equal(124, routes.Length); Assert.Equal(routes.Length, routes.Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        var business = actions.Where(x => x.ControllerTypeInfo.Namespace!.Contains(".Approvals.") || x.ControllerTypeInfo.Namespace!.Contains(".Leave.") || x.ControllerTypeInfo.Namespace!.Contains(".Organization.") || x.ControllerTypeInfo.Namespace!.Contains(".Employees.") || x.ControllerTypeInfo.Namespace!.Contains(".Authorization.") || x.ControllerTypeInfo.Namespace!.Contains(".System.")).ToArray();
+        var business = actions.Where(x => x.ControllerTypeInfo.Namespace!.Contains(".Approvals.") || x.ControllerTypeInfo.Namespace!.Contains(".Leave.") || x.ControllerTypeInfo.Namespace!.Contains(".Organization.") || x.ControllerTypeInfo.Namespace!.Contains(".Employees.") || x.ControllerTypeInfo.Namespace!.Contains(".Authorization.") || x.ControllerTypeInfo.Namespace!.Contains(".System.") || x.ControllerTypeInfo.Namespace!.Contains(".Work.") || x.ControllerTypeInfo.Namespace!.Contains(".Attendance.")).ToArray();
         Assert.Equal(114, business.Length);
         Assert.All(business, action =>
         {

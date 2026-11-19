@@ -1,3 +1,7 @@
+using HRM.API.Modules.System.Services;
+using HRM.API.Modules.Attendance.DTOs;
+using HRM.API.Modules.Attendance.Services;
+using HRM.API.Modules.Work.DTOs;
 using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -14,8 +18,8 @@ using HRM.API.Modules.System.DTOs;
 using HRM.API.Modules.System.Entities;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
-namespace HRM.API.Modules.System.Services;
-public sealed partial class AttendanceConfigurationService
+namespace HRM.API.Modules.Work.Services;
+public sealed partial class WorkScheduleService
 {
     private static void Range(DateOnly from, DateOnly to)
     {
@@ -24,8 +28,8 @@ public sealed partial class AttendanceConfigurationService
     }
     public async Task<ScheduleCalendar> Calendar(string actor, ScheduleCalendarQuery q, CancellationToken ct, string action = "VIEW")
     {
-        Range(q.From, q.To); await settings.Demand(actor, SystemScreens.Schedules, action, ct);
-        var access = await scopes.GetAsync(actor, SystemScreens.Schedules, action, ct);
+        Range(q.From, q.To); await settings.Demand(actor, WorkScreens.Schedules, action, ct);
+        var access = await scopes.GetAsync(actor, WorkScreens.Schedules, action, ct);
         var all = access.Apply(db.Employees.AsNoTracking());
         var departments = await (from e in all join d in db.Departments on e.DepartmentId equals d.Id select new ScheduleFilter(d.Id, d.DepartmentName)).Distinct().ToListAsync(ct);
         var teams = await (from e in all join t in db.Teams on e.TeamId equals (int?)t.Id select new ScheduleFilter(t.Id, t.TeamName)).Distinct().ToListAsync(ct);
@@ -48,8 +52,8 @@ public sealed partial class AttendanceConfigurationService
         SettingsDefaults.Validate(r); Range(r.From, r.To);
         if (r.OperationId == Guid.Empty || r.Weekdays.Any(d => d < 1 || d > 7) || r.Weekdays.Distinct().Count() != r.Weekdays.Length || r.EmployeeIds.Any(id => id <= 0) || r.EmployeeIds.Distinct().Count() != r.EmployeeIds.Length)
             throw BusinessException.Invalid("OperationId and unique employee IDs / ISO weekdays 1..7 are required.");
-        await settings.Demand(actor, SystemScreens.Schedules, "NEW", ct);
-        var access = await scopes.GetAsync(actor, SystemScreens.Schedules, "NEW", ct); access.DemandWrite();
+        await settings.Demand(actor, WorkScreens.Schedules, "NEW", ct);
+        var access = await scopes.GetAsync(actor, WorkScreens.Schedules, "NEW", ct); access.DemandWrite();
         var query = access.Apply(db.Employees.AsNoTracking());
         if (r.Target == "DEPARTMENT") { if (!r.DepartmentId.HasValue) throw BusinessException.Invalid("DepartmentId required."); query = query.Where(e => e.DepartmentId == r.DepartmentId); }
         if (r.Target == "TEAM") { if (!r.TeamId.HasValue) throw BusinessException.Invalid("TeamId required."); query = query.Where(e => e.TeamId == r.TeamId); }
@@ -59,8 +63,8 @@ public sealed partial class AttendanceConfigurationService
         if (employees.Length == 0 || r.Target == "EMPLOYEE" && employees.Length != r.EmployeeIds.Length) throw BusinessException.Missing();
         if (r.Overwrite)
         {
-            await settings.Demand(actor, SystemScreens.Schedules, "UPDATE", ct);
-            var update = await scopes.GetAsync(actor, SystemScreens.Schedules, "UPDATE", ct); update.DemandWrite();
+            await settings.Demand(actor, WorkScreens.Schedules, "UPDATE", ct);
+            var update = await scopes.GetAsync(actor, WorkScreens.Schedules, "UPDATE", ct); update.DemandWrite();
             var ids = employees.Select(e => e.Id).ToArray();
             if (await update.Apply(db.Employees).CountAsync(e => ids.Contains(e.Id), ct) != ids.Length) throw BusinessException.Scope();
         }
@@ -68,8 +72,8 @@ public sealed partial class AttendanceConfigurationService
         {
             if (r.CopyFrom.Value.Year < 1900 || r.CopyFrom.Value.Year > 9998 || r.CopyFrom.Value.DayNumber + r.To.DayNumber - r.From.DayNumber > new DateOnly(9998, 12, 31).DayNumber) throw BusinessException.Invalid("Copy range is outside the supported calendar.");
             Range(r.CopyFrom.Value, r.CopyFrom.Value.AddDays(r.To.DayNumber - r.From.DayNumber));
-            await settings.Demand(actor, SystemScreens.Schedules, "VIEW", ct);
-            var view = await scopes.GetAsync(actor, SystemScreens.Schedules, "VIEW", ct); var ids = employees.Select(e => e.Id).ToArray();
+            await settings.Demand(actor, WorkScreens.Schedules, "VIEW", ct);
+            var view = await scopes.GetAsync(actor, WorkScreens.Schedules, "VIEW", ct); var ids = employees.Select(e => e.Id).ToArray();
             if (await view.Apply(db.Employees).CountAsync(e => ids.Contains(e.Id), ct) != ids.Length) throw BusinessException.Scope();
         }
         else if (!r.ShiftId.HasValue) throw BusinessException.Invalid("ShiftId required.");
@@ -147,7 +151,7 @@ public sealed partial class AttendanceConfigurationService
         try
         {
             await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            await db.Screens.Where(s => s.Code == SystemScreens.Schedules).ExecuteUpdateAsync(s => s.SetProperty(s => s.IsActive, s => s.IsActive), ct);
+            await db.Screens.Where(s => s.Code == WorkScreens.Schedules).ExecuteUpdateAsync(s => s.SetProperty(s => s.IsActive, s => s.IsActive), ct);
             var employees = await Targets(actor, r, ct); var ids = employees.Select(e => e.Id).ToArray();
             // Common employee locks serialize bulk, single assignment and leave submissions.
             foreach (var id in ids) await db.Employees.Where(e => e.Id == id).ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt), ct);

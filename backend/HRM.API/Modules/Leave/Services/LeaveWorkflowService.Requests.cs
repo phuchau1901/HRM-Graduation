@@ -1,3 +1,5 @@
+using HRM.API.Modules.Attendance.DTOs;
+using HRM.API.Modules.Attendance.Services;
 using HRM.API.Modules.Approvals.Entities;
 using HRM.API.Common;
 using HRM.API.Modules.Employees.Entities;

@@ -1,3 +1,7 @@
+using HRM.API.Modules.Attendance.DTOs;
+using HRM.API.Modules.Attendance.Services;
+using HRM.API.Modules.Work.DTOs;
+using HRM.API.Modules.Work.Services;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -19,11 +23,11 @@ public sealed class ScheduleManagementTests
 {
     private static async Task<long> Setup(Fixture f)
     {
-        foreach (var code in new[] { SystemScreens.Schedules, SystemScreens.Shifts }) await OrganizationApiTests.Grant(f.H.App, code);
+        foreach (var code in new[] { WorkScreens.Schedules, WorkScreens.Shifts }) await OrganizationApiTests.Grant(f.H.App, code);
         using (var scope = f.H.App.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var role = await db.Set<Role>().SingleAsync(r => r.Code == "HR"); var screen = await db.Screens.SingleAsync(s => s.Code == SystemScreens.Schedules);
+            var role = await db.Set<Role>().SingleAsync(r => r.Code == "HR"); var screen = await db.Screens.SingleAsync(s => s.Code == WorkScreens.Schedules);
             foreach (var action in new[] { "VIEW", "NEW", "UPDATE", "DELETE", "EXPORT" }) db.Add(new RoleScreenAction { RoleID = role.ID, ScreenID = screen.ID, ActionCode = action, DataScope = "ALL" });
             await db.RoleDetails.Where(d => d.ScreenID == screen.ID).ExecuteUpdateAsync(s => s.SetProperty(d => d.CanExport, "Y"));
             await db.SaveChangesAsync();
@@ -99,7 +103,7 @@ public sealed class ScheduleManagementTests
         await using var f = await Fixture.Create(); var shift = await Setup(f); var request = Request(f, shift);
         using (var scope = f.H.App.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == SystemScreens.Schedules);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == WorkScreens.Schedules);
             await db.Set<RoleScreenAction>().Where(g => g.ScreenID == screen.ID).ExecuteUpdateAsync(s => s.SetProperty(g => g.DataScope, "DEPARTMENT"));
             var extra = await db.Screens.Where(s => s.Code == "WEB_EMPLOYEES" || s.Code == "WEB_SHIFTS").Select(s => s.ID).ToArrayAsync(); await db.RoleDetails.Where(d => extra.Contains(d.ScreenID)).ExecuteDeleteAsync();
         }
@@ -110,7 +114,7 @@ public sealed class ScheduleManagementTests
         request.EmployeeIds = [f.H.Self]; request.Overwrite = true;
         using (var scope = f.H.App.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == SystemScreens.Schedules);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == WorkScreens.Schedules);
             await db.Set<RoleScreenAction>().Where(g => g.ScreenID == screen.ID && g.ActionCode == "UPDATE").ExecuteUpdateAsync(s => s.SetProperty(g => g.DataScope, "SELF"));
         }
         Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.PostAsJsonAsync("/api/work-schedules/bulk/preview", request)).StatusCode);
@@ -174,7 +178,7 @@ public sealed class ScheduleManagementTests
         Assert.Equal("OVERLAP_OR_LEGACY", Assert.Single((await Preview(f, request)).Items).Outcome);
         using (var scope = f.H.App.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == SystemScreens.Schedules);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == WorkScreens.Schedules);
             await db.Set<RoleScreenAction>().Where(g => g.ScreenID == screen.ID && g.ActionCode == "EXPORT").ExecuteUpdateAsync(s => s.SetProperty(g => g.DataScope, "SELF"));
         }
         var export = await f.H.Client.GetAsync("/api/work-schedules/export?from=2026-11-23&to=2026-11-29"); export.EnsureSuccessStatusCode(); Assert.Equal("text/csv", export.Content.Headers.ContentType!.MediaType); Assert.Contains("NIGHT", await export.Content.ReadAsStringAsync());
@@ -187,7 +191,7 @@ public sealed class ScheduleManagementTests
         await Assign(f, request);
         using (var scope = f.H.App.Services.CreateScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == SystemScreens.Schedules);
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>(); var screen = await db.Screens.SingleAsync(s => s.Code == WorkScreens.Schedules);
             await db.Set<RoleScreenAction>().Where(g => g.ScreenID == screen.ID && g.ActionCode == "NEW").ExecuteUpdateAsync(s => s.SetProperty(g => g.DataScope, "DEPARTMENT"));
         }
         Assert.Equal(HttpStatusCode.Forbidden, (await f.H.Client.PostAsJsonAsync("/api/work-schedules/bulk", request)).StatusCode);

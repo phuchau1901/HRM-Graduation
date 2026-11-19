@@ -1,3 +1,4 @@
+// Work module owns this file. Legacy namespace retained to preserve EF model/migration type identity.
 using HRM.API.Modules.Attendance.Entities;
 using HRM.API.Modules.Employees.Entities;
 using Microsoft.EntityFrameworkCore;

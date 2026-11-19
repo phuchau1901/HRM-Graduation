@@ -1,3 +1,6 @@
+using HRM.API.Modules.System.Services;
+using HRM.API.Modules.Attendance.Services;
+using HRM.API.Modules.Work.Services;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.RateLimiting;
 using HRM.API.Modules.Notifications.Services;
@@ -184,8 +187,8 @@ builder.Services.AddSingleton<TimeProvider>(TimeProvider.System);
 builder.Services.AddScoped<HRM.API.Modules.System.Services.SystemSettingsService>();
 builder.Services.AddScoped<HRM.API.Modules.System.Services.AuditLogService>();
 builder.Services.AddScoped<HRM.API.Modules.System.Services.PasswordPolicyService>();
-builder.Services.AddScoped<HRM.API.Modules.System.Services.AttendanceConfigurationService>();
-builder.Services.AddScoped<HRM.API.Modules.System.Services.AttendanceOperationsService>();
+builder.Services.AddScoped<HRM.API.Modules.Work.Services.WorkScheduleService>();
+builder.Services.AddScoped<HRM.API.Modules.Attendance.Services.AttendanceOperationsService>();
 builder.Services.AddScoped<PasswordResetAuditFilter>();
 builder.Services.AddRateLimiter(options =>
 {

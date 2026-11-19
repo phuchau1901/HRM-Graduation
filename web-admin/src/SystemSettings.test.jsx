@@ -3,7 +3,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SystemSettings } from './SystemSettings';
-import { AttendanceSetup } from './AttendanceSetup';
+import { WorkWorkspace } from './work/WorkWorkspace';
 afterEach(cleanup);
 const policy = { minimumLength: 12, maximumLength: 128, passwordHistoryCount: 0, requireUppercase: false, requireLowercase: false, requireDigit: false, requireSpecialCharacter: false, disallowUsernameInPassword: false };
 const attendance = { timezone: 'Asia/Ho_Chi_Minh', checkInBeforeStartMinutes: 60, checkInAfterStartMinutes: 240, checkOutBeforeEndMinutes: 240, checkOutAfterEndMinutes: 120, lateGraceMinutes: 5, earlyLeaveGraceMinutes: 5, workingDays: [1, 2, 3, 4, 5], requireQr: false, requireGps: false, allowOvernightShifts: true, missingPunchRule: 'REJECT_CHECKOUT_WITHOUT_CHECKIN', locations: [] };
@@ -43,7 +43,7 @@ it('shows stale version errors and does not retry/overwrite automatically', asyn
 });
 it('shift management uses existing API and sends times/break/grace instead of mock data', async () => {
   const api = vi.fn(async (path, options = {}) => options.method === 'POST' ? { id: 1 } : { data: [], total: 0 });
-  const user = userEvent.setup(); render(<AttendanceSetup api={api} permissions={[{ code: 'WEB_SHIFTS', canView: 'Y', canNew: 'Y' }]} />);
+  const user = userEvent.setup(); render(<WorkWorkspace api={api} permissions={[{ code: 'WEB_SHIFTS', canView: 'Y', canNew: 'Y' }]} />);
   await screen.findByText('Chưa có dữ liệu.'); await user.click(screen.getByRole('button', { name: '+ Thêm ca' }));
   await user.type(screen.getByLabelText('Mã ca'), 'NIGHT'); await user.type(screen.getByLabelText('Tên ca'), 'Night');
   await user.type(screen.getByLabelText('Giờ bắt đầu'), '22:00'); await user.type(screen.getByLabelText('Giờ kết thúc'), '06:00');
@@ -55,7 +55,7 @@ it('shift management uses existing API and sends times/break/grace instead of mo
 it('shows schedule cancellation for DELETE grant and sends version without deleting data', async () => {
   vi.spyOn(window, 'confirm').mockReturnValue(true);
   const api = vi.fn(async path => path.startsWith('/work-schedules') ? { employees: [{ id: 5, employeeCode: 'NV005', fullName: 'Employee' }], schedules: [{ id: 1, employeeId: 5, shiftId: 2, workDate: new URLSearchParams(path.split('?')[1]).get('from') || '2026-11-16', status: 'SCHEDULED', version: 2, rules: { shiftCode: 'DAY', timezone: 'Asia/Ho_Chi_Minh' } }], shifts: [{ id: 2, code: 'DAY', name: 'Day' }], holidayDates: [], departments: [], teams: [], total: 1 } : { data: [], total: 0 });
-  const user = userEvent.setup(); render(<AttendanceSetup api={api} permissions={[{ code: 'WEB_SHIFTS', canView: 'Y' }, { code: 'WEB_WORK_SCHEDULES', canView: 'Y', canDelete: 'Y' }]} />);
+  const user = userEvent.setup(); render(<WorkWorkspace api={api} permissions={[{ code: 'WEB_SHIFTS', canView: 'Y' }, { code: 'WEB_WORK_SCHEDULES', canView: 'Y', canDelete: 'Y' }]} />);
   await user.click(screen.getByRole('button', { name: 'Lịch phân ca' }));
   await screen.findByRole('button', { name: 'Hủy lịch 1' }); await user.click(screen.getByRole('button', { name: 'Hủy lịch 1' }));
   await waitFor(() => expect(api.mock.calls.some(([, options]) => options?.method === 'PATCH')).toBe(true));

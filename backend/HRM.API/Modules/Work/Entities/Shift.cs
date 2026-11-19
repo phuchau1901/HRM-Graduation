@@ -1,3 +1,4 @@
+// Work module owns this file. Legacy namespace retained to preserve EF model/migration type identity.
 // Generated from HRM_Schema_Reference.sql (proposed schema, not deployed).
 namespace HRM.API.Modules.Attendance.Entities;
 

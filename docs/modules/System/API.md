@@ -57,94 +57,9 @@ Attendance body [JSON đầy đủ](../../API/attendance-settings.sample.json):
 
 QR/GPS bật phải có ít nhất một địa điểm. Config mới không sửa Shift cũ, Schedule snapshot cũ hoặc Attendance đã lưu; muốn thay quy tắc cho lịch chưa bắt đầu, dùng PUT schedule có quyền/If-Match.
 
-## Shifts — bảng shifts có sẵn
+## API nghiệp vụ đã tách module
 
-| Method | URL | Quyền |
-| --- | --- | --- |
-| GET | /api/shifts | WEB_SHIFTS/VIEW |
-| GET | /api/shifts/{id} | WEB_SHIFTS/VIEW |
-| POST | /api/shifts | WEB_SHIFTS/NEW |
-| PUT | /api/shifts/{id} | WEB_SHIFTS/UPDATE |
-
-Catalog global, không Employee scope. GET list page/pageSize/search theo code/name, ID tăng dần. Detail trả ETag/version. POST201 + Location/ETag; PUT200 cần If-Match. Body:
-
-```json
-{
-  "code": "NIGHT",
-  "name": "Night shift",
-  "startTime": "22:00:00",
-  "endTime": "06:00:00",
-  "breakMinutes": 60,
-  "lateGraceMinutes": 5,
-  "isActive": true
-}
-```
-
-Code trim/uppercase unique max30, name max100. Break>=0 và nhỏ hơn độ dài ca; LateGrace>=0, <=240 và nhỏ hơn độ dài ca. LateGrace null/bỏ qua lấy mặc định hiện tại khi lưu ca; gửi giá trị hiện tại để giữ nguyên. End<start qua đêm nếu được cấu hình cho phép; start=end không hợp lệ. Ngừng sử dụng bằng isActive=false (kể cả ca đêm cũ sau khi settings tắt ca qua đêm); không có hard-delete API. Chỉnh Shift không sửa snapshot lịch đã tạo.
-
-## WorkSchedules — bảng work_schedules có sẵn
-
-| Method | URL | Quyền và scope |
-| --- | --- | --- |
-| GET | /api/work-schedules | WEB_WORK_SCHEDULES/VIEW + SELF/DEPARTMENT/ALL |
-| GET | /api/work-schedules/{id} | VIEW + scope |
-| POST | /api/work-schedules | NEW + scope ghi ALL/DEPARTMENT |
-| PUT | /api/work-schedules/{id} | UPDATE + scope ghi ALL/DEPARTMENT + If-Match |
-| PATCH | /api/work-schedules/{id}/cancel | DELETE + scope ghi + If-Match |
-| POST | /api/work-schedules/{id}/close | WEB_ATTENDANCE/APPROVE + scope |
-
-List filters employeeId/from/to; Count trước paging, sort WorkDate rồi ID. Body tạo/sửa:
-
-```json
-{ "employeeId": 1, "shiftId": 1, "workDate": "2026-11-16" }
-```
-
-Employee ACTIVE trong scope, Shift ACTIVE, WorkDate không quá khứ theo timezone cấu hình và thuộc workingDays. Không trùng Employee/Shift/WorkDate, giữ UniqueWorkKey index có sẵn. POST201, PUT200; detail/response có id, employeeId, shiftId, workDate, status, version, rules snapshot.
-
-Snapshot cố định start/end/window UTC, WorkDate/timezone/ShiftCode, break/grace, QR/GPS/locations/missing rule và settingsVersion. Không tính lại bằng Shift hoặc global config hiện tại khi punch/đọc lịch sử. Giờ DST invalid/ambiguous bị từ chối400, không tự chọn offset. Ca qua đêm thuộc WorkDate của ngày bắt đầu tại timezone đó.
-
-PUT chỉ lịch SCHEDULED chưa bắt đầu, chưa có Attendance, không quá khứ; explicit admin review tạo snapshot mới. Cancel trả204, đổi status CANCELLED, không xóa; không cho hủy lịch đã bắt đầu/chấm công. Close chỉ sau CheckOutCloseUtc, giữ actual timestamps và phân loại COMPLETE/MISSING_CHECK_IN/MISSING_CHECK_OUT/ABSENT, đổi lịch CLOSED. Ngoài scope404 hoặc thiếu scope403. Quyền xem Employee catalog không tự cấp quyền schedule; quyền schedule không tự mở Employee PII.
-
-Lịch legacy snapshot null được hiển thị rules=null; punch/close bị409, không tự suy diễn/backfill lịch sử. Lịch tương lai chưa có Attendance có thể được admin review qua PUT; lịch đã có Attendance giữ nguyên.
-
-## Attendance — server time và evidence
-
-| Method | URL | Quyền |
-| --- | --- | --- |
-| GET | /api/attendances | WEB_ATTENDANCE/VIEW + Employee scope |
-| POST | /api/attendances/check-in | WEB_ATTENDANCE/NEW + scope + EmployeeId chính chủ |
-| POST | /api/attendances/check-out | WEB_ATTENDANCE/UPDATE + scope + EmployeeId chính chủ |
-
-Punch body:
-
-```json
-{
-  "scheduleId": 1,
-  "requestKey": "unique-request-key",
-  "qrSessionId": null,
-  "qrToken": null,
-  "latitude": null,
-  "longitude": null
-}
-```
-
-Không nhận userId/employeeId/CheckInAt/CheckOutAt/timestamp trong body; unknown fields bị400. Lấy UTC hiện tại từ TimeProvider phía server, không header/query clock override. RequestKey bắt buộc <=100, unique; phát lại cùng key/operation/employee/schedule đang mở trả record hiện có, không ghi lặp. Key dùng cho resource/operation khác409; mỗi schedule tối đa một Attendance qua unique index có sẵn, row-lock serialize punch.
-
-Schedule phải SCHEDULED và EmployeeId liên kết JWT trùng EmployeeId lịch, kể cả actor có ALL. Quản trị viên không dùng punch để chấm công hộ; workflow adjustment/approval đầy đủ chưa được thêm trong phạm vi cấu hình này. SELF có thể punch chính mình; SELF vẫn không được tự phân ca bằng API quản trị schedule.
-
-Check-in từ start-before đến min(end,start+after); checkout từ max(start,end-before) đến end+after, bao gồm biên. LateMinutes=max(0,ceil(checkin-start)-lateGrace), EarlyMinutes tương tự với end-checkout-earlyGrace. Khi đủ hai đầu, WorkedMinutes=max(0,floor(checkout-checkin)-BreakMinutes) chỉ là số phút tổng, chưa phải payroll/overtime engine.
-
-RequireQr: session ACTIVE, ValidFrom<=serverNow<ExpiresAt, token SHA256 khớp constant-time và location nằm trong snapshot. RequireGps: tọa độ hợp lệ, Haversine trong radius của địa điểm snapshot; nếu QR+GPS thì phải cùng địa điểm QR. GPS là tọa độ client cung cấp, không có hardware attestation. Không lưu/log raw token hoặc hash vào audit. Actual timestamps và Late/Early được lưu UTC/kết quả theo snapshot, không recompute khi đổi cấu hình.
-
-Missing rule REJECT_CHECKOUT_WITHOUT_CHECKIN trả409 nếu checkout trước checkin. INCOMPLETE cho lưu checkout-only với MISSING_CHECK_IN. Checkin-only là INCOMPLETE trong cửa sổ, GET hiển thị MISSING_CHECK_OUT sau deadline mà không ghi DB; close ghi trạng thái cuối. Không tự bịa timestamp để lấp đầu thiếu, không sửa old punches.
-
-Response200 AttendanceView: id, scheduleId, employeeId, workDate, checkInAtUtc?, checkOutAtUtc?, lateMinutes, earlyMinutes, status, workedMinutes?. List giữ pagination, employeeId/from/to filters chỉ thu hẹp scope.
-
-## QRSession — bảng qr_sessions có sẵn
-
-GET /api/qr-sessions: WEB_QR_SESSIONS/VIEW, pagination; chỉ id/locationCode/validFromUtc/expiresAtUtc/status, không nonceHash/token.
-
-POST /api/qr-sessions: WEB_QR_SESSIONS/NEW, body `{"locationCode":"HQ","lifetimeSeconds":60}`; lifetime15..300 giây, location tồn tại trong cấu hình hiện tại. 201 `{session,token}`, token random32 bytes chỉ trả lần tạo, DB chỉ SHA256. Không tự lưu token vào Postman collection/export/log. Phiên QR có thể dùng cho nhiều nhân viên tại địa điểm trong TTL; không phải OTP cá nhân.
+Ca và phân lịch: [Work API](../Work/API.md). Chấm công và QR: [Attendance API](../Attendance/API.md). System giữ các API cấu hình và AuditLog. URL API và quyền không đổi.
 
 ## HTTP và concurrency
 
@@ -174,15 +89,3 @@ Count sau bộ lọc và trước phân trang; sắp xếp createdAt giảm dầ
 Cùng JWT/quyền VIEW, kiểm tra quyền trước lookup. Trả trực tiếp object metadata như trên, thêm `beforeJson`, `afterJson` là JSON value/object hoặc null, không phải chuỗi escape. Actor có thể null. CreatedAt trả UTC `Z`. Payload khác nhau theo nguồn ghi log, không bảo đảm mọi event có result/traceId hoặc đầy đủ hồ sơ trước/sau. Xem [mô tả từng Action và ví dụ detail](AUDIT_LOG.md).
 
 Status: 200 thành công; 400 query sai; 401 chưa xác thực; 403 thiếu quyền; 404 không có log (detail). Lỗi giữ envelope hiện tại. Không tạo migration, không sửa log cũ.
-
-## Phân ca hàng loạt và lịch tuần/tháng
-
-Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày lễ và transaction tại [Work Schedule Management](WORK_SCHEDULES.md). Dùng bảng hiện có, không có Migration mới.
-
-| Method | API | Quyền |
-| --- | --- | --- |
-| GET | /api/work-schedules/calendar | WEB_WORK_SCHEDULES VIEW + Scope |
-| POST | /api/work-schedules/bulk/preview | WEB_WORK_SCHEDULES NEW + Scope; overwrite thêm UPDATE |
-| POST | /api/work-schedules/bulk | Như preview, cần previewToken |
-| POST | /api/work-schedules/copy | Như bulk, thêm VIEW + Scope nguồn |
-| GET | /api/work-schedules/export | WEB_WORK_SCHEDULES EXPORT + Scope; CSV trang đang chọn |

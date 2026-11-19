@@ -1,3 +1,7 @@
+using HRM.API.Modules.System.Services;
+using HRM.API.Modules.Attendance.DTOs;
+using HRM.API.Modules.Attendance.Services;
+using HRM.API.Modules.Work.DTOs;
 using System.Data;
 using System.Text.Json;
 using HRM.API.Common;
@@ -6,30 +10,26 @@ using HRM.API.Modules.Attendance.Entities;
 using HRM.API.Modules.Employees.Services;
 using HRM.API.Modules.System.DTOs;
 using Microsoft.EntityFrameworkCore;
-namespace HRM.API.Modules.System.Services;
-public static class SystemScreens
-{
-    public const string Shifts = "WEB_SHIFTS", Schedules = "WEB_WORK_SCHEDULES", Attendance = "WEB_ATTENDANCE", Qr = "WEB_QR_SESSIONS";
-}
-public sealed partial class AttendanceConfigurationService(AppDbContext db, SystemSettingsService settings, EmployeeDataScope scopes, TimeProvider clock, HRM.API.Modules.Notifications.Services.NotificationService notifications)
+namespace HRM.API.Modules.Work.Services;
+public sealed partial class WorkScheduleService(AppDbContext db, SystemSettingsService settings, EmployeeDataScope scopes, TimeProvider clock, HRM.API.Modules.Notifications.Services.NotificationService notifications)
 {
     internal static ShiftView ShiftDto(Shift s) => new(s.ID, s.Code, s.Name, s.StartTime, s.EndTime, s.BreakMinutes, s.LateGraceMinutes, s.IsActive, s.Version);
     internal static ScheduleView ScheduleDto(WorkSchedule s) => new(s.ID, s.EmployeeID, s.ShiftID, s.WorkDate, s.Status, s.Version,
         s.RulesSnapshotJson is null ? null : SettingsDefaults.Read<AttendanceRuleSnapshot>(s.RulesSnapshotJson));
     public async Task<PageResult<ShiftView>> Shifts(string actor, PageQuery q, CancellationToken ct)
     {
-        await settings.Demand(actor, SystemScreens.Shifts, "VIEW", ct); var query = db.Set<Shift>().AsNoTracking();
+        await settings.Demand(actor, WorkScreens.Shifts, "VIEW", ct); var query = db.Set<Shift>().AsNoTracking();
         if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(x => x.Code.Contains(q.Search) || x.Name.Contains(q.Search));
         var total = await query.CountAsync(ct); var rows = await query.OrderBy(x => x.ID).Skip(Paging.Offset(q)).Take(q.PageSize).ToListAsync(ct);
         return new(true, total, q.Page, q.PageSize, rows.Select(ShiftDto).ToList());
     }
     public async Task<ShiftView> Shift(string actor, long id, CancellationToken ct)
-    { await settings.Demand(actor, SystemScreens.Shifts, "VIEW", ct); return ShiftDto(await db.Set<Shift>().AsNoTracking().SingleOrDefaultAsync(x => x.ID == id, ct) ?? throw BusinessException.Missing()); }
+    { await settings.Demand(actor, WorkScreens.Shifts, "VIEW", ct); return ShiftDto(await db.Set<Shift>().AsNoTracking().SingleOrDefaultAsync(x => x.ID == id, ct) ?? throw BusinessException.Missing()); }
     public async Task<ShiftView> SaveShift(string actor, long? id, ShiftRequest r, string? match, CancellationToken ct)
     {
         SettingsDefaults.Validate(r);
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        await settings.Demand(actor, SystemScreens.Shifts, id.HasValue ? "UPDATE" : "NEW", ct);
+        await settings.Demand(actor, WorkScreens.Shifts, id.HasValue ? "UPDATE" : "NEW", ct);
         var config = await settings.Read<AttendanceSettingsRequest>(SettingsDefaults.AttendanceKey, ct);
         if (id.HasValue) await db.Set<Shift>().Where(x => x.ID == id).ExecuteUpdateAsync(x => x.SetProperty(s => s.Version, s => s.Version), ct);
         var row = id.HasValue ? await db.Set<Shift>().SingleOrDefaultAsync(x => x.ID == id, ct) ?? throw BusinessException.Missing() : new Shift();
@@ -64,22 +64,22 @@ public sealed partial class AttendanceConfigurationService(AppDbContext db, Syst
     }
     public async Task<PageResult<ScheduleView>> Schedules(string actor, ScheduleQuery q, CancellationToken ct)
     {
-        await settings.Demand(actor, SystemScreens.Schedules, "VIEW", ct); var query = (await Scoped(actor, SystemScreens.Schedules, "VIEW", ct)).AsNoTracking();
+        await settings.Demand(actor, WorkScreens.Schedules, "VIEW", ct); var query = (await Scoped(actor, WorkScreens.Schedules, "VIEW", ct)).AsNoTracking();
         if (q.EmployeeId.HasValue) query = query.Where(x => x.EmployeeID == q.EmployeeId);
         if (q.From.HasValue) query = query.Where(x => x.WorkDate >= q.From); if (q.To.HasValue) query = query.Where(x => x.WorkDate <= q.To);
         var total = await query.CountAsync(ct); var rows = await query.OrderBy(x => x.WorkDate).ThenBy(x => x.ID).Skip(Paging.Offset(q)).Take(q.PageSize).ToListAsync(ct);
         return new(true, total, q.Page, q.PageSize, rows.Select(ScheduleDto).ToList());
     }
-    public async Task<ScheduleView> Schedule(string actor, long id, CancellationToken ct) => ScheduleDto(await Find(actor, id, SystemScreens.Schedules, "VIEW", false, ct));
+    public async Task<ScheduleView> Schedule(string actor, long id, CancellationToken ct) => ScheduleDto(await Find(actor, id, WorkScreens.Schedules, "VIEW", false, ct));
     public async Task<ScheduleView> SaveSchedule(string actor, long? id, ScheduleRequest r, string? match, CancellationToken ct)
     {
         SettingsDefaults.Validate(r); await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var action = id.HasValue ? "UPDATE" : "NEW"; await settings.Demand(actor, SystemScreens.Schedules, action, ct);
-        var access = await scopes.GetAsync(actor, SystemScreens.Schedules, action, ct); access.DemandWrite();
+        var action = id.HasValue ? "UPDATE" : "NEW"; await settings.Demand(actor, WorkScreens.Schedules, action, ct);
+        var access = await scopes.GetAsync(actor, WorkScreens.Schedules, action, ct); access.DemandWrite();
         var employee = await access.Apply(db.Employees.AsNoTracking()).SingleOrDefaultAsync(x => x.Id == r.EmployeeId && x.EmploymentStatus == "ACTIVE", ct) ?? throw BusinessException.Scope();
         var lockIds = id.HasValue ? await db.Set<WorkSchedule>().Where(s => s.ID == id).Select(s => s.EmployeeID).ToArrayAsync(ct) : [];
         foreach (var employeeId in lockIds.Append(r.EmployeeId).Distinct().Order()) await db.Employees.Where(e => e.Id == employeeId).ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt), ct);
-        var row = id.HasValue ? await Find(actor, id.Value, SystemScreens.Schedules, action, true, ct) : new WorkSchedule();
+        var row = id.HasValue ? await Find(actor, id.Value, WorkScreens.Schedules, action, true, ct) : new WorkSchedule();
         if (id.HasValue && SystemSettingsService.Match(match) != row.Version) throw new BusinessException(412, "HRM_SETTINGS_412", "Schedule changed.");
         if (id.HasValue && (row.Status != "SCHEDULED" || await db.Set<HRM.API.Modules.Attendance.Entities.Attendance>().AnyAsync(x => x.ScheduleID == id, ct))) throw BusinessException.Conflict("Schedule has attendance or is closed; history is immutable.");
         if (id.HasValue && row.RulesSnapshotJson is not null && clock.GetUtcNow().UtcDateTime >= SettingsDefaults.Read<AttendanceRuleSnapshot>(row.RulesSnapshotJson).StartAtUtc)
@@ -104,8 +104,8 @@ public sealed partial class AttendanceConfigurationService(AppDbContext db, Syst
     public async Task Cancel(string actor, long id, string? match, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-        var access = await scopes.GetAsync(actor, SystemScreens.Schedules, "DELETE", ct); access.DemandWrite();
-        var row = await Find(actor, id, SystemScreens.Schedules, "DELETE", true, ct);
+        var access = await scopes.GetAsync(actor, WorkScreens.Schedules, "DELETE", ct); access.DemandWrite();
+        var row = await Find(actor, id, WorkScreens.Schedules, "DELETE", true, ct);
         if (SystemSettingsService.Match(match) != row.Version) throw new BusinessException(412, "HRM_SETTINGS_412", "Schedule changed.");
         if (row.Status != "SCHEDULED" || await db.Set<HRM.API.Modules.Attendance.Entities.Attendance>().AnyAsync(x => x.ScheduleID == id, ct)) throw BusinessException.Conflict("Attendance history cannot be cancelled.");
         if (row.RulesSnapshotJson is not null && clock.GetUtcNow().UtcDateTime >= SettingsDefaults.Read<AttendanceRuleSnapshot>(row.RulesSnapshotJson).StartAtUtc)

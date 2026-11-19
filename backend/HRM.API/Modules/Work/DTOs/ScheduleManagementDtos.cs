@@ -1,6 +1,8 @@
+using HRM.API.Modules.System.Services;
+using HRM.API.Modules.Attendance.DTOs;
 using System.ComponentModel.DataAnnotations;
 using HRM.API.Common;
-namespace HRM.API.Modules.System.DTOs;
+namespace HRM.API.Modules.Work.DTOs;
 public sealed class ScheduleCalendarQuery : PageQuery
 {
     public DateOnly From { get; set; }

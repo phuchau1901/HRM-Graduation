@@ -1,3 +1,5 @@
+> Cập nhật tổ chức module: nghiệp vụ ca/phân lịch đã chuyển sang [Work](../Work/README.md), chấm công/QR sang [Attendance](../Attendance/README.md). Các mô tả file System cũ bên dưới là lịch sử triển khai; cấu hình chung vẫn ở System.
+
 # System — Audit và báo cáo triển khai
 
 ## 1. Có gì trước khi sửa
