@@ -11,7 +11,7 @@ public static class SystemScreens
 {
     public const string Shifts = "WEB_SHIFTS", Schedules = "WEB_WORK_SCHEDULES", Attendance = "WEB_ATTENDANCE", Qr = "WEB_QR_SESSIONS";
 }
-public sealed class AttendanceConfigurationService(AppDbContext db, SystemSettingsService settings, EmployeeDataScope scopes, TimeProvider clock)
+public sealed partial class AttendanceConfigurationService(AppDbContext db, SystemSettingsService settings, EmployeeDataScope scopes, TimeProvider clock, HRM.API.Modules.Notifications.Services.NotificationService notifications)
 {
     internal static ShiftView ShiftDto(Shift s) => new(s.ID, s.Code, s.Name, s.StartTime, s.EndTime, s.BreakMinutes, s.LateGraceMinutes, s.IsActive, s.Version);
     internal static ScheduleView ScheduleDto(WorkSchedule s) => new(s.ID, s.EmployeeID, s.ShiftID, s.WorkDate, s.Status, s.Version,
@@ -76,7 +76,9 @@ public sealed class AttendanceConfigurationService(AppDbContext db, SystemSettin
         SettingsDefaults.Validate(r); await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         var action = id.HasValue ? "UPDATE" : "NEW"; await settings.Demand(actor, SystemScreens.Schedules, action, ct);
         var access = await scopes.GetAsync(actor, SystemScreens.Schedules, action, ct); access.DemandWrite();
-        if (!await access.Apply(db.Employees.AsNoTracking()).AnyAsync(x => x.Id == r.EmployeeId && x.EmploymentStatus == "ACTIVE", ct)) throw BusinessException.Scope();
+        var employee = await access.Apply(db.Employees.AsNoTracking()).SingleOrDefaultAsync(x => x.Id == r.EmployeeId && x.EmploymentStatus == "ACTIVE", ct) ?? throw BusinessException.Scope();
+        var lockIds = id.HasValue ? await db.Set<WorkSchedule>().Where(s => s.ID == id).Select(s => s.EmployeeID).ToArrayAsync(ct) : [];
+        foreach (var employeeId in lockIds.Append(r.EmployeeId).Distinct().Order()) await db.Employees.Where(e => e.Id == employeeId).ExecuteUpdateAsync(s => s.SetProperty(e => e.CreatedAt, e => e.CreatedAt), ct);
         var row = id.HasValue ? await Find(actor, id.Value, SystemScreens.Schedules, action, true, ct) : new WorkSchedule();
         if (id.HasValue && SystemSettingsService.Match(match) != row.Version) throw new BusinessException(412, "HRM_SETTINGS_412", "Schedule changed.");
         if (id.HasValue && (row.Status != "SCHEDULED" || await db.Set<HRM.API.Modules.Attendance.Entities.Attendance>().AnyAsync(x => x.ScheduleID == id, ct))) throw BusinessException.Conflict("Schedule has attendance or is closed; history is immutable.");
@@ -86,12 +88,18 @@ public sealed class AttendanceConfigurationService(AppDbContext db, SystemSettin
         if (r.WorkDate < AttendanceRules.LocalDate(clock.GetUtcNow().UtcDateTime, config.Settings.Timezone) || id.HasValue && row.WorkDate < AttendanceRules.LocalDate(clock.GetUtcNow().UtcDateTime, config.Settings.Timezone)) throw BusinessException.Invalid("Past schedules cannot be created or rewritten.");
         var shift = await db.Set<Shift>().AsNoTracking().SingleOrDefaultAsync(x => x.ID == r.ShiftId && x.IsActive, ct) ?? throw BusinessException.Invalid("Active shift required.");
         if (await db.Set<WorkSchedule>().AnyAsync(x => x.ID != id && x.EmployeeID == r.EmployeeId && x.ShiftID == r.ShiftId && x.WorkDate == r.WorkDate, ct)) throw BusinessException.Conflict("Employee already has this shift on that date.");
+        var snapshot = AttendanceRules.Snapshot(shift, r.WorkDate, config.Settings, config.Version);
+        await ValidateAssignment(employee, id, snapshot, ct);
+        if (id.HasValue && PeriodLocked(await LockedPeriods(ct), row.WorkDate)) throw BusinessException.Conflict("Original timesheet period is locked.");
         var before = id.HasValue ? ScheduleDto(row) : null;
         row.EmployeeID = r.EmployeeId; row.ShiftID = r.ShiftId; row.WorkDate = r.WorkDate; row.Status = "SCHEDULED";
         row.UniqueWorkKey = $"{r.EmployeeId}:{r.WorkDate:yyyyMMdd}:{r.ShiftId}"; row.Version++;
-        row.RulesSnapshotJson = JsonSerializer.Serialize(AttendanceRules.Snapshot(shift, r.WorkDate, config.Settings, config.Version), SettingsDefaults.Json);
+        row.RulesSnapshotJson = JsonSerializer.Serialize(snapshot, SettingsDefaults.Json);
         if (!id.HasValue) db.Add(row); await db.SaveChangesAsync(ct);
-        settings.Audit(actor, "SCHEDULE_SAVED", "schedule:" + row.ID, before, ScheduleDto(row)); await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); return ScheduleDto(row);
+        settings.Audit(actor, "SCHEDULE_SAVED", "schedule:" + row.ID, before, ScheduleDto(row)); await db.SaveChangesAsync(ct);
+        await NotifySchedules(row.EmployeeID, $"single:{row.ID}:{row.Version}", 1, ct);
+        if (before != null && before.EmployeeId != row.EmployeeID) await NotifySchedules(before.EmployeeId, $"reassigned:{row.ID}:{row.Version}", 1, ct);
+        await tx.CommitAsync(ct); return ScheduleDto(row);
     }
     public async Task Cancel(string actor, long id, string? match, CancellationToken ct)
     {
@@ -102,7 +110,8 @@ public sealed class AttendanceConfigurationService(AppDbContext db, SystemSettin
         if (row.Status != "SCHEDULED" || await db.Set<HRM.API.Modules.Attendance.Entities.Attendance>().AnyAsync(x => x.ScheduleID == id, ct)) throw BusinessException.Conflict("Attendance history cannot be cancelled.");
         if (row.RulesSnapshotJson is not null && clock.GetUtcNow().UtcDateTime >= SettingsDefaults.Read<AttendanceRuleSnapshot>(row.RulesSnapshotJson).StartAtUtc)
             throw BusinessException.Conflict("Started schedules cannot be cancelled.");
+        if (PeriodLocked(await LockedPeriods(ct), row.WorkDate)) throw BusinessException.Conflict("Timesheet period is locked.");
         row.Status = "CANCELLED"; row.Version++; settings.Audit(actor, "SCHEDULE_CANCELLED", "schedule:" + id, null, new { row.ID });
-        await db.SaveChangesAsync(ct); await tx.CommitAsync(ct);
+        await db.SaveChangesAsync(ct); await NotifySchedules(row.EmployeeID, $"cancel:{row.ID}:{row.Version}", 1, ct); await tx.CommitAsync(ct);
     }
 }

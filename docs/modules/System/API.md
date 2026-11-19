@@ -174,3 +174,15 @@ Count sau bộ lọc và trước phân trang; sắp xếp createdAt giảm dầ
 Cùng JWT/quyền VIEW, kiểm tra quyền trước lookup. Trả trực tiếp object metadata như trên, thêm `beforeJson`, `afterJson` là JSON value/object hoặc null, không phải chuỗi escape. Actor có thể null. CreatedAt trả UTC `Z`. Payload khác nhau theo nguồn ghi log, không bảo đảm mọi event có result/traceId hoặc đầy đủ hồ sơ trước/sau. Xem [mô tả từng Action và ví dụ detail](AUDIT_LOG.md).
 
 Status: 200 thành công; 400 query sai; 401 chưa xác thực; 403 thiếu quyền; 404 không có log (detail). Lỗi giữ envelope hiện tại. Không tạo migration, không sửa log cũ.
+
+## Phân ca hàng loạt và lịch tuần/tháng
+
+Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày lễ và transaction tại [Work Schedule Management](WORK_SCHEDULES.md). Dùng bảng hiện có, không có Migration mới.
+
+| Method | API | Quyền |
+| --- | --- | --- |
+| GET | /api/work-schedules/calendar | WEB_WORK_SCHEDULES VIEW + Scope |
+| POST | /api/work-schedules/bulk/preview | WEB_WORK_SCHEDULES NEW + Scope; overwrite thêm UPDATE |
+| POST | /api/work-schedules/bulk | Như preview, cần previewToken |
+| POST | /api/work-schedules/copy | Như bulk, thêm VIEW + Scope nguồn |
+| GET | /api/work-schedules/export | WEB_WORK_SCHEDULES EXPORT + Scope; CSV trang đang chọn |

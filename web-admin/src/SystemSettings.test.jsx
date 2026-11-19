@@ -54,10 +54,10 @@ it('shift management uses existing API and sends times/break/grace instead of mo
 
 it('shows schedule cancellation for DELETE grant and sends version without deleting data', async () => {
   vi.spyOn(window, 'confirm').mockReturnValue(true);
-  const api = vi.fn(async path => path.startsWith('/work-schedules') ? { data: [{ id: 1, employeeId: 5, workDate: '2026-11-16', status: 'SCHEDULED', version: 2, rules: { shiftCode: 'DAY', timezone: 'Asia/Ho_Chi_Minh' } }], total: 1 } : { data: [], total: 0 });
+  const api = vi.fn(async path => path.startsWith('/work-schedules') ? { employees: [{ id: 5, employeeCode: 'NV005', fullName: 'Employee' }], schedules: [{ id: 1, employeeId: 5, shiftId: 2, workDate: new URLSearchParams(path.split('?')[1]).get('from') || '2026-11-16', status: 'SCHEDULED', version: 2, rules: { shiftCode: 'DAY', timezone: 'Asia/Ho_Chi_Minh' } }], shifts: [{ id: 2, code: 'DAY', name: 'Day' }], holidayDates: [], departments: [], teams: [], total: 1 } : { data: [], total: 0 });
   const user = userEvent.setup(); render(<AttendanceSetup api={api} permissions={[{ code: 'WEB_SHIFTS', canView: 'Y' }, { code: 'WEB_WORK_SCHEDULES', canView: 'Y', canDelete: 'Y' }]} />);
   await user.click(screen.getByRole('button', { name: 'Lịch phân ca' }));
-  await screen.findByRole('button', { name: 'Hủy lịch' }); await user.click(screen.getByRole('button', { name: 'Hủy lịch' }));
+  await screen.findByRole('button', { name: 'Hủy lịch 1' }); await user.click(screen.getByRole('button', { name: 'Hủy lịch 1' }));
   await waitFor(() => expect(api.mock.calls.some(([, options]) => options?.method === 'PATCH')).toBe(true));
   const call = api.mock.calls.find(([, options]) => options?.method === 'PATCH');
   expect(call[0]).toBe('/work-schedules/1/cancel'); expect(call[1].headers['If-Match']).toBe('"2"');

@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **119 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **124 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -183,7 +183,7 @@ Hướng dẫn [Approval Workflow Settings](../modules/Leave/WORKFLOW_SETTINGS.m
 
 ## Approvals — module cha
 
-Các7 endpoint /api/approvals* và /api/approval-workflow-settings chuyển sang ApprovalsController, giữ URL và quyền hiện có; tổng inventory119 không đổi. GET /api/approvals hỗ trợ module=LEAVE/OVERTIME/ATTENDANCE, lọc trước count/paging và trong scope. [Đặc tả Approvals](../modules/Approvals/API.md) · [Kiến trúc mở rộng](../modules/Approvals/ARCHITECTURE.md).
+Các7 endpoint /api/approvals* và /api/approval-workflow-settings chuyển sang ApprovalsController, giữ URL và quyền hiện có; việc tách Approvals không làm tăng số route; inventory hiện tại là124 sau khi thêm5 API phân ca. GET /api/approvals hỗ trợ module=LEAVE/OVERTIME/ATTENDANCE, lọc trước count/paging và trong scope. [Đặc tả Approvals](../modules/Approvals/API.md) · [Kiến trúc mở rộng](../modules/Approvals/ARCHITECTURE.md).
 
 Cấp phép tự động version2: `settings.defaultDaysPerCycle` mặc định1 ngày/chu kỳ; `rules: []` hợp lệ. Không khớp chức vụ dùng mức mặc định ANNUAL, khớp thì dùng mức riêng và không cộng cả hai. Chi tiết: [Leave Accrual Settings](../modules/Leave/ACCRUAL_SETTINGS.md).
 
@@ -194,3 +194,15 @@ POST `/api/leave-requests`: cần `WEB_LEAVE_REQUESTS / NEW`, không yêu cầu 
 POST `/api/overtime-requests`: chỉ cần `WEB_OVERTIME_REQUESTS / NEW`, không kiểm tra Data Scope NEW. Backend dùng nhân viên liên kết ACTIVE của user đăng nhập ACTIVE; employeeId gửi kèm không cho tạo thay. Thiếu quyền NEW trả403 HRM_AUTH_003; thiếu liên kết hoặc nhân viên không ACTIVE trả403 HRM_AUTH_006. Giữ kiểm tra thời gian, trùng lịch và khởi tạo workflow. GET, chi tiết, hủy và duyệt vẫn kiểm tra quyền/Scope như hiện tại.
 
 POST `/api/attendance-adjustments`: cần `WEB_ATTENDANCE_ADJUSTMENTS / NEW`, không kiểm tra Data Scope NEW. Backend lấy nhân viên ACTIVE liên kết với tài khoản ACTIVE đăng nhập; chỉ nhận bản ghi Attendance có WorkSchedule thuộc nhân viên đó. Không cho tạo thay bằng employeeId trong payload. Vẫn kiểm tra giờ đề xuất, snapshot lịch và trùng phiếu pending. GET, hủy và duyệt giữ quyền/Scope hiện có.
+
+## Phân ca hàng loạt và lịch tuần/tháng
+
+Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày lễ và transaction tại [Work Schedule Management](../modules/System/WORK_SCHEDULES.md). Dùng bảng hiện có, không có Migration mới.
+
+| Method | API | Quyền |
+| --- | --- | --- |
+| GET | /api/work-schedules/calendar | WEB_WORK_SCHEDULES VIEW + Scope |
+| POST | /api/work-schedules/bulk/preview | WEB_WORK_SCHEDULES NEW + Scope; overwrite thêm UPDATE |
+| POST | /api/work-schedules/bulk | Như preview, cần previewToken |
+| POST | /api/work-schedules/copy | Như bulk, thêm VIEW + Scope nguồn |
+| GET | /api/work-schedules/export | WEB_WORK_SCHEDULES EXPORT + Scope; CSV trang đang chọn |

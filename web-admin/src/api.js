@@ -1,7 +1,9 @@
 export function createApi(token, onUnauthorized = () => {}) {
   return async (path, options = {}) => {
-    const response = await fetch(`/api${path}`, { ...options, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
+    const { responseType, ...fetchOptions } = options;
+    const response = await fetch(`/api${path}`, { ...fetchOptions, headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers } });
     if (response.status === 204) return null;
+    if (response.ok && responseType === 'blob') return response.blob();
     const body = await response.json().catch(() => null);
     if (!response.ok) {
       if (response.status === 401 && token) onUnauthorized();

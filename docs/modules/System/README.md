@@ -17,3 +17,15 @@ System Settings → Leave Accrual Settings cấu hình suất cấp mặc địn
 Lịch phép version2 dùng ngày bắt đầu + khoảng lặp + đơn vị MONTH/YEAR cho cấp và thu hồi độc lập. Lần đầu sau trọn một khoảng lặp; rule daysPerCycle, mặc định ANNUAL nếu bỏ leaveTypeId. Nhân viên chưa có quota không bị tạo số dư khi thu hồi; đến hạn cấp sẽ tạo nếu đủ điều kiện. Cấu hình legacy giữ nguyên đến khi người dùng lưu kiểu lịch mới.
 
 Lịch phép version2 cho phép rules=[]: mọi nhân viên ACTIVE đủ điều kiện nhận mức mặc định ANNUAL, kể cả chưa có chức vụ. Khớp quy tắc chức vụ thì dùng mức riêng và không cộng thêm mức mặc định. Xem payload và điều kiện tại [ACCRUAL_SETTINGS.md](../Leave/ACCRUAL_SETTINGS.md).
+
+## Phân ca hàng loạt và lịch tuần/tháng
+
+Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày lễ và transaction tại [Work Schedule Management](WORK_SCHEDULES.md). Dùng bảng hiện có, không có Migration mới.
+
+| Method | API | Quyền |
+| --- | --- | --- |
+| GET | /api/work-schedules/calendar | WEB_WORK_SCHEDULES VIEW + Scope |
+| POST | /api/work-schedules/bulk/preview | WEB_WORK_SCHEDULES NEW + Scope; overwrite thêm UPDATE |
+| POST | /api/work-schedules/bulk | Như preview, cần previewToken |
+| POST | /api/work-schedules/copy | Như bulk, thêm VIEW + Scope nguồn |
+| GET | /api/work-schedules/export | WEB_WORK_SCHEDULES EXPORT + Scope; CSV trang đang chọn |

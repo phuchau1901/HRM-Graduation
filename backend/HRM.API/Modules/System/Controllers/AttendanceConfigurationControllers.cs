@@ -29,6 +29,25 @@ public sealed class WorkSchedulesController(AttendanceConfigurationService servi
 {
     [HttpGet, ScreenPermission(SystemScreens.Schedules, "VIEW")]
     public async Task<IActionResult> List([FromQuery] ScheduleQuery q, CancellationToken ct) => Ok(await service.Schedules(Actor, q, ct));
+    [HttpGet("calendar"), ScreenPermission(SystemScreens.Schedules, "VIEW")]
+    public async Task<IActionResult> Calendar([FromQuery] ScheduleCalendarQuery q, CancellationToken ct) => Ok(await service.Calendar(Actor, q, ct));
+    [HttpPost("bulk/preview"), ScreenPermission(SystemScreens.Schedules, "NEW")]
+    public async Task<IActionResult> Preview(ScheduleBulkRequest r, CancellationToken ct) => Ok(await service.Preview(Actor, r, ct));
+    [HttpPost("bulk"), ScreenPermission(SystemScreens.Schedules, "NEW")]
+    public async Task<IActionResult> Bulk(ScheduleBulkRequest r, CancellationToken ct) => Ok(await service.Assign(Actor, r, false, ct));
+    [HttpPost("copy"), ScreenPermission(SystemScreens.Schedules, "NEW")]
+    public async Task<IActionResult> Copy(ScheduleBulkRequest r, CancellationToken ct) => Ok(await service.Assign(Actor, r, true, ct));
+    [HttpGet("export"), ScreenPermission(SystemScreens.Schedules, "EXPORT")]
+    public async Task<IActionResult> Export([FromQuery] ScheduleCalendarQuery q, CancellationToken ct)
+    {
+        var calendar = await service.Calendar(Actor, q, ct, "EXPORT");
+        string Cell(string value) => "\"" + ((value.Length > 0 && "=+-@\t\r".Contains(value[0])) ? "'" + value : value).Replace("\"", "\"\"") + "\"";
+        var rows = new List<string> { "EmployeeCode,EmployeeName,Date,Shift,Status" };
+        foreach (var employee in calendar.Employees)
+        foreach (var schedule in calendar.Schedules.Where(s => s.EmployeeId == employee.Id))
+            rows.Add(string.Join(',', Cell(employee.EmployeeCode), Cell(employee.FullName), schedule.WorkDate.ToString("yyyy-MM-dd"), Cell(schedule.Rules?.ShiftCode ?? ""), Cell(schedule.Status)));
+        return File(global::System.Text.Encoding.UTF8.GetPreamble().Concat(global::System.Text.Encoding.UTF8.GetBytes(string.Join("\r\n", rows))).ToArray(), "text/csv; charset=utf-8", "work-schedules.csv");
+    }
     [HttpGet("{id:long}"), ScreenPermission(SystemScreens.Schedules, "VIEW")]
     public async Task<IActionResult> Get(long id, CancellationToken ct) { var r = await service.Schedule(Actor, id, ct); return Versioned(r, r.Version); }
     [HttpPost, ScreenPermission(SystemScreens.Schedules, "NEW")]

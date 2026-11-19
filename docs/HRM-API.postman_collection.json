@@ -288,6 +288,14 @@
       "key": "resetStartDate",
       "value": "2027-01-01",
       "type": "string"
+    },
+    {
+      "key": "scheduleOperationId",
+      "value": ""
+    },
+    {
+      "key": "schedulePreviewToken",
+      "value": ""
     }
   ],
   "item": [
@@ -2351,6 +2359,140 @@
               }
             }
           ]
+        },
+        {
+          "name": "GET /work-schedules/calendar",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/calendar?from=2026-11-23&to=2026-11-29&page=1&pageSize=20",
+            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /work-schedules/bulk/preview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/bulk/preview",
+            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": 3,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get(\"scheduleOperationId\")) pm.collectionVariables.set(\"scheduleOperationId\", pm.variables.replaceIn(\"{{$guid}}\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"schedulePreviewToken\", pm.response.json().previewToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /work-schedules/bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/bulk",
+            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": 3,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false,\n  \"previewToken\": \"{{schedulePreviewToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /work-schedules/copy",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/copy",
+            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"operationId\": \"{{scheduleOperationId}}\",\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    12\n  ],\n  \"shiftId\": null,\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-27\",\n  \"weekdays\": [\n    1,\n    2,\n    3,\n    4,\n    5\n  ],\n  \"excludeHolidays\": true,\n  \"overwrite\": false,\n  \"copyFrom\": \"2026-11-16\",\n  \"previewToken\": \"{{schedulePreviewToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /work-schedules/export",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/work-schedules/export?from=2026-11-23&to=2026-11-29&page=1&pageSize=20",
+            "description": "Work schedule management: see docs/modules/System/WORK_SCHEDULES.md. Use actual employee/shift IDs and future dates. VIEW/NEW/UPDATE/EXPORT each uses its own scope. Preview is read-only; confirm requires matching previewToken. Copy preview must include copyFrom. Update scheduleOperationId for each new batch; retain it for retries. Export returns CSV for the current employee page."
+          },
+          "response": []
         }
       ]
     },
