@@ -51,3 +51,10 @@ test('settings APIs send bare settings with their own numeric versions and rejec
  await assert.rejects(apiSystemSettings('attendance',attendance(),7),/Version đã thay đổi/);assert.equal(attempts,1);
  }finally{globalThis.fetch=original;}
 });
+
+test('attendance holiday dates accept configured calendar dates without seeding holidays',()=>{
+ assert.doesNotThrow(()=>validateSystemSettings('attendance',{...attendance(),holidayDates:['2028-02-29']}));
+ assert.doesNotThrow(()=>validateSystemSettings('attendance',{...attendance(),holidayDates:[]}));
+ assert.throws(()=>validateSystemSettings('attendance',{...attendance(),holidayDates:['2027-02-29']}),/Ngày lễ/);
+ assert.throws(()=>validateSystemSettings('attendance',{...attendance(),holidayDates:Array(3661).fill('2027-01-01')}),/3660/);
+});

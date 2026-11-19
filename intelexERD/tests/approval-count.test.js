@@ -26,3 +26,11 @@ test('default pending counter queries approvals PENDING and uses total instead o
  const service=new ApprovalCountService({getSession:session,timers:{setInterval(){return 1;},clearInterval(){}}});await service.syncAuth();assert.equal(url.pathname,'/api/approvals');assert.equal(url.searchParams.get('status'),'PENDING');assert.equal(url.searchParams.get('pageSize'),'1');assert.equal(service.snapshot().count,42);service.stop();
  }finally{globalThis.fetch=previous;}
 });
+
+test('default polling timers preserve the browser global receiver',async()=>{
+ const previousSet=globalThis.setInterval,previousClear=globalThis.clearInterval;let started=false,stopped=false;
+ globalThis.setInterval=function(callback,delay){assert.equal(this,globalThis);assert.equal(delay,30000);started=true;return 17;};
+ globalThis.clearInterval=function(id){assert.equal(this,globalThis);assert.equal(id,17);stopped=true;};
+ const service=new ApprovalCountService({getSession:session,fetchCount:async()=>({total:3})});
+ try{await service.syncAuth();assert.equal(started,true);assert.equal(service.snapshot().count,3);service.stop();assert.equal(stopped,true);}finally{globalThis.setInterval=previousSet;globalThis.clearInterval=previousClear;}
+});

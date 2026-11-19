@@ -6,8 +6,8 @@ import {e} from '../../utils.js';
 import {icon} from '../../components/ui.js';
 
 const requestScopeScreens=['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'];
-export const roleUsesEmployeeScope=code=>['WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS','WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT',...requestScopeScreens].includes(code);
-export const roleHasScopeAction=(code,flag)=>requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):['WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT'].includes(code)?['VIEW','UPDATE'].includes(flag):roleUsesEmployeeScope(code);
+export const roleUsesEmployeeScope=code=>['WEB_WORK_SCHEDULES','WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS','WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT',...requestScopeScreens].includes(code);
+export const roleHasScopeAction=(code,flag)=>code==='WEB_WORK_SCHEDULES'?['VIEW','NEW','UPDATE','DELETE','EXPORT'].includes(flag):requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):['WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT'].includes(code)?['VIEW','UPDATE'].includes(flag):roleUsesEmployeeScope(code);
 
 export function roleScopeSelect(code,flag,label,value='SELF',disabled=false){
  if(!roleHasScopeAction(code,flag))return '';
@@ -28,7 +28,7 @@ export function roleScopeDraft(screens,matrixScreens){
 }
 
 export function roleScreenCatalog(catalog){
- const names={WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_LEAVE_BALANCES:'Số dư phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công',WEB_LEAVE_MANAGEMENT:'Leave Management'};
+ const names={WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_LEAVE_BALANCES:'Số dư phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công',WEB_LEAVE_MANAGEMENT:'Leave Management',WEB_WORK_SCHEDULES:'Lịch phân ca'};
  const screens=catalog.map(screen=>names[screen.code]?{...screen,name:names[screen.code]}:{...screen});
  for(const [code,name] of Object.entries(names))if(!screens.some(screen=>screen.code===code))screens.push({id:'pending-'+code,code,name,platform:'WEB',isActive:true,registrationRequired:true});
  return screens;

@@ -14,7 +14,7 @@ export function apiLogout(){session=null;try{localStorage.removeItem(SESSION_KEY
 }
 
 function reportApiMutation(path,options,ok,message=''){
- const method=options.method||'GET';if(!['POST','PUT','PATCH','DELETE'].includes(method)||path==='/api/auth/login'||path.startsWith('/api/notifications'))return;
+ const method=options.method||'GET';if(!['POST','PUT','PATCH','DELETE'].includes(method)||path==='/api/auth/login'||path.startsWith('/api/notifications')||path.endsWith('/bulk/preview'))return;
  if(typeof globalThis.window?.dispatchEvent==='function'&&typeof CustomEvent==='function')globalThis.window.dispatchEvent(new CustomEvent('api-mutation',{detail:{path,method,ok,message}}));
 }
 
@@ -26,8 +26,10 @@ async function request(path,options={}){
  if(requestToken)headers.set('Authorization',`Bearer ${requestToken}`);
  const transport=globalThis['fetch'];
  if(typeof transport!=='function')throw Error('Trình duyệt hiện tại không hỗ trợ kết nối API.');
- let response;try{response=await transport(apiBaseUrl()+path,{...options,headers});}catch(error){reportApiMutation(path,options,false,'Không kết nối được API. Vui lòng thử lại.');throw error;}
+ const {responseType,...fetchOptions}=options;
+ let response;try{response=await transport(apiBaseUrl()+path,{...fetchOptions,headers});}catch(error){reportApiMutation(path,options,false,'Không kết nối được API. Vui lòng thử lại.');throw error;}
  if(response.ok&&response.status===204){reportApiMutation(path,options,true);return null;}
+ if(response.ok&&responseType==='blob')return response.blob();
  let body=null;try{body=await response.json();}catch{}
  if(!response.ok){if(response.status===401&&requestToken&&session?.accessToken===requestToken)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;reportApiMutation(path,options,false,error.message);throw error;}
  reportApiMutation(path,options,true);return body;
@@ -228,3 +230,13 @@ export function apiGrantLeaveBalances(payload){return request('/api/leave-balanc
 export function apiSaveLeaveBalance(payload){return request('/api/leave-balances',{method:'PUT',body:JSON.stringify(payload)});}
 export function apiAdjustLeaveBalance(id,payload){return request(`/api/leave-balances/${encodeURIComponent(id)}/adjustments`,{method:'POST',body:JSON.stringify(payload)});}
 export function apiLeaveBalanceHistory(id,page=1){return request(`/api/leave-balances/${encodeURIComponent(id)}/history?`+new URLSearchParams({page,pageSize:20}),{cache:'no-store'});}
+
+function workScheduleQuery(filters){const query=new URLSearchParams();for(const key of ['from','to','page','pageSize','departmentId','teamId','employeeId','search'])if(filters[key]!==undefined&&filters[key]!==null&&filters[key]!=='')query.set(key,filters[key]);return query.toString();}
+export function apiWorkScheduleCalendar(filters,signal){return request('/api/work-schedules/calendar?'+workScheduleQuery(filters),{cache:'no-store',signal});}
+export function apiWorkScheduleDetail(id){return request(`/api/work-schedules/${encodeURIComponent(id)}`,{cache:'no-store'});}
+function workScheduleVersion(version){if(!Number.isSafeInteger(version)||version<1)throw Error('Thiếu phiên bản lịch hợp lệ. Vui lòng tải lại.');return {'If-Match':`"${version}"`};}
+export function apiSaveWorkSchedule(id,payload,version=null){return request('/api/work-schedules'+(id===null?'':`/${encodeURIComponent(id)}`),{method:id===null?'POST':'PUT',headers:id===null?{}:workScheduleVersion(version),body:JSON.stringify(payload)});}
+export function apiCancelWorkSchedule(id,version){return request(`/api/work-schedules/${encodeURIComponent(id)}/cancel`,{method:'PATCH',headers:workScheduleVersion(version)});}
+export function apiPreviewWorkSchedules(payload){return request('/api/work-schedules/bulk/preview',{method:'POST',body:JSON.stringify(payload)});}
+export function apiAssignWorkSchedules(payload){if(!payload.previewToken)throw Error('Cần xem trước phân ca trước khi xác nhận.');return request('/api/work-schedules/'+(payload.copyFrom?'copy':'bulk'),{method:'POST',body:JSON.stringify(payload)});}
+export function apiExportWorkSchedules(filters){return request('/api/work-schedules/export?'+workScheduleQuery(filters),{cache:'no-store',responseType:'blob'});}

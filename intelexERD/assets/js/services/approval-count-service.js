@@ -1,7 +1,7 @@
 import {apiSession,apiWorkflowList} from '../api/client.js';
 
 export class ApprovalCountService{
- constructor({getSession=apiSession,fetchCount=()=>apiWorkflowList('all','status=PENDING&page=1&pageSize=1'),timers={setInterval,clearInterval}}={}){this.getSession=getSession;this.fetchCount=fetchCount;this.timers=timers;this.listeners=new Set();this.identity='';this.generation=0;this.timer=null;this.task=null;this.count=null;}
+ constructor({getSession=apiSession,fetchCount=()=>apiWorkflowList('all','status=PENDING&page=1&pageSize=1'),timers={setInterval:(...args)=>globalThis.setInterval(...args),clearInterval:id=>globalThis.clearInterval(id)}}={}){this.getSession=getSession;this.fetchCount=fetchCount;this.timers=timers;this.listeners=new Set();this.identity='';this.generation=0;this.timer=null;this.task=null;this.count=null;}
  key(){const session=this.getSession();return session?.accessToken&&session.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_APPROVALS'&&p.canView==='Y')?JSON.stringify([session.user?.userId,session.accessToken]):'';}
  snapshot(){return {count:this.count};}
  subscribe(listener){this.listeners.add(listener);listener(this.snapshot());return ()=>this.listeners.delete(listener);}

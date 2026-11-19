@@ -8,7 +8,7 @@ export function createNotificationConnection({url,accessTokenFactory,isActive}){
  .configureLogging(LogLevel.None).build();
 }
 export class NotificationService{
- constructor({getSession=apiSession,baseUrl=apiBaseUrl,logout=apiLogout,rest={list:apiNotifications,count:apiNotificationUnreadCount,read:apiReadNotification,readAll:apiReadAllNotifications},createConnection=createNotificationConnection,timers={setTimeout,clearTimeout,setInterval,clearInterval}}={}){
+ constructor({getSession=apiSession,baseUrl=apiBaseUrl,logout=apiLogout,rest={list:apiNotifications,count:apiNotificationUnreadCount,read:apiReadNotification,readAll:apiReadAllNotifications},createConnection=createNotificationConnection,timers={setTimeout:(...args)=>globalThis.setTimeout(...args),clearTimeout:id=>globalThis.clearTimeout(id),setInterval:(...args)=>globalThis.setInterval(...args),clearInterval:id=>globalThis.clearInterval(id)}}={}){
  this.getSession=getSession;this.baseUrl=baseUrl;this.logout=logout;this.rest=rest;this.createConnection=createConnection;this.timers=timers;
  this.listeners=new Set();this.generation=0;this.identity='';this.connection=null;this.lifecycle=Promise.resolve();this.retryTimer=null;this.pollTimer=null;this.refreshTask=null;this.refreshAgain=false;this.seenEvents=new Set();this.state=this.emptyState();
  }

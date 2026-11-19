@@ -12,3 +12,5 @@
 - `shared/`: Các bộ render đang được dùng bởi nhiều nhóm menu, gồm Workspace, Team, Project, Documents và các trang vận hành.
 
 Các trang dùng chung tiếp tục được nhập từ `shared/`; không sao chép chúng vào từng nhóm. Khi thêm hoặc di chuyển module, cập nhật import và danh sách module trong `scripts/build-browser.js`, sau đó chạy `npm run build` và `npm test`. File trong `assets/js/dist/` được sinh tự động.
+
+- `work/work-schedules.js`: lịch phân ca tuần/tháng, phân hàng loạt và sao chép qua preview, xuất CSV; route `/work/schedules`, quyền `WEB_WORK_SCHEDULES`.

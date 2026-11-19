@@ -145,3 +145,11 @@ test('unread count becomes visible even while inbox is still loading',async()=>{
  await f.service.syncAuth();await settle();assert.equal(f.service.snapshot().count,7);assert.equal(f.service.snapshot().loaded,false);
  finishInbox({items:[],nextBeforeId:null});await settle();await f.service.stop();
 });
+
+test('default notification polling and reconnect timers use the browser global receiver',async()=>{
+ const originals={setInterval:globalThis.setInterval,clearInterval:globalThis.clearInterval,setTimeout:globalThis.setTimeout,clearTimeout:globalThis.clearTimeout},calls=[];
+ for(const name of Object.keys(originals))globalThis[name]=function(...args){assert.equal(this,globalThis);calls.push(name);return name==='setInterval'?1:name==='setTimeout'?2:undefined;};
+ const service=new NotificationService({getSession:()=>({accessToken:'test',user:{userId:'test'}}),rest:{list:async()=>({items:[]}),count:async()=>({count:0})},createConnection:()=>({on(){},onreconnecting(){},onreconnected(){},onclose(){},start:async()=>{throw Error('offline');},stop:async()=>{}})});
+ try{await service.syncAuth();await settle();assert.ok(calls.includes('setInterval'));assert.ok(calls.includes('setTimeout'));await service.stop();assert.ok(calls.includes('clearInterval'));assert.ok(calls.includes('clearTimeout'));}
+ finally{Object.assign(globalThis,originals);}
+});
