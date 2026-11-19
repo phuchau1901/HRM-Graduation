@@ -254,4 +254,25 @@ public sealed class AttendanceManagementTests
         Assert.Equal(HttpStatusCode.Forbidden,(await f.H.Client.PostAsJsonAsync("/api/attendances/check-out",new{scheduleId=ids.Self,requestKey="my-check-out"})).StatusCode);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("SELF")]
+    [InlineData("DEPARTMENT")]
+    [InlineData("ALL")]
+    [InlineData("INVALID")]
+    public async Task PersonalDetailDoesNotNeedScopeButCannotReadAnotherEmployee(string? scopeValue)
+    {
+        await using var f=await Fixture.Create();var ids=await Setup(f);
+        using(var scope=f.H.App.Services.CreateScope())
+        {
+            var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();var me=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.MyAttendance);var management=await db.Screens.SingleAsync(s=>s.Code==AttendanceScreens.Attendance);
+            await db.RoleDetails.Where(d=>d.ScreenID==management.ID).ExecuteDeleteAsync();await db.Set<RoleScreenAction>().Where(g=>g.ScreenID==management.ID||g.ScreenID==me.ID).ExecuteDeleteAsync();
+            if(scopeValue!=null){var role=await db.Set<Role>().SingleAsync(r=>r.Code=="HR");db.Add(new RoleScreenAction{RoleID=role.ID,ScreenID=me.ID,ActionCode="VIEW",DataScope=scopeValue});await db.SaveChangesAsync();}
+        }
+        var response=await f.H.Client.GetAsync($"/api/attendances/daily/detail?employeeId={f.H.Self}&date=2026-11-23&scheduleId={ids.Self}");response.EnsureSuccessStatusCode();
+        Assert.Equal(f.H.Self,(await response.Content.ReadFromJsonAsync<DailyAttendanceDetail>())!.Attendance.EmployeeId);
+        Assert.Equal(HttpStatusCode.NotFound,(await f.H.Client.GetAsync($"/api/attendances/daily/detail?employeeId={f.H.Other}&date=2026-11-23&scheduleId={ids.Other}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,(await f.H.Client.GetAsync($"/api/attendances/daily/detail?employeeId={f.H.Self}&date=2026-11-23&scheduleId={ids.Other}")).StatusCode);
+    }
+
 }

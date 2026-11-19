@@ -77,7 +77,7 @@ describe('AttendanceWorkspace', () => {
     const api = vi.fn(async () => page);
     render(<AttendanceWorkspace api={api} permissions={[{ code: 'WEB_MY_ATTENDANCE', canView: 'Y' }]} personal employeeId={1} />);
     await screen.findByText('Alice'); expect(api.mock.calls.every(([path]) => path.startsWith('/attendances/me?'))).toBe(true);
-    expect(screen.queryByText('Chi tiết')).toBeNull(); expect(screen.queryByRole('button', { name: 'Check-out' })).toBeNull(); cleanup(); api.mockClear();
+    expect(screen.getByText('Chi tiết')).toBeTruthy(); expect(screen.queryByRole('button', { name: 'Check-out' })).toBeNull(); cleanup(); api.mockClear();
     render(<AttendanceWorkspace api={api} permissions={[{ code: 'WEB_ATTENDANCE', canView: 'Y' }]} personal employeeId={1} />);
     expect(api).not.toHaveBeenCalled();
   });
@@ -90,6 +90,14 @@ describe('AttendanceWorkspace', () => {
     expect(await screen.findByRole('button', { name: 'Check-out' })).toHaveProperty('disabled', false); cleanup();
     render(<AttendanceWorkspace api={vi.fn(async () => page)} permissions={[{ code: 'WEB_MY_ATTENDANCE', canView: 'Y' }, { code: 'WEB_ATTENDANCE', canUpdate: 'Y', canNew: 'Y' }]} personal employeeId={1} />);
     await screen.findByText('Alice'); expect(screen.queryByRole('button', { name: 'Check-out' })).toBeNull();
+  });
+
+  it('opens the personal detail drawer with only WEB_MY_ATTENDANCE VIEW', async () => {
+    const api = vi.fn(async path => path.includes('/daily/detail?') ? { attendance: row, rules: { shiftCode: 'DAY', timezone: 'Asia/Ho_Chi_Minh' }, adjustments: [] } : page);
+    render(<AttendanceWorkspace api={api} permissions={[{ code: 'WEB_MY_ATTENDANCE', canView: 'Y' }]} personal employeeId={1} />);
+    fireEvent.click(await screen.findByText('Chi tiết')); const drawer = await screen.findByRole('dialog', { name: 'Chi tiết chấm công' });
+    expect(await within(drawer).findByText('Alice')).toBeTruthy(); expect(within(drawer).queryByText('Tạo phiếu điều chỉnh')).toBeNull();
+    expect(api.mock.calls.some(([path]) => path.startsWith('/attendances/daily/detail?employeeId=1'))).toBe(true);
   });
 
 });

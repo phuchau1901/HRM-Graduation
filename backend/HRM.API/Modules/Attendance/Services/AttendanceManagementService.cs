@@ -8,7 +8,7 @@ using HRM.API.Modules.System.DTOs;
 using HRM.API.Modules.System.Services;
 using Microsoft.EntityFrameworkCore;
 namespace HRM.API.Modules.Attendance.Services;
-public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataScope scopes, SystemSettingsService settings, TimeProvider clock)
+public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataScope scopes, SystemSettingsService settings, TimeProvider clock, HRM.API.Modules.Authorization.Services.IPermissionService permissions)
 {
     private (DateOnly From, DateOnly To) Dates(DailyAttendanceQuery q)
     {
@@ -149,7 +149,20 @@ public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataSco
     public async Task<DailyAttendanceDetail> Detail(string actor, int employeeId, DateOnly date, long? scheduleId, CancellationToken ct)
     {
         if (employeeId<=0 || scheduleId<=0) throw BusinessException.Invalid("Valid employee and schedule IDs required.");
-        var query=await Query(actor,new DailyAttendanceQuery { Date=date, EmployeeId=employeeId },"VIEW",false,clock.GetUtcNow().UtcDateTime,ct);
+        var personalView=await permissions.HasPermissionAsync(actor,AttendanceScreens.MyAttendance,"VIEW",ct);
+        int? ownId=null;
+        if(personalView)
+            ownId=await (from user in db.Set<HRM.API.Modules.Authorization.Entities.User>().AsNoTracking()
+                         join person in db.Employees.AsNoTracking() on user.EmployeeId equals (int?)person.Id
+                         where user.UserId==actor && user.Status=="ACTIVE" select (int?)person.Id).SingleOrDefaultAsync(ct);
+        var personal=personalView && ownId==employeeId;
+        if(!personal && !await permissions.HasPermissionAsync(actor,AttendanceScreens.Attendance,"VIEW",ct))
+        {
+            if(!personalView) throw new BusinessException(403,"HRM_AUTH_003","VIEW permission required on WEB_MY_ATTENDANCE or WEB_ATTENDANCE.","PERMISSION_DENIED");
+            if(!ownId.HasValue) throw new BusinessException(403,"HRM_AUTH_006","An employee link is required.","EMPLOYEE_LINK_REQUIRED");
+            throw BusinessException.Missing();
+        }
+        var query=await Query(actor,new DailyAttendanceQuery { Date=date, EmployeeId=employeeId },"VIEW",personal,clock.GetUtcNow().UtcDateTime,ct);
         var row=await query.SingleOrDefaultAsync(r=>r.ScheduleId==scheduleId,ct)??throw BusinessException.Missing(); Utc(row);
         var adjustments=row.AttendanceId.HasValue ? await db.Set<AttendanceAdjustment>().AsNoTracking().Where(a=>a.AttendanceID==row.AttendanceId && a.EmployeeID==row.EmployeeId).OrderByDescending(a=>a.ID)
             .Select(a=>new AttendanceAdjustmentSummary(a.ID,a.Status,a.Reason,a.ProposedCheckIn,a.ProposedCheckOut)).Take(20).ToListAsync(ct) : [];

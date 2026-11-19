@@ -3265,7 +3265,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/attendances/daily/detail?employeeId={{attendanceEmployeeId}}&date=2026-11-23&scheduleId={{attendanceScheduleId}}",
-            "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+            "description": "Requires VIEW on either WEB_MY_ATTENDANCE or WEB_ATTENDANCE. Personal permission allows only the employee linked to the signed-in user, without any scope. Management permission uses current WEB_ATTENDANCE VIEW scope. Both permissions are not required; own detail prefers personal permission if available. Other employee/schedule outside authorized ownership/scope returns404. Query employeeId/date and optional scheduleId; read-only."
           },
           "response": []
         },

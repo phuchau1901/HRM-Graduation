@@ -26,7 +26,7 @@ Tất cả cần JWT. Các API quản lý dùng WEB_ATTENDANCE với Data Scope 
 | GET | /api/attendances/daily | WEB_ATTENDANCE / VIEW + scope |
 | GET | /api/attendances/statistics | WEB_ATTENDANCE / VIEW + scope, cùng query/bộ lọc với daily |
 | GET | /api/attendances/filters | WEB_ATTENDANCE / VIEW + scope; department/Team chỉ trong phạm vi |
-| GET | /api/attendances/daily/detail | WEB_ATTENDANCE / VIEW + scope; resource ngoài phạm vi trả404 |
+| GET | /api/attendances/daily/detail | VIEW trên WEB_MY_ATTENDANCE (chỉ chính mình, không Scope) hoặc WEB_ATTENDANCE (Scope quản lý) |
 | GET | /api/attendances/me | WEB_MY_ATTENDANCE / VIEW, không Scope; chỉ nhân viên đăng nhập |
 | GET | /api/attendances/export | WEB_ATTENDANCE / EXPORT + scope EXPORT |
 
@@ -162,6 +162,8 @@ Ngày/giờ đề xuất phải hợp lệ và không ở tương lai tại lúc
 - Frontend70/70 tests qua; npm run build thành công. File Excel được kiểm tra ZIP/XML, kiểu số và không chứa công thức từ tên nhân viên.
 - Tests dùng database SQLite riêng; không sửa dữ liệu MySQL thật. Không có Migration mới, không apply Migration hoặc deploy Railway.
 
-GET `/api/attendances/me` chỉ cần `WEB_MY_ATTENDANCE / VIEW`, không đọc Data Scope và không yêu cầu WEB_ATTENDANCE / VIEW. Backend lấy EmployeeId từ tài khoản ACTIVE đăng nhập, có hồ sơ nhân viên tồn tại; không liên kết trả HRM_AUTH_006. employeeId trong query không thay được người xem. Quyền quản lý daily/statistics/detail/filters/export vẫn theo WEB_ATTENDANCE; check-in/check-out dùng WEB_MY_ATTENDANCE / UPDATE không Scope; WEB_MY_ATTENDANCE VIEW không cấp quyền ghi hoặc xem người khác. Frontend My Attendance hiển thị theo screen mới; drawer quản lý chỉ hiển thị khi có WEB_ATTENDANCE VIEW. Cần cấp screen mới active và VIEW qua API phân quyền hiện có, không tự chuyển grant hoặc sửa DB.
+GET `/api/attendances/me` chỉ cần `WEB_MY_ATTENDANCE / VIEW`, không đọc Data Scope và không yêu cầu WEB_ATTENDANCE / VIEW. Backend lấy EmployeeId từ tài khoản ACTIVE đăng nhập, có hồ sơ nhân viên tồn tại; không liên kết trả HRM_AUTH_006. employeeId trong query không thay được người xem. Quyền quản lý daily/statistics/filters/export vẫn theo WEB_ATTENDANCE; check-in/check-out dùng WEB_MY_ATTENDANCE / UPDATE không Scope; WEB_MY_ATTENDANCE VIEW không cấp quyền ghi hoặc xem người khác. Frontend My Attendance hiển thị theo screen mới; drawer hỗ trợ WEB_MY_ATTENDANCE VIEW cho chính mình hoặc WEB_ATTENDANCE VIEW theo Scope. Cần cấp screen mới active và VIEW qua API phân quyền hiện có, không tự chuyển grant hoặc sửa DB.
 
 Check-in và check-out: POST `/api/attendances/check-in` và `/api/attendances/check-out` chỉ cần `WEB_MY_ATTENDANCE / UPDATE`, không đọc Data Scope, không cần WEB_ATTENDANCE NEW/UPDATE. Server bắt buộc user ACTIVE có nhân viên liên kết hợp lệ và ca thuộc đúng nhân viên đó; ca của người khác trả404. API punch không bắt buộc VIEW, nhưng màn My Attendance cần thêm VIEW để tải danh sách. Giữ cửa sổ snapshot, QR/GPS, kỳ công khóa, requestKey/idempotency, transaction và audit. Các API quản lý vẫn giữ Scope theo action.
+
+GET `/api/attendances/daily/detail` chấp nhận VIEW trên **một trong** WEB_MY_ATTENDANCE hoặc WEB_ATTENDANCE, không yêu cầu cả hai. Với WEB_MY_ATTENDANCE VIEW, chỉ xem employee liên kết user đăng nhập và không đọc Scope; employeeId/scheduleId người khác trả404. Với WEB_ATTENDANCE VIEW, xem theo Scope VIEW hiện hành. Nếu có cả hai, chi tiết chính mình ưu tiên nhánh cá nhân; dữ liệu người khác vẫn phải nằm trong Scope quản lý. Thay đổi này chỉ cấp quyền đọc, không cấp quyền punch hoặc điều chỉnh.

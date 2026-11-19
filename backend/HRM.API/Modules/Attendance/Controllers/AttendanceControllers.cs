@@ -24,7 +24,7 @@ public sealed class AttendancesController(AttendanceOperationsService service, A
     public async Task<IActionResult> Me([FromQuery] DailyAttendanceQuery q, CancellationToken ct) => Ok(await management.Daily(Actor,q,ct,me:true));
     [HttpGet("filters"), ScreenPermission(AttendanceScreens.Attendance, "VIEW")]
     public async Task<IActionResult> Filters(CancellationToken ct) => Ok(await management.Filters(Actor,ct));
-    [HttpGet("daily/detail"), ScreenPermission(AttendanceScreens.Attendance, "VIEW")]
+    [HttpGet("daily/detail"), AnyScreenPermission("VIEW", AttendanceScreens.MyAttendance, AttendanceScreens.Attendance)]
     public async Task<IActionResult> Detail([FromQuery] int employeeId,[FromQuery] DateOnly date,[FromQuery] long? scheduleId,CancellationToken ct) => Ok(await management.Detail(Actor,employeeId,date,scheduleId,ct));
     [HttpGet("export"), ScreenPermission(AttendanceScreens.Attendance, "EXPORT")]
     public async Task<IActionResult> Export([FromQuery] DailyAttendanceQuery q,CancellationToken ct) => File(await management.Export(Actor,q,ct),"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","attendance.xlsx");
