@@ -45,6 +45,7 @@ export const screenRoutes={
 };
 // Permission editor placement follows menu ownership, independently of route access aliases.
 export const roleScreenRoutes={...screenRoutes,
+ '/workspace/attendance':['WEB_MY_ATTENDANCE'],
  '/workspace/leave':['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
  '/hr/leave':['WEB_LEAVE_MANAGEMENT'],
  '/hr/organization':['WEB_ORGANIZATION'],

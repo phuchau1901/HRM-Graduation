@@ -6,8 +6,8 @@ import {e} from '../../utils.js';
 import {icon} from '../../components/ui.js';
 
 const requestScopeScreens=['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'];
-export const roleUsesEmployeeScope=code=>['WEB_WORK_SCHEDULES','WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS','WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT',...requestScopeScreens].includes(code);
-export const roleHasScopeAction=(code,flag)=>code==='WEB_WORK_SCHEDULES'?['VIEW','NEW','UPDATE','DELETE','EXPORT'].includes(flag):requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):['WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT'].includes(code)?['VIEW','UPDATE'].includes(flag):roleUsesEmployeeScope(code);
+export const roleUsesEmployeeScope=code=>['WEB_ATTENDANCE','WEB_WORK_SCHEDULES','WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS','WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT',...requestScopeScreens].includes(code);
+export const roleHasScopeAction=(code,flag)=>code==='WEB_ATTENDANCE'?['VIEW','NEW','UPDATE','APPROVE','EXPORT'].includes(flag):code==='WEB_WORK_SCHEDULES'?['VIEW','NEW','UPDATE','DELETE','EXPORT'].includes(flag):requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):['WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT'].includes(code)?['VIEW','UPDATE'].includes(flag):roleUsesEmployeeScope(code);
 
 export function roleScopeSelect(code,flag,label,value='SELF',disabled=false){
  if(!roleHasScopeAction(code,flag))return '';
@@ -28,11 +28,12 @@ export function roleScopeDraft(screens,matrixScreens){
 }
 
 export function roleScreenCatalog(catalog){
- const names={WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_LEAVE_BALANCES:'Số dư phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công',WEB_LEAVE_MANAGEMENT:'Leave Management',WEB_WORK_SCHEDULES:'Lịch phân ca'};
+ const names={WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_LEAVE_BALANCES:'Số dư phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công',WEB_LEAVE_MANAGEMENT:'Leave Management',WEB_WORK_SCHEDULES:'Lịch phân ca',WEB_ATTENDANCE:'Chấm công',WEB_MY_ATTENDANCE:'My Attendance'};
  const screens=catalog.map(screen=>names[screen.code]?{...screen,name:names[screen.code]}:{...screen});
  for(const [code,name] of Object.entries(names))if(!screens.some(screen=>screen.code===code))screens.push({id:'pending-'+code,code,name,platform:'WEB',isActive:true,registrationRequired:true});
  return screens;
 }
+export function roleMenuEntrySelected(entry,selected,menuKey=null){return entry.id===selected?.id&&(entry.menuKey?entry.menuKey===menuKey:!menuKey);}
 export function roleMenuGroups(catalog,platform='WEB'){
  catalog=catalog.filter(screen=>(!screen.platform||screen.platform===platform)).map(screen=>['WEB_LEAVE_MANAGEMENT','WEB_LEAVE_BALANCES'].includes(screen.code)?{...screen,name:screen.code==='WEB_LEAVE_MANAGEMENT'?'Leave Management':'Số dư phép'}:screen);
  const used=new Set();const groups=navigationForScreens(nav,catalog,platform).map(group=>{
@@ -71,7 +72,7 @@ export function applyMyLeaveViewDependency(draft,changed,scopes=new Map(),enable
 export function rolePermissionPatch(draft,changed,disabled=new Set(),scopes=new Map()){
  const effectiveDraft=new Map([...draft].map(([code,flags])=>[code,{...flags}])),effectiveScopes=new Map([...scopes].map(([code,values])=>[code,{...values}])),effectiveChanged=new Set(changed);
  applyMyLeaveViewDependency(effectiveDraft,effectiveChanged,effectiveScopes);
- return [...effectiveChanged].map(code=>({screenCode:code,standard:{...effectiveDraft.get(code)},...(effectiveScopes.has(code)?{dataScopes:{...effectiveScopes.get(code)}}:{}),...(disabled.has(code)?{extendedActions:[]}: {})}));
+ return [...effectiveChanged].map(code=>({screenCode:code,standard:{...effectiveDraft.get(code)},...(code!=='WEB_MY_ATTENDANCE'&&effectiveScopes.has(code)?{dataScopes:{...effectiveScopes.get(code)}}:{}),...(disabled.has(code)?{extendedActions:[]}: {})}));
 }
 function roleGrant(code,flag){return apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p.canView==='Y'&&p[flag]==='Y');}
 export function roleSessionIdentity(session=apiSession()){
@@ -112,8 +113,8 @@ export async function mountRoles(root,filters={}){
  let saving=false;let nameDraft=role.name;
  const openByPlatform={WEB:new Set(),MOBILE:new Set()};
  for(const platform of ['WEB','MOBILE'])for(const group of roleMenuGroups(screens,platform)){
- if(group.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id))openByPlatform[platform].add(group.name);
- for(const subgroup of group.subgroups||[])if(subgroup.entries.some(screen=>screen.id===selectedByPlatform[platform]?.id)){openByPlatform[platform].add(group.name);openByPlatform[platform].add(subgroup.key);}
+ if(group.entries.some(screen=>roleMenuEntrySelected(screen,selectedByPlatform[platform],menuKeyByPlatform[platform])))openByPlatform[platform].add(group.name);
+ for(const subgroup of group.subgroups||[])if(subgroup.entries.some(screen=>roleMenuEntrySelected(screen,selectedByPlatform[platform],menuKeyByPlatform[platform]))){openByPlatform[platform].add(group.name);openByPlatform[platform].add(subgroup.key);}
  }
  const canSave=roleGrant('WEB_PERMISSIONS','canUpdate')&&roleGrant('WEB_PERMISSIONS','canApprove');
  function dependencyReady(){
@@ -125,13 +126,13 @@ export async function mountRoles(root,filters={}){
  let dependencyError='';
  function syncMyLeave(strict=false){try{applyMyLeaveViewDependency(draft,changed,scopes,enabledScreens,screens);dependencyError='';}catch(error){dependencyError=error.message;if(strict)throw error;}}
 
- function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.name)}" data-screen-enabled="${e(screen.id)}" data-screen-menu-key="${e(screen.menuKey||'')}" data-screen-label="${e(screen.label||screen.name)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||screen.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
+ function screenSwitch(screen){return `<span class="role-switch role-screen-switch"><input type="checkbox" role="switch" aria-label="Phân quyền màn hình ${e(screen.label||screen.name)}" data-screen-enabled="${e(screen.id)}" data-screen-menu-key="${e(screen.menuKey||'')}" data-screen-label="${e(screen.label||screen.name)}" ${enabledScreens.has(screen.code)?'checked':''} ${!canSave||screen.isActive===false||screen.registrationRequired||saving?'disabled':''}><span class="role-switch-track" aria-hidden="true"></span></span>`;}
  function draw(){
  const menuGroups=roleMenuGroups(screens,activePlatform),openGroups=openByPlatform[activePlatform];
  root.innerHTML=`<button class="btn" id="role-back">← Danh sách role</button><h2 class="role-editor-title">Chỉnh sửa role</h2><form id="role-rename" class="role-name-editor"><label for="role-name">Tên role</label><input id="role-name" name="name" required maxlength="100" value="${e(nameDraft)}" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}><button class="btn" ${!roleGrant('WEB_ROLES','canUpdate')||saving?'disabled':''}>Lưu tên role</button><span class="muted">${e(role.code)}</span></form><p class="muted">Chọn màn hình trong menu, sau đó bật các chức năng được phép.</p><div class="tabs role-platform-tabs" role="tablist" aria-label="Nền tảng phân quyền">${['WEB','MOBILE'].map(platform=>`<button type="button" role="tab" id="role-platform-${platform}" class="tab ${activePlatform===platform?'active':''}" aria-selected="${activePlatform===platform}" aria-controls="role-platform-panel" data-role-platform="${platform}">${icon(platform==='WEB'?'grid':'person',16)} ${platform}</button>`).join('')}</div><div class="role-editor" id="role-platform-panel" role="tabpanel" aria-labelledby="role-platform-${activePlatform}"><nav class="role-menu" aria-label="Màn hình phân quyền">${menuGroups.map(group=>{
- const active=group.entries.some(screen=>screen.id===selected?.id),open=openGroups.has(group.name);
+ const active=group.entries.some(screen=>roleMenuEntrySelected(screen,selected,menuKeyByPlatform[activePlatform])),open=openGroups.has(group.name);
  const screenButton=screen=>{
- const selectedEntry=screen.menuKey?screen.menuKey===menuKeyByPlatform[activePlatform]:selected?.id===screen.id;
+ const selectedEntry=roleMenuEntrySelected(screen,selected,menuKeyByPlatform[activePlatform]);
  return `<div class="role-screen-row"><button type="button" class="role-screen ${selectedEntry?'selected':''}" data-screen-id="${e(screen.id)}" data-screen-menu-key="${e(screen.menuKey||'')}" data-screen-label="${e(screen.label)}" ${selectedEntry?'aria-current="true"':''}><span>${e(screen.label)}</span>${changed.has(screen.code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(screen)}</div>`;
  };
  const renderedSubgroups=new Set();
@@ -140,7 +141,7 @@ export async function mountRoles(root,filters={}){
  if(renderedSubgroups.has(screen.parentMenu))return '';
  renderedSubgroups.add(screen.parentMenu);
  const subgroup=group.subgroups.find(item=>item.name===screen.parentMenu);if(!subgroup)return '';
- const expanded=openGroups.has(subgroup.key),subActive=subgroup.entries.some(item=>item.id===selected?.id);
+ const expanded=openGroups.has(subgroup.key),subActive=subgroup.entries.some(item=>roleMenuEntrySelected(item,selected,menuKeyByPlatform[activePlatform]));
  return `<button type="button" class="role-subgroup-toggle ${subActive?'active':''}" data-role-group="${e(subgroup.key)}" aria-expanded="${expanded}"><span>${e(subgroup.name)}</span><span class="chev ${expanded?'role-chevron-open':''}">${icon('chevron',12)}</span>${subgroup.entries.some(item=>changed.has(item.code))?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${expanded?`<div class="submenu role-submenu role-subgroup-items">${subgroup.entries.map(screenButton).join('')}</div>`:''}`;
  }).join('');
  return `${group.section?`<div class="nav-caption">${e(group.section)}</div>`:''}${group.nested?`<button type="button" class="nav-item ${active?'active':''}" data-role-group="${e(group.name)}" aria-expanded="${open}">${icon(group.icon,18)}<span class="role-nav-group-copy"><span class="nav-label">${e(group.name)}</span>${group.description?`<small>${e(group.description)}</small>`:''}</span><span class="chev ${open?'role-chevron-open':''}">${icon('chevron',12)}</span></button>${open?`<div class="submenu role-submenu">${menuEntries}</div>`:''}`:`<div class="role-screen-row"><button type="button" class="nav-item ${active?'active':''}" data-screen-id="${e(group.entries[0].id)}" ${active?'aria-current="true"':''}>${icon(group.icon,18)}<span>${e(group.name)}</span>${changed.has(group.entries[0].code)?'<span class="role-change-dot" aria-label="Chưa lưu"></span>':''}</button>${screenSwitch(group.entries[0])}</div>`}`;

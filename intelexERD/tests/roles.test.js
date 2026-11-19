@@ -220,3 +220,24 @@ test('Leave Management exposes separate VIEW and UPDATE scopes and saves them on
  const patch=rolePermissionPatch(new Map([['WEB_LEAVE_MANAGEMENT',{VIEW:true,UPDATE:true}]]),new Set(['WEB_LEAVE_MANAGEMENT']),new Set(),scopes);
  assert.deepEqual(patch.find(item=>item.screenCode==='WEB_LEAVE_MANAGEMENT').dataScopes,{VIEW:'ALL',UPDATE:'DEPARTMENT'});
 });
+
+test('My Attendance and Attendance selections and permission patches remain independent',async()=>{
+ const {roleMenuEntrySelected}=await import('../assets/js/pages/administration/roles.js');
+ const personal={id:82,code:'WEB_MY_ATTENDANCE',platform:'WEB'},admin={id:81,code:'WEB_ATTENDANCE',platform:'WEB'};
+ const groups=roleMenuGroups(roleScreenCatalog([personal,admin]));
+ for(const [selected,name,label] of [[personal,'My Workspace','My Attendance'],[admin,'Human Resources','Attendance']]){
+ const matches=groups.flatMap(group=>group.entries.map(entry=>({group:group.name,entry}))).filter(item=>roleMenuEntrySelected(item.entry,selected));
+ assert.equal(matches.length,1);assert.equal(matches[0].group,name);assert.equal(matches[0].entry.label,label);
+ }
+ const draft=new Map([['WEB_MY_ATTENDANCE',{VIEW:true,NEW:true,UPDATE:true}],['WEB_ATTENDANCE',{VIEW:false,NEW:false,UPDATE:false}]]);
+ const patch=rolePermissionPatch(draft,new Set(['WEB_MY_ATTENDANCE']),new Set(),new Map([['WEB_MY_ATTENDANCE',{VIEW:'SELF',NEW:'SELF',UPDATE:'SELF'}]]));
+ assert.equal(patch.length,1);assert.equal(patch[0].screenCode,'WEB_MY_ATTENDANCE');assert.equal(draft.get('WEB_ATTENDANCE').VIEW,false);assert.equal(patch[0].dataScopes,undefined);
+});
+
+test('My Attendance has no scope controls or scope payload, including legacy matrix scopes',async()=>{
+ const {roleHasScopeAction,roleUsesEmployeeScope,roleScopeSelect,roleScopeDraft}=await import('../assets/js/pages/administration/roles.js');
+ assert.equal(roleUsesEmployeeScope('WEB_MY_ATTENDANCE'),false);
+ for(const [flag] of roleFlags){assert.equal(roleHasScopeAction('WEB_MY_ATTENDANCE',flag),false);assert.equal(roleScopeSelect('WEB_MY_ATTENDANCE',flag,'Quyền','ALL'),'');}
+ const scopes=roleScopeDraft([{code:'WEB_MY_ATTENDANCE'}],[{screenCode:'WEB_MY_ATTENDANCE',dataScopes:{VIEW:'ALL',UPDATE:'SELF'}}]);assert.equal(scopes.has('WEB_MY_ATTENDANCE'),false);
+ assert.equal(roleUsesEmployeeScope('WEB_ATTENDANCE'),true);assert.equal(roleHasScopeAction('WEB_ATTENDANCE','VIEW'),true);
+});

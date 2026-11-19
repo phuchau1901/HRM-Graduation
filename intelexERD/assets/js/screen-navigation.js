@@ -23,7 +23,7 @@ export function navigationForScreens(base,catalog,platform='WEB'){
  }
  const seen=new Set();
  for(const screen of catalog){
-  if(screen.platform&&screen.platform!==platform||!new RegExp('^'+platform+'_[A-Z0-9_]+$').test(screen.code||'')||['WEB_LEAVE','WEB_MY_LEAVE'].includes(screen.code)||assigned.has(screen.code)||seen.has(screen.code))continue;
+  if(screen.platform&&screen.platform!==platform||!new RegExp('^'+platform+'_[A-Z0-9_]+$').test(screen.code||'')||['WEB_LEAVE','WEB_MY_LEAVE','WEB_MY_ATTENDANCE'].includes(screen.code)||assigned.has(screen.code)||seen.has(screen.code))continue;
   seen.add(screen.code);
   const metadata=screenNavigationGroup(screen.code),path='/screens/'+screen.code;
   let group=groups.find(group=>group.name===metadata.name);

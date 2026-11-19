@@ -240,3 +240,12 @@ export function apiCancelWorkSchedule(id,version){return request(`/api/work-sche
 export function apiPreviewWorkSchedules(payload){return request('/api/work-schedules/bulk/preview',{method:'POST',body:JSON.stringify(payload)});}
 export function apiAssignWorkSchedules(payload){if(!payload.previewToken)throw Error('Cần xem trước phân ca trước khi xác nhận.');return request('/api/work-schedules/'+(payload.copyFrom?'copy':'bulk'),{method:'POST',body:JSON.stringify(payload)});}
 export function apiExportWorkSchedules(filters){return request('/api/work-schedules/export?'+workScheduleQuery(filters),{cache:'no-store',responseType:'blob'});}
+
+function attendanceManagementQuery(filters={},own=false){const query=new URLSearchParams();for(const key of ['date','from','to','page','pageSize','departmentId','teamId','employeeId','search','status'])if((!own||!['employeeId','departmentId','teamId','search'].includes(key))&&filters[key]!==undefined&&filters[key]!==null&&filters[key]!=='')query.set(key,filters[key]);return query.toString();}
+export function apiAttendanceDaily(filters={},signal){return request('/api/attendances/daily?'+attendanceManagementQuery(filters),{cache:'no-store',signal});}
+export function apiMyAttendance(filters={},signal){return request('/api/attendances/me?'+attendanceManagementQuery(filters,true),{cache:'no-store',signal});}
+export function apiAttendanceStatistics(filters={}){return request('/api/attendances/statistics?'+attendanceManagementQuery(filters),{cache:'no-store'});}
+export function apiAttendanceFilters(){return request('/api/attendances/filters',{cache:'no-store'});}
+export function apiAttendanceDetail(row){const query=new URLSearchParams({employeeId:row.employeeId,date:row.workDate});if(row.scheduleId)query.set('scheduleId',row.scheduleId);return request('/api/attendances/daily/detail?'+query,{cache:'no-store'});}
+export function apiAttendancePunch(action,payload){if(!['check-in','check-out'].includes(action))throw Error('Thao tác chấm công không hợp lệ.');return request('/api/attendances/'+action,{method:'POST',body:JSON.stringify(payload)});}
+export function apiAttendanceExport(filters={}){const {page,pageSize,...query}=filters;return request('/api/attendances/export?'+attendanceManagementQuery(query),{cache:'no-store',responseType:'blob'});}

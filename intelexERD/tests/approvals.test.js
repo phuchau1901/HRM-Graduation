@@ -17,8 +17,8 @@ test('each request tab requires its own screen grant and menu entry',()=>{
 });
 test('role menu lists request screens under My Workspace with independent view scopes',()=>{
  const screens=roleScreenCatalog([]),group=roleMenuGroups(screens).find(group=>group.name==='My Workspace');
- assert.equal(group.nested,true);assert.deepEqual(group.entries.filter(entry=>entry.code!=='WEB_LEAVE_BALANCES').map(entry=>entry.code),['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS']);
- for(const code of group.entries.map(entry=>entry.code)){
+ assert.equal(group.nested,true);assert.deepEqual(group.entries.filter(entry=>['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'].includes(entry.code)).map(entry=>entry.code),['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS']);
+ for(const code of group.entries.filter(entry=>['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'].includes(entry.code)).map(entry=>entry.code)){
   const html=roleScopeSelect(code,'VIEW','Xem','DEPARTMENT');for(const label of ['Chính mình','Cùng phòng ban','Tất cả'])assert.ok(html.includes(label));
   assert.equal(roleScopeSelect(code,'NEW','Thêm mới'), '');
  }
