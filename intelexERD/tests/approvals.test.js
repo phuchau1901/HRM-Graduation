@@ -86,3 +86,10 @@ test('workspace request tabs use only their matching permission and always query
  }
  }finally{apiLogout();globalThis.fetch=previous;}
 });
+
+test('KPI approval tab requires approval and KPI VIEW grants and has no independent create grant',()=>{
+ const current={permissions:[{platform:'WEB',code:'WEB_APPROVALS',canView:'Y',canApprove:'Y'},{platform:'WEB',code:'WEB_KPI_EVALUATION',canView:'Y',canApprove:'Y'}]};
+ assert.equal(approvalTabs.kpi.label,'KPI');assert.deepEqual(visibleApprovalTabs(current),['all','kpi']);assert.equal(workflowGrant('kpi','canApprove',current),true);
+ for(const code of ['WEB_APPROVALS','WEB_KPI_EVALUATION']){const denied={permissions:current.permissions.map(p=>p.code===code?{...p,canView:'N'}:p)};assert.ok(!visibleApprovalTabs(denied).includes('kpi'));}
+ const noApprove={permissions:current.permissions.map(p=>p.code==='WEB_KPI_EVALUATION'?{...p,canApprove:'N'}:p)};assert.equal(workflowGrant('kpi','canApprove',noApprove),false);
+});

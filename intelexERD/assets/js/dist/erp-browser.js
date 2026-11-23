@@ -628,12 +628,17 @@ function toast(text,{type='success',duration=5000,automatic=false}={}){
  const timer=setTimeout(()=>item.remove(),duration);dismiss.onclick=()=>{clearTimeout(timer);item.remove();};
 }
 
-function confirmDialog({title='Xác nhận',message='',confirmLabel='Xác nhận',cancelLabel='Hủy'}={}){
- const previousFocus=document.activeElement,dialog=document.createElement('dialog');dialog.className='app-confirm-dialog';dialog.setAttribute('aria-labelledby','app-confirm-title');dialog.setAttribute('aria-describedby','app-confirm-message');
+function confirmDialog({title='Xác nhận',message='',confirmLabel='Xác nhận',cancelLabel='Hủy',role='dialog'}={}){
+ const previousFocus=document.activeElement,dialog=document.createElement('dialog');dialog.className='app-confirm-dialog';dialog.setAttribute('role',role);dialog.setAttribute('aria-labelledby','app-confirm-title');dialog.setAttribute('aria-describedby','app-confirm-message');
  dialog.innerHTML=`<div class="app-confirm-content"><span class="app-confirm-icon" aria-hidden="true">${icon('shield',24)}</span><h2 id="app-confirm-title"></h2><p id="app-confirm-message"></p></div><div class="app-confirm-actions"><button type="button" class="btn" data-confirm-cancel autofocus></button><button type="button" class="btn primary" data-confirm-accept></button></div>`;
- dialog.querySelector('h2').textContent=title;dialog.querySelector('p').textContent=message;dialog.querySelector('[data-confirm-cancel]').textContent=cancelLabel;dialog.querySelector('[data-confirm-accept]').textContent=confirmLabel;
+ dialog.querySelector('h2').textContent=title;dialog.querySelector('p').textContent=message;dialog.querySelector('[data-confirm-cancel]').textContent=cancelLabel;dialog.querySelector('[data-confirm-accept]').textContent=confirmLabel;if(cancelLabel===null){dialog.querySelector('[data-confirm-cancel]').hidden=true;dialog.querySelector('[data-confirm-cancel]').removeAttribute('autofocus');dialog.querySelector('[data-confirm-accept]').setAttribute('autofocus','');}
  return new Promise(resolve=>{let settled=false;function finish(accepted){if(settled)return;settled=true;if(dialog.open)dialog.close();dialog.remove();if(previousFocus?.isConnected&&!previousFocus.disabled)previousFocus.focus();resolve(accepted);}
  dialog.querySelector('[data-confirm-cancel]').onclick=()=>finish(false);dialog.querySelector('[data-confirm-accept]').onclick=()=>finish(true);dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();}});dialog.addEventListener('keyup',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();finish(false);}});dialog.addEventListener('cancel',event=>{event.preventDefault();finish(false);});dialog.addEventListener('close',()=>finish(false));document.body.appendChild(dialog);dialog.showModal();});
+}
+
+function alertDialog({title='Thông báo',message='',buttonLabel='OK'}={}){
+ // A dedicated popup replaces the automatic mutation toast for this handled error.
+ toastVersion++;return confirmDialog({title,message,confirmLabel:buttonLabel,cancelLabel:null,role:'alertdialog'});
 }
 
 
@@ -2033,10 +2038,11 @@ async function mountMyLeaveBalances(root){
 
 // Source: pages/approval-center/approvals.js
 
-const approvalTabs={all:{label:'Tất cả',screen:'WEB_APPROVALS'},leave:{label:'Nghỉ phép',screen:'WEB_LEAVE_REQUESTS'},overtime:{label:'Tăng ca',screen:'WEB_OVERTIME_REQUESTS'},adjustment:{label:'Điều chỉnh công',screen:'WEB_ATTENDANCE_ADJUSTMENTS'}};
+const approvalTabs={all:{label:'Tất cả',screen:'WEB_APPROVALS'},kpi:{label:'KPI',screen:'WEB_APPROVALS'},leave:{label:'Nghỉ phép',screen:'WEB_LEAVE_REQUESTS'},overtime:{label:'Tăng ca',screen:'WEB_OVERTIME_REQUESTS'},adjustment:{label:'Điều chỉnh công',screen:'WEB_ATTENDANCE_ADJUSTMENTS'}};
 const workflowStatuses={PENDING:'Chờ duyệt',APPROVED:'Đã duyệt',REJECTED:'Từ chối',CANCELLED:'Đã hủy',CANCELLATION_PENDING:'Chờ duyệt hủy'};
 function workflowGrant(kind,flag='canView',session=apiSession()){
  const code=approvalTabs[kind]?.screen;
+ if(kind==='kpi'&&!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_KPI_EVALUATION'&&p.canView==='Y'&&p[flag]==='Y'))return false;
  return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code===code&&p.canView==='Y'&&p[flag]==='Y');
 }
 function visibleApprovalTabs(session=apiSession()){return Object.keys(approvalTabs).filter(kind=>workflowGrant(kind,'canView',session));}
@@ -2064,7 +2070,7 @@ function workflowKpiDetailLink(item,session=apiSession()){
  const href=workflowKpiDetailHref(item,session);return href?`<a class="btn small" data-workflow-kpi-detail href="${href}">Chi tiết</a>`:'';
 }
 
-function workflowRows(kind,items,session=apiSession()){return items.map((item,index)=>`<tr><td>${e(item.employeeName||`Nhân viên #${item.employeeId||'—'}`)}</td><td>${e(kind==='leave'?item.leaveTypeName:kind==='all'?({LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công',KPI_EVALUATION:'Đánh giá KPI'})[item.requestType]||item.requestType:approvalTabs[kind].label)}</td><td class="organization-description">${e(item.reason||'—')}</td><td>${e(workflowPeriod(kind,item))}</td><td><span class="badge ${item.status==='APPROVED'?'active':''}">${e(workflowStatuses[item.status]||item.status)}</span></td><td>${item.requestType==='KPI_EVALUATION'?(workflowKpiDetailLink(item,session)||'<button type="button" class="btn small" disabled title="Cần quyền xem KPI và mã bản ghi KPI hợp lệ">Chi tiết</button>'):`<button type="button" class="btn small" data-workflow-detail="${index}">Chi tiết</button>`}</td></tr>`).join('');}
+function workflowRows(kind,items,session=apiSession()){return items.map((item,index)=>`<tr><td>${e(item.employeeName||`Nhân viên #${item.employeeId||'—'}`)}</td><td>${e(kind==='leave'?item.leaveTypeName:kind==='all'?({LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công',KPI_EVALUATION:'Đánh giá KPI'})[item.requestType]||item.requestType:approvalTabs[kind].label)}</td><td class="organization-description">${e(item.reason||'—')}</td><td>${e(workflowPeriod(kind,item))}</td><td><span class="badge ${item.status==='APPROVED'?'active':item.status==='REJECTED'?'rejected':''}">${e(workflowStatuses[item.status]||item.status)}</span></td><td>${item.requestType==='KPI_EVALUATION'?(workflowKpiDetailLink(item,session)||'<button type="button" class="btn small" disabled title="Cần quyền xem KPI và mã bản ghi KPI hợp lệ">Chi tiết</button>'):`<button type="button" class="btn small" data-workflow-detail="${index}">Chi tiết</button>`}</td></tr>`).join('');}
 
 function openWorkflowCreate(type,onCreated=async()=>{}){
   if(!workflowGrant(type,'canNew'))return;
@@ -2078,7 +2084,11 @@ function openWorkflowCreate(type,onCreated=async()=>{}){
   form.onsubmit=async event=>{
    event.preventDefault();event.stopPropagation();if(busy)return;
    try{if(!workflowGrant(type,'canNew'))throw Error('Bạn không có quyền tạo yêu cầu này.');const payload=workflowCreatePayload(type,Object.fromEntries(new FormData(form)));if(type==='leave'&&!types.some(item=>item.isActive&&Number(item.id)===payload.leaveTypeId))throw Error('Chọn loại nghỉ phép đang hoạt động.');busy=true;fieldset.disabled=true;await apiCreateWorkflow(type,payload);if(form.isConnected){closeDialog();toast('Đã gửi yêu cầu');await onCreated();}}
-   catch(err){if(form.isConnected)feedback.textContent=err.message;}
+   catch(err){if(form.isConnected){
+    if(type==='leave'&&/^insufficient available leave balance\.?$/i.test(String(err.message||'').trim())){
+     const message='Số dư phép khả dụng của bạn không đủ cho thời gian nghỉ đã chọn. Vui lòng điều chỉnh ngày nghỉ hoặc kiểm tra lại số dư phép.';feedback.textContent=message;await alertDialog({title:'Không đủ số dư phép',message});
+    }else feedback.textContent=err.message;
+   }}
    finally{busy=false;if(form.isConnected)fieldset.disabled=false;}
   };
  }
@@ -2087,22 +2097,22 @@ async function mountApprovals(root,filters={},options={}){
  if(!root)return;
  const routeParams=new URLSearchParams(globalThis.location?.hash?.split('?')[1]||''),approvalModule=routeParams.get('module'),requestedApprovalId=Number(routeParams.get('approvalId'));let requestedApprovalOpened=false;
  const tabs=options.kind?(workflowGrant(options.kind)?[options.kind]:[]):visibleApprovalTabs();if(!tabs.length){root.innerHTML='<p>Bạn chưa có quyền xem yêu cầu hoặc phê duyệt.</p>';return;}
- let kind=tabs.includes(filters.tab)?filters.tab:tabs[0],page=1,status='',view=options.own?'MY':'ALL',generation=0;
+ let kind=tabs.includes(filters.tab)?filters.tab:approvalModule==='PERFORMANCE'&&tabs.includes('kpi')?'kpi':tabs[0],page=1,status='',view=options.own?'MY':'ALL',generation=0;
  async function list(){
   const current=++generation;root.innerHTML='<p role="status">Đang tải yêu cầu…</p>';
   try{
    if(!workflowGrant(kind))throw Error('Bạn chưa có quyền xem loại yêu cầu này.');
-   const query=new URLSearchParams({page,pageSize:20,view});if(status)query.set('status',status);if(kind==='all'&&['PERFORMANCE','LEAVE'].includes(approvalModule))query.set('module',approvalModule);
-   const result=await apiWorkflowList(kind,query.toString());if(!root.isConnected||current!==generation)return;
+   const query=new URLSearchParams({page,pageSize:20,view});if(status)query.set('status',status);if(kind==='kpi'){query.set('module','PERFORMANCE');query.set('requestType','KPI_EVALUATION');}else if(kind==='all'&&approvalModule==='LEAVE')query.set('module','LEAVE');
+   const result=await apiWorkflowList(kind==='kpi'?'all':kind,query.toString());if(!root.isConnected||current!==generation)return;
    if(!Array.isArray(result?.data))throw Error('Danh sách yêu cầu không hợp lệ.');
-   root.innerHTML=`${options.kind?'':`<div class="tabs" role="tablist" aria-label="Loại yêu cầu">${tabs.map(key=>`<button type="button" role="tab" aria-selected="${key===kind}" class="tab ${key===kind?'active':''}" data-workflow-tab="${key}">${approvalTabs[key].label}</button>`).join('')}</div>`}<form class="toolbar" id="workflow-filters">${options.own?'':`<select name="view" aria-label="Phạm vi yêu cầu">${[['ALL','Trong phạm vi được phép'],['MY','Của tôi'],['TEAM','Cùng phòng ban']].map(([value,label])=>`<option value="${value}" ${value===view?'selected':''}>${label}</option>`).join('')}</select>`}<select name="status" aria-label="Trạng thái yêu cầu"><option value="">Tất cả trạng thái</option>${Object.entries(workflowStatuses).map(([value,label])=>`<option value="${value}" ${value===status?'selected':''}>${label}</option>`).join('')}</select><button class="btn">Lọc</button>${kind!=='all'&&workflowGrant(kind,'canNew')?'<button type="button" class="btn primary" id="workflow-create">Tạo yêu cầu</button>':''}</form><div class="table-wrap"><table><thead><tr><th>Người gửi</th><th>Loại yêu cầu</th><th>Lý do</th><th>Thời gian</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${workflowRows(kind,result.data)}</tbody></table></div>${result.data.length?'':'<p>Không có yêu cầu phù hợp.</p>'}<div class="toolbar user-pagination"><button type="button" class="btn" id="workflow-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} yêu cầu</span><button type="button" class="btn" id="workflow-next" ${page*20>=result.total?'disabled':''}>Trang sau</button></div>`;
+   root.innerHTML=`${options.kind?'':`<div class="tabs" role="tablist" aria-label="Loại yêu cầu">${tabs.map(key=>`<button type="button" role="tab" aria-selected="${key===kind}" class="tab ${key===kind?'active':''}" data-workflow-tab="${key}">${approvalTabs[key].label}</button>`).join('')}</div>`}<form class="toolbar" id="workflow-filters">${options.own?'':`<select name="view" aria-label="Phạm vi yêu cầu">${[['ALL','Trong phạm vi được phép'],['MY','Của tôi'],['TEAM','Cùng phòng ban']].map(([value,label])=>`<option value="${value}" ${value===view?'selected':''}>${label}</option>`).join('')}</select>`}<select name="status" aria-label="Trạng thái yêu cầu"><option value="">Tất cả trạng thái</option>${Object.entries(workflowStatuses).map(([value,label])=>`<option value="${value}" ${value===status?'selected':''}>${label}</option>`).join('')}</select><button class="btn">Lọc</button>${!['all','kpi'].includes(kind)&&workflowGrant(kind,'canNew')?'<button type="button" class="btn primary" id="workflow-create">Tạo yêu cầu</button>':''}</form><div class="table-wrap"><table><thead><tr><th>Người gửi</th><th>Loại yêu cầu</th><th>Lý do</th><th>Thời gian</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${workflowRows(kind,result.data)}</tbody></table></div>${result.data.length?'':'<p>Không có yêu cầu phù hợp.</p>'}<div class="toolbar user-pagination"><button type="button" class="btn" id="workflow-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} yêu cầu</span><button type="button" class="btn" id="workflow-next" ${page*20>=result.total?'disabled':''}>Trang sau</button></div>`;
    root.querySelectorAll('[data-workflow-tab]').forEach(button=>button.onclick=()=>{kind=button.dataset.workflowTab;page=1;status='';view='ALL';list();});
    const form=root.querySelector('#workflow-filters');form.onsubmit=event=>{event.preventDefault();event.stopPropagation();view=options.own?'MY':form.elements.view.value;status=form.elements.status.value;page=1;list();};
    root.querySelector('#workflow-prev').onclick=()=>{page--;list();};root.querySelector('#workflow-next').onclick=()=>{page++;list();};
    root.querySelector('#workflow-create')?.addEventListener('click',()=>openWorkflowCreate(kind,()=>{if(root.isConnected)return list();}));
    root.querySelectorAll('[data-workflow-kpi-detail]').forEach(link=>link.onclick=()=>{if(document.getElementById('modal')?.open)closeDialog();});
    root.querySelectorAll('[data-workflow-detail]').forEach(button=>button.onclick=()=>detail(kind,result.data[Number(button.dataset.workflowDetail)]));
-   if(kind==='all'&&!requestedApprovalOpened&&Number.isSafeInteger(requestedApprovalId)&&requestedApprovalId>0){requestedApprovalOpened=true;await detail('all',{id:requestedApprovalId});}
+   if(['all','kpi'].includes(kind)&&!requestedApprovalOpened&&Number.isSafeInteger(requestedApprovalId)&&requestedApprovalId>0){requestedApprovalOpened=true;await detail('all',{id:requestedApprovalId});}
   }catch(err){if(root.isConnected&&current===generation){root.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn">Thử lại</button>`;root.querySelector('button').onclick=list;}}
  }
  async function detail(type,row){
