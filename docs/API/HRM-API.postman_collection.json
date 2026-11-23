@@ -1293,7 +1293,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/users?page=1&pageSize=30",
-            "description": "Danh sách metadata tài khoản\nPermission: WEB_USERS/VIEW\nParameters: page, pageSize, search (UserId/email)\nToàn cục theo quyền quản trị; không trả employee PII, hash, salt, password, authVersion.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 401/403; phân trang; không có trường bí mật."
+            "description": "Danh sách metadata tài khoản\nPermission: WEB_USERS/VIEW\nParameters: page, pageSize, search (UserId/email)\nToàn cục theo quyền quản trị; không trả employee PII, hash, salt, password, authVersion.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 401/403; phân trang; không có trường bí mật.\nAdminUserDto includes employeeId, employeeCode and employeeName (linked employees.FullName). employeeCode/employeeName are null when no employee is linked. This also applies to user detail and mutation responses; permissions are unchanged."
           },
           "response": [],
           "event": [
@@ -1314,7 +1314,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/users/{{targetUserId}}",
-            "description": "Chi tiết metadata và Role\nPermission: WEB_USERS/VIEW\nParameters: targetUserId: string<=100\nChỉ các trường DTO; UserId giữ nguyên dạng chuỗi; ETag bao gồm auth version nội bộ.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 404; ETag; không hash/salt."
+            "description": "Chi tiết metadata và Role\nPermission: WEB_USERS/VIEW\nParameters: targetUserId: string<=100\nChỉ các trường DTO; UserId giữ nguyên dạng chuỗi; ETag bao gồm auth version nội bộ.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: 404; ETag; không hash/salt.\nAdminUserDto includes employeeId, employeeCode and employeeName (linked employees.FullName). employeeCode/employeeName are null when no employee is linked. This also applies to user detail and mutation responses; permissions are unchanged."
           },
           "response": [],
           "event": [
@@ -1765,7 +1765,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/roles/{{roleId}}/users?page=1&pageSize=30",
-            "description": "Danh sách tài khoản của Role\nPermission: WEB_ROLES/VIEW AND WEB_USERS/VIEW\nParameters: roleId; page, pageSize, search\nKhông lộ user metadata chỉ bằng quyền xem Role; cần cả WEB_USERS/VIEW.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Thiếu một trong hai grant403; Role không tồn tại404; phân trang."
+            "description": "Danh sách tài khoản của Role\nPermission: WEB_ROLES/VIEW AND WEB_USERS/VIEW\nParameters: roleId; page, pageSize, search\nKhông lộ user metadata chỉ bằng quyền xem Role; cần cả WEB_USERS/VIEW.\nExpected 200. Errors: 400/401/403/404/409/412/428/429(reset)/413/500 as applicable.\nTests: Thiếu một trong hai grant403; Role không tồn tại404; phân trang.\nAdminUserDto includes employeeId, employeeCode and employeeName (linked employees.FullName). employeeCode/employeeName are null when no employee is linked. This also applies to user detail and mutation responses; permissions are unchanged."
           },
           "response": [],
           "event": [

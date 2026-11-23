@@ -58,6 +58,23 @@ public sealed class AdministrationApiTests
         internal async Task<RoleMatrixDto> Matrix() => (await Client.GetFromJsonAsync<RoleMatrixDto>($"/api/roles/{TargetRole}/permissions"))!;
         public void Dispose() { Client.Dispose(); App.Dispose(); }
     }
+    [Fact]
+    public async Task UserListDetailAndMutationIncludeLinkedEmployeeCodeAndName()
+    {
+        using var f=new Fixture();await f.Start();int employeeId;
+        using(var scope=f.App.Services.CreateScope())
+        {
+            var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var department=new HRM.API.Modules.Organization.Entities.Department{DepartmentCode="USER-EMP",DepartmentName="User Employee"};db.Add(department);await db.SaveChangesAsync();
+            var employee=new HRM.API.Modules.Employees.Entities.Employee{EmployeeCode="NV009876",FullName="Nguyễn Văn A",Email="linked@example.invalid",DepartmentId=department.Id,HireDate=new(2020,1,1)};db.Add(employee);await db.SaveChangesAsync();employeeId=employee.Id;
+            await db.Set<User>().Where(u=>u.UserId=="target").ExecuteUpdateAsync(s=>s.SetProperty(u=>u.EmployeeId,(int?)employeeId));
+        }
+        var detail=await f.User();Assert.Equal(employeeId,detail.EmployeeId);Assert.Equal("NV009876",detail.EmployeeCode);Assert.Equal("Nguyễn Văn A",detail.EmployeeName);
+        var page=(await f.Client.GetFromJsonAsync<HRM.API.Common.PageResult<AdminUserDto>>("/api/users?search=target"))!;
+        var linked=Assert.Single(page.Data);Assert.Equal(detail.EmployeeName,linked.EmployeeName);Assert.Equal(detail.EmployeeCode,linked.EmployeeCode);
+        var unlinked=await f.User("api-user");Assert.Null(unlinked.EmployeeId);Assert.Null(unlinked.EmployeeCode);Assert.Null(unlinked.EmployeeName);
+        var update=await f.Send(HttpMethod.Patch,"/api/users/target/status",new{status="LOCKED"},detail.Version);update.EnsureSuccessStatusCode();var changed=(await update.Content.ReadFromJsonAsync<AdminUserDto>())!;Assert.Equal(detail.EmployeeCode,changed.EmployeeCode);Assert.Equal(detail.EmployeeName,changed.EmployeeName);
+    }
     [Theory]
     [InlineData(null)]
     [InlineData("SELF")]

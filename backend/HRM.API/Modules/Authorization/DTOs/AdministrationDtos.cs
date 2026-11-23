@@ -87,7 +87,7 @@ public sealed record AdminScreenDto(long Id, string Code, string Name, string Pl
 public sealed record AdminRoleDto(long Id, string Code, string Name);
 public sealed record AdminRoleView(long Id, string Code, string Name, string Version);
 public sealed record AdminUserDto(string UserId, string Email, int? EmployeeId, string Status, DateTime CreatedAt,
-    IReadOnlyList<AdminRoleDto> Roles, string Version, string? EmployeeCode = null);
+    IReadOnlyList<AdminRoleDto> Roles, string Version, string? EmployeeCode = null, string? EmployeeName = null);
 public sealed record MatrixScreenDto(long ScreenId, string ScreenCode, string Name, string Platform, bool IsActive,
     Dictionary<string, bool> Standard, string[] ExtendedActions, Dictionary<string, string?> DataScopes);
 public sealed record RoleMatrixDto(long RoleId, IReadOnlyList<MatrixScreenDto> Screens, string Version);

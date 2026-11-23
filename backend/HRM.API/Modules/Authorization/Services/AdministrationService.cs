@@ -104,12 +104,13 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
     {
         var u = await db.Set<User>().AsNoTracking().Where(x => x.UserId == id)
             .Select(x => new { x.UserId, x.Email, x.EmployeeId, x.Status, x.CreatedAt, x.AuthVersion,
-                EmployeeCode = db.Employees.Where(employee => employee.Id == x.EmployeeId).Select(employee => employee.EmployeeCode).FirstOrDefault() })
+                EmployeeCode = db.Employees.Where(employee => employee.Id == x.EmployeeId).Select(employee => employee.EmployeeCode).FirstOrDefault(),
+                EmployeeName = db.Employees.Where(employee => employee.Id == x.EmployeeId).Select(employee => employee.FullName).FirstOrDefault() })
             .SingleOrDefaultAsync(ct) ?? throw BusinessException.Missing();
         var roles = await (from ur in db.Set<UserRole>() join r in db.Set<Role>() on ur.RoleID equals r.ID
                            where ur.UserID == id orderby r.ID select new AdminRoleDto(r.ID, r.Code, r.Name)).ToListAsync(ct);
         return new(u.UserId, u.Email, u.EmployeeId, u.Status, u.CreatedAt, roles,
-            Version(new { u.UserId, u.Email, u.EmployeeId, u.Status, u.CreatedAt, u.AuthVersion, roles, u.EmployeeCode }), u.EmployeeCode);
+            Version(new { u.UserId, u.Email, u.EmployeeId, u.Status, u.CreatedAt, u.AuthVersion, roles, u.EmployeeCode, u.EmployeeName }), u.EmployeeCode, u.EmployeeName);
     }
     public async Task<PageResult<AdminUserDto>> UserList(PageQuery q, long? roleId, CancellationToken ct)
     {

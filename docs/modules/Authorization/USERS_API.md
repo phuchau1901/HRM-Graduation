@@ -152,6 +152,7 @@ Response 201 mẫu (Id/code phụ thuộc dữ liệu hiện có):
   "email": "account@example.invalid",
   "employeeId": 1,
   "employeeCode": "NV000001",
+  "employeeName": "Nguyễn Văn A",
   "status": "ACTIVE",
   "createdAt": "2026-11-14T09:00:00Z",
   "roles": [],
@@ -159,7 +160,7 @@ Response 201 mẫu (Id/code phụ thuộc dữ liệu hiện có):
 }
 ```
 
-AdminUserDto thêm `employeeCode` nullable để UI nhận mã đã cấp. GET user/list và response mutation dùng DTO này cũng trả mã liên kết, null nếu chưa gắn nhân viên. Chỉ bổ sung định danh, không trả toàn bộ hồ sơ Employee trong API Users.
+AdminUserDto có `employeeCode` và `employeeName` nullable, lấy từ employees.EmployeeCode và employees.FullName theo employeeId liên kết. GET user/list và response mutation dùng DTO này đều trả mã/tên; cả hai null nếu chưa gắn nhân viên. Chỉ bổ sung định danh, không trả toàn bộ hồ sơ Employee trong API Users.
 
 Transaction dùng cùng AppDbContext và Serializable boundary hiện có của AdministrationService. User, Employee, code chính thức, UserRoles và audit EMPLOYEE_CREATED/USER_CREATE commit cùng nhau. Lỗi tạo user (duplicate, FK/DB, role/policy hoặc recovery guard) rollback cả Employee đã insert; không còn hồ sơ tạo dở. Không gọi CreateAsync có transaction riêng từ API User; dùng core tạo Employee trong transaction chung. Deadlock/lock-timeout MySQL chỉ được retry tối đa 3 lần sau rollback và kiểm tra lại quyền; không retry duplicate key hoặc lỗi commit không rõ kết quả.
 
@@ -339,3 +340,5 @@ Response thành công:
 ```
 
 Password policy hiện có thể cấu hình tại [System Settings](../System/API.md). Policy DB dùng chung cho User create và cả hai loại reset; không hardcode12..128 ở DTO nữa, không áp hồi tố vào login/password cũ.
+
+GET `/api/users` phục vụ màn hình `/admin/users`; backend không có route `/admin/users` riêng. Mỗi user trả `employeeId`, `employeeCode`, `employeeName` theo liên kết nhân viên. GET chi tiết, danh sách user theo role và các response mutation AdminUserDto cùng dùng các field này. Quyền WEB_USERS và các kiểm tra quản trị hiện hành không thay đổi; không trả thêm toàn bộ hồ sơ Employee.
