@@ -9,7 +9,7 @@ import {roleScreenCatalog,roleMenuGroups} from '../assets/js/pages/administratio
 const route=()=>({requestType:'LEAVE',allowSelfApproval:false,steps:[{approverType:'TEAM_LEAD'},{approverType:'DEPARTMENT_MANAGER'},{approverType:'HR',userId:' hr-user ',roleCode:'HR'}]});
 
 test('System Settings owns attendance and workflow tabs with independent permission aliases',()=>{
- assert.deepEqual(Object.keys(systemSettingTabs),['password-policy','attendance','leave-accrual','approval-workflow']);assert.equal(masterDataTabs.attendance,undefined);
+ assert.deepEqual(Object.keys(systemSettingTabs),['password-policy','attendance','leave-accrual','terminal-logging','approval-workflow']);assert.equal(masterDataTabs.attendance,undefined);
  assert.ok(screenRoutes['/admin/settings'].includes('WEB_APPROVAL_SETTINGS'));assert.ok(!screenRoutes['/admin/master-data'].includes('WEB_SYSTEM_SETTINGS'));
  const screens=roleScreenCatalog([{id:10,code:'WEB_SYSTEM_SETTINGS',name:'Hệ thống',platform:'WEB'}]);
  const admin=roleMenuGroups(screens).find(group=>group.name==='Administration');

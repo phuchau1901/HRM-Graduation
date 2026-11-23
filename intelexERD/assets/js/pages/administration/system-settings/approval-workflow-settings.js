@@ -1,12 +1,12 @@
 import {apiApprovalWorkflowSettings,apiEmployees,apiSession} from '../../../api/client.js';
 import {e} from '../../../utils.js';
 
-export const workflowRouteTypes={LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công'};
+export const workflowRouteTypes={LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công',KPI_EVALUATION:'Đánh giá KPI'};
 const workflowApprovers={TEAM_LEAD:'Trưởng team',DEPARTMENT_MANAGER:'Quản lý phòng ban',USER:'Nhân viên được chỉ định',HR:'HR (tương thích cũ)'};
 export function approvalSettingsGrant(flag,session=apiSession()){return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_APPROVAL_SETTINGS'&&p.canView==='Y'&&p[flag]==='Y');}
 export function approvalSettingsPayload(version,routes){
  if(!Number.isSafeInteger(version)||version<0)throw Error('Phiên bản cấu hình không hợp lệ.');
- if(!Array.isArray(routes)||routes.length<1||routes.length>4)throw Error('Cần từ 1 đến 4 loại quy trình.');
+ if(!Array.isArray(routes)||routes.length<1||routes.length>Object.keys(workflowRouteTypes).length)throw Error('Cần từ 1 đến '+Object.keys(workflowRouteTypes).length+' loại quy trình.');
  const used=new Set();
  const normalized=routes.map(route=>{
   if(!Object.hasOwn(workflowRouteTypes,route.requestType)||used.has(route.requestType))throw Error('Loại yêu cầu không hợp lệ hoặc bị trùng.');used.add(route.requestType);
@@ -74,7 +74,7 @@ export async function mountApprovalWorkflowSettings(root,{onDirty=()=>{},onSavin
    const changed=()=>onDirty(true);
    function drawRoutes(){
     container.innerHTML=routes.map((route,i)=>`<section class="approval-route"><div class="approval-route-heading"><h3>Quy trình ${i+1}</h3><button type="button" class="btn danger small" data-route-remove="${i}">Xóa quy trình</button></div><div class="form-grid"><label>Loại yêu cầu<select data-route="${i}" data-route-field="requestType">${Object.entries(workflowRouteTypes).map(([value,label])=>`<option value="${value}" ${value===route.requestType?'selected':''}>${label}</option>`).join('')}</select></label><label class="approval-self-toggle"><span>Cho phép người gửi tự duyệt</span><span class="role-switch"><input type="checkbox" role="switch" data-route="${i}" data-route-field="allowSelfApproval" ${route.allowSelfApproval?'checked':''}><span class="role-switch-track" aria-hidden="true"></span></span></label></div><ol class="approval-route-steps">${route.steps.map((step,j)=>`<li><div class="approval-step-heading"><strong>Bước ${j+1}</strong><div><button type="button" class="btn small" data-route="${i}" data-step-up="${j}" ${j===0?'disabled':''}>Lên</button><button type="button" class="btn small" data-route="${i}" data-step-down="${j}" ${j===route.steps.length-1?'disabled':''}>Xuống</button><button type="button" class="btn danger small" data-route="${i}" data-step-remove="${j}" ${route.steps.length<=1?'disabled':''}>Xóa bước</button></div></div><div class="form-grid">${approvalStepFields(step,i,j,employees,employeeSearches.get(step)||'')}</div></li>`).join('')}</ol><button type="button" class="btn" data-step-add="${i}" ${route.steps.length>=10?'disabled':''}>Thêm bước duyệt</button></section>`).join('')||'<p>Chưa cấu hình quy trình. Thêm quy trình để bắt đầu.</p>';
-    root.querySelector('#approval-settings-add').disabled=routes.length>=4;
+    root.querySelector('#approval-settings-add').disabled=routes.length>=Object.keys(workflowRouteTypes).length;
     container.querySelectorAll('[data-route-field]').forEach(input=>input.onchange=()=>{if(saving)return;routes[Number(input.dataset.route)][input.dataset.routeField]=input.type==='checkbox'?input.checked:input.value;changed();});
     container.querySelectorAll('[data-step-field]').forEach(input=>{
  const update=()=>{if(saving)return;const route=routes[Number(input.dataset.route)],j=Number(input.dataset.step),key=input.dataset.stepField;
@@ -102,7 +102,7 @@ export async function mountApprovalWorkflowSettings(root,{onDirty=()=>{},onSavin
     }catch(err){if(form.isConnected){feedback.innerHTML=`${e(err.message)}. Bạn có thể nhập ID nhân viên. <button type="button" class="btn">Thử lại</button>`;feedback.querySelector('button').onclick=loadEmployees;}}
    }
    loadEmployees();
-   root.querySelector('#approval-settings-add').onclick=()=>{if(saving||routes.length>=4)return;const requestType=Object.keys(workflowRouteTypes).find(type=>!routes.some(route=>route.requestType===type));if(requestType){routes.push({requestType,allowSelfApproval:false,steps:[{approverType:'TEAM_LEAD'}]});changed();drawRoutes();}};
+   root.querySelector('#approval-settings-add').onclick=()=>{if(saving||routes.length>=Object.keys(workflowRouteTypes).length)return;const requestType=Object.keys(workflowRouteTypes).find(type=>!routes.some(route=>route.requestType===type));if(requestType){routes.push({requestType,allowSelfApproval:false,steps:[{approverType:'TEAM_LEAD'}]});changed();drawRoutes();}};
    form.onsubmit=async event=>{
     event.preventDefault();event.stopPropagation();if(saving||!editable)return;
     try{

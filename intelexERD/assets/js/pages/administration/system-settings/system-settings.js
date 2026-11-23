@@ -1,10 +1,11 @@
+import {mountTerminalLogging} from './terminal-logging.js';
 import {mountLeaveAccrualSettings} from './leave-accrual-settings.js';
 import {mountApprovalWorkflowSettings} from './approval-workflow-settings.js';
 import {apiSystemSettings,apiSession} from '../../../api/client.js';
 import {e} from '../../../utils.js';
 import {field,icon} from '../../../components/ui.js';
 
-export const systemSettingTabs={'password-policy':'Chính sách mật khẩu',attendance:'Chấm công','leave-accrual':'Cấp/Thu hồi phép','approval-workflow':'Quy trình phê duyệt'};
+export const systemSettingTabs={'password-policy':'Chính sách mật khẩu',attendance:'Chấm công','leave-accrual':'Cấp/Thu hồi phép','terminal-logging':'Terminal Logging','approval-workflow':'Quy trình phê duyệt'};
 const passwordSettingFlags=[['requireUppercase','Yêu cầu chữ hoa'],['requireLowercase','Yêu cầu chữ thường'],['requireDigit','Yêu cầu chữ số'],['requireSpecialCharacter','Yêu cầu ký tự đặc biệt'],['disallowUsernameInPassword','Không cho chứa tên đăng nhập']];
 const attendanceSettingFlags=[['requireQr','Yêu cầu mã QR'],['requireGps','Yêu cầu vị trí GPS'],['allowOvernightShifts','Cho phép ca qua đêm']];
 const attendanceSettingNumbers=[['checkInBeforeStartMinutes','Cho phép check-in trước giờ bắt đầu (phút)',1440],['checkInAfterStartMinutes','Cho phép check-in sau giờ bắt đầu (phút)',1440],['checkOutBeforeEndMinutes','Cho phép check-out trước giờ kết thúc (phút)',1440],['checkOutAfterEndMinutes','Cho phép check-out sau giờ kết thúc (phút)',1440],['lateGraceMinutes','Thời gian đi trễ được bỏ qua (phút)',240],['earlyLeaveGraceMinutes','Thời gian về sớm được bỏ qua (phút)',240]];
@@ -54,7 +55,7 @@ export async function mountSystemSettings(root,filters={},options={}){
  root.querySelectorAll('[data-system-tab]').forEach(button=>button.onclick=()=>{if(saving||button.dataset.systemTab===tab)return;if(dirty&&!confirm('Bỏ các thay đổi cấu hình chưa lưu?'))return;tab=button.dataset.systemTab;load();});
  if(options.embedded)root.querySelector('[role=tablist]').remove();
  const panel=root.querySelector('#system-settings-panel');
- if(kind==='approval-workflow'||kind==='leave-accrual'){await (kind==='leave-accrual'?mountLeaveAccrualSettings:mountApprovalWorkflowSettings)(panel,{onDirty:value=>{if(panel.isConnected){dirty=value;options.onDirty?.(value);}},onSaving:value=>{if(panel.isConnected){saving=value;options.onSaving?.(value);root.querySelectorAll('[data-system-tab]').forEach(button=>button.disabled=value);}}});return;}
+ if(kind==='approval-workflow'||kind==='leave-accrual'||kind==='terminal-logging'){await (kind==='terminal-logging'?mountTerminalLogging:kind==='leave-accrual'?mountLeaveAccrualSettings:mountApprovalWorkflowSettings)(panel,{onDirty:value=>{if(panel.isConnected){dirty=value;options.onDirty?.(value);}},onSaving:value=>{if(panel.isConnected){saving=value;options.onSaving?.(value);root.querySelectorAll('[data-system-tab]').forEach(button=>button.disabled=value);}}});return;}
 
  try{
  if(!systemSettingsGrant('canView'))throw Error('Bạn chưa có quyền xem WEB_SYSTEM_SETTINGS.');

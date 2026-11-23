@@ -50,7 +50,7 @@ test('contract type API preserves encoded legacy codes and sends correct CRUD me
 
 test('permission menu retains a Contract Types entry even before backend registration without inventing grants',async()=>{
  const {roleScreenCatalog}=await import('../assets/js/pages/administration/roles.js');
- const screens=roleScreenCatalog([]),entry=screens[0];
+ const screens=roleScreenCatalog([]),entry=screens.find(item=>item.code==='WEB_CONTRACT_TYPES');
  assert.equal(entry.code,'WEB_CONTRACT_TYPES');assert.equal(entry.name,'Loại hợp đồng');assert.equal(entry.registrationRequired,true);
  const menu=roleMenuGroups(screens).find(group=>group.name==='Administration');
  assert.equal(menu.subgroups[0].entries[0].code,'WEB_CONTRACT_TYPES');

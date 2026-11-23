@@ -28,6 +28,8 @@ export const screenRoutes={
  '/reports':['WEB_REPORTS'],
  '/documents':['WEB_DOCUMENTS'],
  '/notifications':['WEB_NOTIFICATIONS'],
+ '/performance/kpi-templates':['WEB_KPI_CONFIGURATION'],
+ '/performance/kpi-results':['WEB_KPI_EVALUATION'],
  '/work/schedules':['WEB_WORK_SCHEDULES'],
  '/hr/employees':['WEB_EMPLOYEES'],
  '/hr/organization':['WEB_ORGANIZATION'],
@@ -45,6 +47,7 @@ export const screenRoutes={
 };
 // Permission editor placement follows menu ownership, independently of route access aliases.
 export const roleScreenRoutes={...screenRoutes,
+ '/admin/roles':['WEB_ROLES','WEB_PERMISSIONS'],
  '/workspace/attendance':['WEB_MY_ATTENDANCE'],
  '/workspace/leave':['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
  '/hr/leave':['WEB_LEAVE_MANAGEMENT'],

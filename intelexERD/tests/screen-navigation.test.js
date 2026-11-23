@@ -7,10 +7,10 @@ import {roleMenuGroups} from '../assets/js/pages/administration/roles.js';
 import {login,apiLogout} from '../assets/js/api/client.js';
 
 test('payroll and performance screens move into their own groups without duplicate existing screens',()=>{
- const catalog=[{id:1,code:'WEB_SALARY_PROFILES',name:'Thiết lập lương nhân viên',platform:'WEB'},{id:2,code:'WEB_PAYROLL_PERIODS',name:'Quản lý bảng lương',platform:'WEB'},{id:3,code:'WEB_KPI_TEMPLATES',name:'Thiết lập KPI',platform:'WEB'},{id:4,code:'WEB_KPI_RESULTS',name:'Đánh giá KPI',platform:'WEB'},{id:5,code:'WEB_TEAM_MEMBERS',name:'Thành viên team',platform:'WEB'},{id:6,code:'WEB_CUSTOM',name:'Tùy chỉnh',platform:'WEB'}];
+ const catalog=[{id:1,code:'WEB_SALARY_PROFILES',name:'Thiết lập lương nhân viên',platform:'WEB'},{id:2,code:'WEB_PAYROLL_PERIODS',name:'Quản lý bảng lương',platform:'WEB'},{id:3,code:'WEB_KPI_CONFIGURATION',name:'Thiết lập KPI',platform:'WEB'},{id:4,code:'WEB_KPI_EVALUATION',name:'Đánh giá KPI',platform:'WEB'},{id:5,code:'WEB_TEAM_MEMBERS',name:'Thành viên team',platform:'WEB'},{id:6,code:'WEB_CUSTOM',name:'Tùy chỉnh',platform:'WEB'}];
  const groups=roleMenuGroups(catalog);
  assert.deepEqual(groups.find(group=>group.name==='Payroll & Compensation').entries.map(item=>item.id),[1,2]);
- assert.deepEqual(groups.find(group=>group.name==='Performance Management').entries.map(item=>item.id),[3,4]);
+ assert.deepEqual(groups.find(group=>group.name==='Performance Management').entries.map(item=>item.id).sort((a,b)=>a-b),[3,4]);
  assert.ok(!groups.some(group=>group.name==='Màn hình khác'));assert.equal(groups.flatMap(group=>group.entries).length,catalog.length);
  const menu=navigationForScreens(nav,catalog);assert.ok(!menu.find(group=>group.name==='Team Management').children.some(([,route])=>route==='/screens/WEB_TEAM_MEMBERS'));
  assert.equal(screenNavigationGroup('WEB_EMPLOYEE_SALARIES').name,'Payroll & Compensation');assert.equal(screenNavigationLabel({code:'WEB_KPI_RESULTS'}),'Đánh giá KPI');

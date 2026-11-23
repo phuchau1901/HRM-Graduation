@@ -150,13 +150,13 @@ test('Roles never substitutes demo roles when unauthenticated or when the API fa
  }finally{apiLogout();globalThis.fetch=original;}
 });
 
-test('System Settings expands into its four tabs with stable backend screen identities',()=>{
+test('System Settings expands into its five tabs with stable backend screen identities',()=>{
  const catalog=[{id:10,code:'WEB_SYSTEM_SETTINGS',name:'System Settings',platform:'WEB'},{id:11,code:'WEB_APPROVAL_SETTINGS',name:'Quy trình phê duyệt',platform:'WEB'}];
  const admin=roleMenuGroups(catalog).find(group=>group.name==='Administration');
  const submenu=admin.subgroups.find(group=>group.name==='System Settings');
  assert.equal(submenu.key,'Administration/System Settings');
- assert.deepEqual(submenu.entries.map(item=>item.label),['Chính sách mật khẩu','Chấm công','Cấp/Thu hồi phép','Quy trình phê duyệt']);
- assert.deepEqual(submenu.entries.map(item=>item.id),[10,10,10,11]);assert.equal(new Set(submenu.entries.map(item=>item.menuKey)).size,4);
+ assert.deepEqual(submenu.entries.map(item=>item.label),['Chính sách mật khẩu','Chấm công','Cấp/Thu hồi phép','Terminal Logging','Quy trình phê duyệt']);
+ assert.deepEqual(submenu.entries.map(item=>item.id),[10,10,10,10,11]);assert.equal(new Set(submenu.entries.map(item=>item.menuKey)).size,5);
  assert.equal(admin.entries.length,2);
  const changed=new Set(submenu.entries.slice(0,2).map(item=>item.code));
  assert.deepEqual(rolePermissionPatch(new Map([['WEB_SYSTEM_SETTINGS',{VIEW:true}]]),changed),[{screenCode:'WEB_SYSTEM_SETTINGS',standard:{VIEW:true}}]);
@@ -254,4 +254,19 @@ test('create role POST sends code/name only and preserves API errors without aut
  const saved=await apiCreateRole({code:'TEAM_ADMIN',name:'Quản lý team'});assert.equal(saved.id,90);assert.ok(calls[0].url.endsWith('/api/roles'));assert.equal(calls[0].options.method,'POST');assert.equal(calls[0].options.headers.has('If-Match'),false);assert.deepEqual(JSON.parse(calls[0].options.body),{code:'TEAM_ADMIN',name:'Quản lý team'});assert.equal(calls.length,1);
  let attempts=0;globalThis.fetch=async()=>{attempts++;return {ok:false,status:409,json:async()=>({message:'Mã role đã tồn tại'})};};await assert.rejects(apiCreateRole({code:'TEAM_ADMIN',name:'Name'}),/đã tồn tại/);assert.equal(attempts,1);
  }finally{globalThis.fetch=previous;}
+});
+
+test('legacy leave screens do not reappear under Other Screens or duplicate the current menu',()=>{
+ const source=[{id:1,code:'WEB_LEAVE',name:'Nghỉ phép cũ',platform:'WEB'},{id:2,code:'WEB_MY_LEAVE',name:'My Leave cũ',platform:'WEB'},{id:3,code:'WEB_LEAVE_MANAGEMENT',name:'Leave Management',platform:'WEB'},{id:4,code:'WEB_LEAVE_BALANCES',name:'Số dư phép',platform:'WEB'},{id:5,code:'WEB_MY_ATTENDANCE',name:'My Attendance',platform:'WEB'}];
+ const catalog=roleScreenCatalog(source),groups=roleMenuGroups(catalog),entries=groups.flatMap(group=>group.entries);
+ assert.ok(!entries.some(screen=>['WEB_LEAVE','WEB_MY_LEAVE'].includes(screen.code)));assert.ok(!groups.some(group=>group.name==='Màn hình khác'));
+ for(const code of ['WEB_LEAVE_MANAGEMENT','WEB_LEAVE_BALANCES','WEB_MY_ATTENDANCE'])assert.equal(entries.filter(screen=>screen.code===code).length,1);
+ assert.ok(catalog.some(screen=>screen.code==='WEB_LEAVE'));assert.ok(catalog.some(screen=>screen.code==='WEB_MY_LEAVE'));
+});
+
+test('standalone Permissions menu is removed while its API grant is configurable within Roles',async()=>{
+ const {nav,getPath}=await import('../assets/js/router.js');assert.ok(!nav.flatMap(group=>group.children||[]).some(([,path])=>path==='/admin/permissions'));
+ const entries=roleMenuGroups([{id:1,code:'WEB_ROLES',name:'Roles',platform:'WEB'},{id:2,code:'WEB_PERMISSIONS',name:'Permissions',platform:'WEB'}]).flatMap(group=>group.entries);
+ assert.equal(entries.find(screen=>screen.code==='WEB_PERMISSIONS').label,'Phân quyền role');assert.ok(!entries.some(screen=>screen.label==='Permissions'));
+ const previous=globalThis.location;try{globalThis.location={hash:'#/admin/permissions'};assert.equal(getPath(),'/admin/roles');globalThis.location.hash='#/screens/WEB_PERMISSIONS';assert.equal(getPath(),'/admin/roles');}finally{globalThis.location=previous;}
 });

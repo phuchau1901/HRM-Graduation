@@ -32,7 +32,7 @@ async function request(path,options={}){
  if(response.ok&&responseType==='blob')return response.blob();
  let body=null;try{body=await response.json();}catch{}
  if(!response.ok){if(response.status===401&&requestToken&&session?.accessToken===requestToken)apiLogout();const error=Error(body?.message||body?.error?.message||`API lỗi HTTP ${response.status}`);error.status=response.status;reportApiMutation(path,options,false,error.message);throw error;}
- reportApiMutation(path,options,true);return body;
+ reportApiMutation(path,options,true);return responseType==='etag'?{...body,etag:response.headers?.get('ETag')??null}:body;
 }
 
 export async function login(userId,password){
@@ -116,6 +116,11 @@ export function apiUserDetail(userId){return request(`/api/users/${encodeURIComp
 export function apiUpdateUser(userId,version,payload){
  if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
  return request(`/api/users/${encodeURIComponent(userId)}`,{method:'PUT',headers:{'If-Match':`"${version}"`},body:JSON.stringify(payload)});
+}
+export function apiSetUserStatus(userId,version,status){
+ if(!['ACTIVE','LOCKED','INACTIVE'].includes(status))throw Error('Trạng thái tài khoản không hợp lệ.');
+ if(!version)throw Error('Thiếu phiên bản tài khoản. Vui lòng tải lại.');
+ return request(`/api/users/${encodeURIComponent(userId)}/status`,{method:'PATCH',headers:{'If-Match':`"${version}"`},body:JSON.stringify({status})});
 }
 export function apiUpdateUserRoles(userId,version,roleIds){
  if(!version)throw Error('Thiếu version tài khoản. Vui lòng tải lại.');
@@ -250,3 +255,28 @@ export function apiAttendanceFilters(){return request('/api/attendances/filters'
 export function apiAttendanceDetail(row){const query=new URLSearchParams({employeeId:row.employeeId,date:row.workDate});if(row.scheduleId)query.set('scheduleId',row.scheduleId);return request('/api/attendances/daily/detail?'+query,{cache:'no-store'});}
 export function apiAttendancePunch(action,payload){if(!['check-in','check-out'].includes(action))throw Error('Thao tác chấm công không hợp lệ.');return request('/api/attendances/'+action,{method:'POST',body:JSON.stringify(payload)});}
 export function apiAttendanceExport(filters={}){const {page,pageSize,...query}=filters;return request('/api/attendances/export?'+attendanceManagementQuery(query),{cache:'no-store',responseType:'blob'});}
+
+function kpiEvaluationQuery(filters={}){const query=new URLSearchParams();for(const key of ['periodId','departmentId','teamId','employeeId','status','search','page','pageSize'])if(filters[key]!==undefined&&filters[key]!==null&&filters[key]!=='')query.set(key,filters[key]);return query.toString();}
+export function apiKpiEvaluations(filters={}){return request('/api/kpi/evaluations?'+kpiEvaluationQuery(filters),{cache:'no-store'});}
+export function apiKpiStatistics(filters={}){const {page,pageSize,...query}=filters;return request('/api/kpi/evaluations/statistics?'+kpiEvaluationQuery(query),{cache:'no-store'});}
+export function apiKpiLookups(){return request('/api/kpi/evaluations/lookups',{cache:'no-store'});}
+export function apiKpiPeriods(page=1){return request('/api/kpi/evaluations/periods?'+new URLSearchParams({page,pageSize:100}),{cache:'no-store'});}
+export function apiKpiEmployees(search='',page=1){return request('/api/kpi/evaluations/employees?'+new URLSearchParams({page,pageSize:20,search}),{cache:'no-store'});}
+export function apiKpiEvaluationDetail(id){return request(`/api/kpi/evaluations/${encodeURIComponent(id)}`,{cache:'no-store'});}
+export function apiKpiEvaluationAction(id,action,payload){if(!['start','results','submit','review'].includes(action))throw Error('Thao tác KPI không hợp lệ.');if(!Number.isSafeInteger(payload?.version)||payload.version<1)throw Error('Thiếu phiên bản KPI. Vui lòng tải lại.');return request(`/api/kpi/evaluations/${encodeURIComponent(id)}/${action}`,{method:action==='results'?'PUT':'POST',body:JSON.stringify(payload)});}
+export function apiKpiExport(filters={}){const {page,pageSize,...query}=filters;return request('/api/kpi/evaluations/export?'+kpiEvaluationQuery(query),{cache:'no-store',responseType:'blob'});}
+
+export function apiTerminalLoggingSettings(settings=null,etag=null){
+ if(settings===null)return request('/api/system-settings/terminal-logging',{cache:'no-store',responseType:'etag'});
+ if(typeof etag!=='string'||!/^"(?:0|[1-9]\d*)"$/.test(etag))throw Error('Thiếu phiên bản cấu hình log. Vui lòng tải lại.');
+ return request('/api/system-settings/terminal-logging',{method:'PUT',headers:{'If-Match':etag},body:JSON.stringify(settings),responseType:'etag'});
+}
+export function apiTerminalLoggingModules(){return request('/api/system-settings/terminal-logging/modules',{cache:'no-store'});}
+
+export function apiKpiConfigurationList(kind,filters={}){if(!['templates','metrics','periods','employees','units'].includes(kind))throw Error('Danh mục KPI không hợp lệ.');const query=new URLSearchParams();for(const key of ['page','pageSize','search',...(kind==='units'?['isActive']:[])])if(filters[key]!==undefined&&filters[key]!==null&&filters[key]!=='')query.set(key,filters[key]);return request('/api/kpi/configuration/'+kind+'?'+query,{cache:'no-store'});}
+export function apiKpiConfigurationLookups(){return request('/api/kpi/configuration/lookups',{cache:'no-store'});}
+export function apiKpiTemplateDetail(id){return request('/api/kpi/configuration/templates/'+encodeURIComponent(id),{cache:'no-store'});}
+export function apiKpiConfigurationSave(kind,payload,id=null){if(!['templates','metrics','periods','assignments','units'].includes(kind)||id!==null&&!['templates','metrics','units'].includes(kind))throw Error('Thao tác cấu hình KPI không hợp lệ.');if(id!==null&&(!Number.isSafeInteger(payload?.version)||payload.version<1))throw Error('Thiếu phiên bản KPI. Vui lòng tải lại.');return request('/api/kpi/configuration/'+kind+(id===null?'':'/'+encodeURIComponent(id)),{method:id===null?'POST':'PUT',body:JSON.stringify(payload)});}
+export function apiKpiConfigurationAction(kind,id,version){if(!['templates','periods'].includes(kind)||!Number.isSafeInteger(version)||version<1)throw Error('Thiếu phiên bản KPI. Vui lòng tải lại.');return request('/api/kpi/configuration/'+kind+'/'+encodeURIComponent(id)+'/'+(kind==='templates'?'publish':'close'),{method:'POST',body:JSON.stringify({version})});}
+
+export function apiKpiUnitDetail(id){return request('/api/kpi/configuration/units/'+encodeURIComponent(id),{cache:'no-store'});}

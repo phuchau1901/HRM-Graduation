@@ -149,3 +149,23 @@ test('mutation alerts support 204 and errors without including passwords or requ
  globalThis.fetch=async()=>({ok:false,status:409,json:async()=>({message:'Version changed'})});await assert.rejects(apiResetUserPassword('target',null,{type:'ADMIN_RESET',newPassword:'private-value'}));assert.equal(events.at(-1).detail.ok,false);assert.equal(events.at(-1).detail.message,'Version changed');
  }finally{globalThis.window=originalWindow;globalThis.fetch=originalFetch;}
 });
+
+test('turning user off/on uses status PATCH with current version and preserves unchanged locked accounts',async()=>{
+ const {saveSystemUserChanges}=await import('../assets/js/pages/administration/users.js');
+ const {apiSetUserStatus}=await import('../assets/js/api/client.js');
+ const previous=globalThis.fetch,calls=[],current={userId:'target/name',email:'x@example.com',employeeId:null,roles:[],status:'ACTIVE',version:'v1'};
+ try{globalThis.fetch=async(url,options)=>{calls.push({url,options});return ok({...current,status:JSON.parse(options.body).status,version:'v'+(calls.length+1)});};
+ await saveSystemUserChanges(current,{status:'INACTIVE'});assert.equal(current.status,'INACTIVE');assert.equal(current.version,'v2');assert.ok(calls[0].url.endsWith('/api/users/target%2Fname/status'));assert.equal(calls[0].options.method,'PATCH');assert.equal(calls[0].options.headers.get('If-Match'),'"v1"');assert.deepEqual(JSON.parse(calls[0].options.body),{status:'INACTIVE'});
+ await saveSystemUserChanges(current,{status:'ACTIVE'});assert.equal(current.status,'ACTIVE');assert.equal(calls[1].options.headers.get('If-Match'),'"v2"');
+ await saveSystemUserChanges(current,{status:'ACTIVE'});assert.equal(calls.length,2);
+ const locked={...current,status:'LOCKED'};await saveSystemUserChanges(locked,{status:'LOCKED'});assert.equal(calls.length,2);assert.equal(locked.status,'LOCKED');
+ assert.throws(()=>apiSetUserStatus('target',null,'INACTIVE'),/phiên bản/);assert.throws(()=>apiSetUserStatus('target','v1','OFF'),/Trạng thái/);
+ }finally{globalThis.fetch=previous;}
+});
+test('password reset followed by disabling reloads version; status errors keep prior state',async()=>{
+ const {saveSystemUserChanges}=await import('../assets/js/pages/administration/users.js');const previous=globalThis.fetch,calls=[],current={userId:'target',email:'x@example.com',employeeId:null,roles:[],status:'ACTIVE',version:'v1'};
+ try{globalThis.fetch=async(url,options)=>{calls.push({url,options});if(url.endsWith('/reset-password'))return {ok:true,status:204};if(url.endsWith('/status'))return ok({...current,status:'INACTIVE',version:'v3'});return ok({...current,version:'v2'});};
+ await saveSystemUserChanges(current,{newPassword:'new-test-password',status:'INACTIVE'});assert.equal(calls.length,3);assert.ok(calls[0].url.endsWith('/reset-password'));assert.ok(calls[1].url.endsWith('/api/users/target'));assert.equal(calls[2].options.headers.get('If-Match'),'"v2"');assert.equal(current.status,'INACTIVE');
+ let attempts=0;globalThis.fetch=async()=>{attempts++;return {ok:false,status:409,json:async()=>({message:'Không thể khóa quản trị cuối cùng'})};};await assert.rejects(saveSystemUserChanges(current,{status:'ACTIVE'}),/quản trị/);assert.equal(attempts,1);assert.equal(current.status,'INACTIVE');assert.equal(current.version,'v3');
+ }finally{globalThis.fetch=previous;}
+});

@@ -25,7 +25,7 @@ export function workflowCanCancel(kind,item,session=apiSession()){
  return !!session?.user?.employeeId&&kind!=='all'&&workflowGrant(kind,'canUpdate',session)&&String(item.employeeId)===String(session?.user?.employeeId)&&((kind==='leave'&&item.status==='APPROVED')||item.status==='PENDING');
 }
 function workflowPeriod(kind,item){return kind==='leave'?`${dateLabel(item.fromDate)} – ${dateLabel(item.toDate)}`:kind==='overtime'?`${workflowTime(item.startAt)} – ${workflowTime(item.endAt)}`:kind==='adjustment'?`${workflowTime(item.proposedCheckIn)} – ${workflowTime(item.proposedCheckOut)}`:workflowTime(item.createdAt);}
-export function workflowRows(kind,items){return items.map((item,index)=>`<tr><td>${e(item.employeeName||`Nhân viên #${item.employeeId||'—'}`)}</td><td>${e(kind==='leave'?item.leaveTypeName:kind==='all'?({LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công'})[item.requestType]||item.requestType:approvalTabs[kind].label)}</td><td class="organization-description">${e(item.reason||'—')}</td><td>${e(workflowPeriod(kind,item))}</td><td><span class="badge ${item.status==='APPROVED'?'active':''}">${e(workflowStatuses[item.status]||item.status)}</span></td><td><button type="button" class="btn small" data-workflow-detail="${index}">Chi tiết</button></td></tr>`).join('');}
+export function workflowRows(kind,items){return items.map((item,index)=>`<tr><td>${e(item.employeeName||`Nhân viên #${item.employeeId||'—'}`)}</td><td>${e(kind==='leave'?item.leaveTypeName:kind==='all'?({LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công',KPI_EVALUATION:'Đánh giá KPI'})[item.requestType]||item.requestType:approvalTabs[kind].label)}</td><td class="organization-description">${e(item.reason||'—')}</td><td>${e(workflowPeriod(kind,item))}</td><td><span class="badge ${item.status==='APPROVED'?'active':''}">${e(workflowStatuses[item.status]||item.status)}</span></td><td><button type="button" class="btn small" data-workflow-detail="${index}">Chi tiết</button></td></tr>`).join('');}
 
 export function openWorkflowCreate(type,onCreated=async()=>{}){
   if(!workflowGrant(type,'canNew'))return;
@@ -46,13 +46,14 @@ export function openWorkflowCreate(type,onCreated=async()=>{}){
 
 export async function mountApprovals(root,filters={},options={}){
  if(!root)return;
+ const routeParams=new URLSearchParams(globalThis.location?.hash?.split('?')[1]||''),approvalModule=routeParams.get('module'),requestedApprovalId=Number(routeParams.get('approvalId'));let requestedApprovalOpened=false;
  const tabs=options.kind?(workflowGrant(options.kind)?[options.kind]:[]):visibleApprovalTabs();if(!tabs.length){root.innerHTML='<p>Bạn chưa có quyền xem yêu cầu hoặc phê duyệt.</p>';return;}
  let kind=tabs.includes(filters.tab)?filters.tab:tabs[0],page=1,status='',view=options.own?'MY':'ALL',generation=0;
  async function list(){
   const current=++generation;root.innerHTML='<p role="status">Đang tải yêu cầu…</p>';
   try{
    if(!workflowGrant(kind))throw Error('Bạn chưa có quyền xem loại yêu cầu này.');
-   const query=new URLSearchParams({page,pageSize:20,view});if(status)query.set('status',status);
+   const query=new URLSearchParams({page,pageSize:20,view});if(status)query.set('status',status);if(kind==='all'&&['PERFORMANCE','LEAVE'].includes(approvalModule))query.set('module',approvalModule);
    const result=await apiWorkflowList(kind,query.toString());if(!root.isConnected||current!==generation)return;
    if(!Array.isArray(result?.data))throw Error('Danh sách yêu cầu không hợp lệ.');
    root.innerHTML=`${options.kind?'':`<div class="tabs" role="tablist" aria-label="Loại yêu cầu">${tabs.map(key=>`<button type="button" role="tab" aria-selected="${key===kind}" class="tab ${key===kind?'active':''}" data-workflow-tab="${key}">${approvalTabs[key].label}</button>`).join('')}</div>`}<form class="toolbar" id="workflow-filters">${options.own?'':`<select name="view" aria-label="Phạm vi yêu cầu">${[['ALL','Trong phạm vi được phép'],['MY','Của tôi'],['TEAM','Cùng phòng ban']].map(([value,label])=>`<option value="${value}" ${value===view?'selected':''}>${label}</option>`).join('')}</select>`}<select name="status" aria-label="Trạng thái yêu cầu"><option value="">Tất cả trạng thái</option>${Object.entries(workflowStatuses).map(([value,label])=>`<option value="${value}" ${value===status?'selected':''}>${label}</option>`).join('')}</select><button class="btn">Lọc</button>${kind!=='all'&&workflowGrant(kind,'canNew')?'<button type="button" class="btn primary" id="workflow-create">Tạo yêu cầu</button>':''}</form><div class="table-wrap"><table><thead><tr><th>Người gửi</th><th>Loại yêu cầu</th><th>Lý do</th><th>Thời gian</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${workflowRows(kind,result.data)}</tbody></table></div>${result.data.length?'':'<p>Không có yêu cầu phù hợp.</p>'}<div class="toolbar user-pagination"><button type="button" class="btn" id="workflow-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} yêu cầu</span><button type="button" class="btn" id="workflow-next" ${page*20>=result.total?'disabled':''}>Trang sau</button></div>`;
@@ -61,6 +62,7 @@ export async function mountApprovals(root,filters={},options={}){
    root.querySelector('#workflow-prev').onclick=()=>{page--;list();};root.querySelector('#workflow-next').onclick=()=>{page++;list();};
    root.querySelector('#workflow-create')?.addEventListener('click',()=>openWorkflowCreate(kind,()=>{if(root.isConnected)return list();}));
    root.querySelectorAll('[data-workflow-detail]').forEach(button=>button.onclick=()=>detail(kind,result.data[Number(button.dataset.workflowDetail)]));
+   if(kind==='all'&&!requestedApprovalOpened&&Number.isSafeInteger(requestedApprovalId)&&requestedApprovalId>0){requestedApprovalOpened=true;await detail('all',{id:requestedApprovalId});}
   }catch(err){if(root.isConnected&&current===generation){root.innerHTML=`<p role="alert">${e(err.message)}</p><button type="button" class="btn">Thử lại</button>`;root.querySelector('button').onclick=list;}}
  }
  async function detail(type,row){
@@ -74,7 +76,7 @@ export async function mountApprovals(root,filters={},options={}){
    if(type==='overtime')pairs.push(['Số giờ đề nghị',e(item.requestedHours)],['Số giờ được duyệt',e(item.approvedHours??'—')]);
    if(type==='adjustment')pairs.push(['ID chấm công',e(item.attendanceId)]);
    const currentStep=type==='all'?data.steps?.find(step=>Number(step.stepNo)===Number(item.currentStepNo)&&step.approverUserId===apiSession()?.user?.userId&&step.decision==='PENDING'):null;
-   const canDecide=type==='all'&&workflowGrant('all','canApprove')&&currentStep&&['PENDING','CANCELLATION_PENDING'].includes(item.status),canCancel=workflowCanCancel(type,item);
+   const canDecide=type==='all'&&workflowGrant('all','canApprove')&&(item.requestType!=='KPI_EVALUATION'||apiSession()?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_KPI_EVALUATION'&&p.canView==='Y'&&p.canApprove==='Y'))&&currentStep&&['PENDING','CANCELLATION_PENDING'].includes(item.status),canCancel=workflowCanCancel(type,item);
    panel.innerHTML=`${details(pairs)}${type==='all'?`<h3>Tiến trình duyệt</h3>${(data.steps||[]).map(step=>`<p>Bước ${e(step.stepNo)} · ${e(step.approverUserId)} · ${e(workflowStatuses[step.decision]||step.decision)}${step.comment?` · ${e(step.comment)}`:''}</p>`).join('')}`:''}${canCancel||canDecide?`<form id="workflow-action-form"><label>Lý do<textarea name="reason" required maxlength="1000"></textarea></label><div class="form-actions">${canCancel?'<button class="btn danger" name="action" value="cancel">Hủy yêu cầu</button>':'<button class="btn danger" name="action" value="reject">Từ chối</button><button class="btn primary" name="action" value="approve">Phê duyệt</button>'}</div><p role="alert"></p></form>`:''}`;
    const form=panel.querySelector('form');if(!form)return;let busy=false;
    form.onsubmit=async event=>{

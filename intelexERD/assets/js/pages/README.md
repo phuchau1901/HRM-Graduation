@@ -16,3 +16,9 @@ Các trang dùng chung tiếp tục được nhập từ `shared/`; không sao c
 - `work/work-schedules.js`: lịch phân ca tuần/tháng, phân hàng loạt và sao chép qua preview, xuất CSV; route `/work/schedules`, quyền `WEB_WORK_SCHEDULES`.
 
 - `attendance/attendance-management.js`: `/workspace/attendance` dùng `/me`; `/hr/attendance` dùng daily/statistics/filters/detail/export. Giao diện cá nhân dùng `WEB_MY_ATTENDANCE`, quản trị dùng `WEB_ATTENDANCE`; điều chỉnh dùng quyền riêng `WEB_ATTENDANCE_ADJUSTMENTS`. Backend phải hỗ trợ quyền cá nhân tại các endpoint /me, detail và punch trước khi chỉ cấp WEB_MY_ATTENDANCE cho tài khoản.
+
+- `performance/kpi-results.js`: `/performance/kpi-results`, quyền `WEB_KPI_EVALUATION`; danh sách, thống kê, tự đánh giá, đánh giá quản lý và theo dõi phê duyệt qua module PERFORMANCE.
+
+- `administration/system-settings/terminal-logging.js`: cấu hình log terminal theo user và module tại System Settings; quyền `WEB_SYSTEM_SETTINGS`, lưu bare settings với ETag/If-Match.
+
+- `performance/kpi-templates.js`: `/performance/kpi-templates`, quyền `WEB_KPI_CONFIGURATION` với scope VIEW/NEW/UPDATE; mẫu KPI, chỉ tiêu, danh mục đơn vị, kỳ đánh giá và giao/copy KPI. Đơn vị chỉ tiêu tải từ `/api/kpi/configuration/units?isActive=true` qua tất cả trang; giữ mã đơn vị cũ khi sửa. Link cũ `WEB_KPI_TEMPLATES` chuyển sang đường dẫn mới.

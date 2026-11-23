@@ -14,3 +14,11 @@ export function toast(text,{type='success',duration=5000,automatic=false}={}){
  item.append(message,dismiss);container.prepend(item);
  const timer=setTimeout(()=>item.remove(),duration);dismiss.onclick=()=>{clearTimeout(timer);item.remove();};
 }
+
+export function confirmDialog({title='Xác nhận',message='',confirmLabel='Xác nhận',cancelLabel='Hủy'}={}){
+ const previousFocus=document.activeElement,dialog=document.createElement('dialog');dialog.className='app-confirm-dialog';dialog.setAttribute('aria-labelledby','app-confirm-title');dialog.setAttribute('aria-describedby','app-confirm-message');
+ dialog.innerHTML=`<div class="app-confirm-content"><span class="app-confirm-icon" aria-hidden="true">${icon('shield',24)}</span><h2 id="app-confirm-title"></h2><p id="app-confirm-message"></p></div><div class="app-confirm-actions"><button type="button" class="btn" data-confirm-cancel autofocus></button><button type="button" class="btn primary" data-confirm-accept></button></div>`;
+ dialog.querySelector('h2').textContent=title;dialog.querySelector('p').textContent=message;dialog.querySelector('[data-confirm-cancel]').textContent=cancelLabel;dialog.querySelector('[data-confirm-accept]').textContent=confirmLabel;
+ return new Promise(resolve=>{let settled=false;function finish(accepted){if(settled)return;settled=true;if(dialog.open)dialog.close();dialog.remove();if(previousFocus?.isConnected&&!previousFocus.disabled)previousFocus.focus();resolve(accepted);}
+ dialog.querySelector('[data-confirm-cancel]').onclick=()=>finish(false);dialog.querySelector('[data-confirm-accept]').onclick=()=>finish(true);dialog.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();}});dialog.addEventListener('keyup',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();finish(false);}});dialog.addEventListener('cancel',event=>{event.preventDefault();finish(false);});dialog.addEventListener('close',()=>finish(false));document.body.appendChild(dialog);dialog.showModal();});
+}
