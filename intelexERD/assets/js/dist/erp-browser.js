@@ -882,7 +882,7 @@ function kpiStatisticsMarkup(response=null,error=''){
 }
 function kpiResultsRows(rows){return rows.map(row=>`<tr><td><strong>${e(row.employeeName)}</strong><small>${e(row.employeeCode)}</small></td><td>${e(row.departmentName)}<small>${e(row.teamName||'—')}</small></td><td>${e(row.periodKey)}</td><td><span class="badge ${row.status==='APPROVED'?'active':row.status==='REJECTED'?'high':''}">${e(kpiEvaluationStatuses[row.status]||row.status)}</span></td><td>${kpiNumber(row.finalScore)}</td><td><button class="btn small" type="button" data-kpi-detail="${row.id}">Chi tiết</button></td></tr>`).join('');}
 
-function mountKpiResults(root,{employeeFilter=true}={}){
+function mountKpiResults(root,{employeeFilter=false}={}){
  if(!root)return ()=>{};if(!kpiEvaluationGrant('canView')){root.innerHTML='<p>Bạn cần quyền WEB_KPI_EVALUATION/VIEW để xem đánh giá KPI.</p>';return ()=>{};}
  let filters={},page=1,generation=0,metadataGeneration=0,rows=[],teams=[],periods=[],employeePage=1,employeeGeneration=0,searchTimer,employeeTimer,dialogForm=null,disposed=false,detailGeneration=0,detailDirty=false,detailBusy=false;
  const pageSize=20,active=()=>!disposed&&root.isConnected;
@@ -1287,9 +1287,10 @@ function attendanceReport(f){const rows=reportRows(f);return `<div class="toolba
 
 // Source: pages/notifications/notifications.js
 
-const notificationTabs=[['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['system','Hệ thống']];
+const notificationTabs=[['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['kpi','KPI'],['system','Hệ thống']];
 function notificationCategory(item){
  const source=String(item.source||'').toUpperCase(),reference=String(item.referenceType||'').toUpperCase();
+ if(reference==='KPI_PERIOD')return 'kpi';
  const attendance=['ATTENDANCE','WORK_SCHEDULE','SHIFT'];
  if(source==='SYSTEM')return attendance.includes(reference)?'attendance':'system';
  if(source==='WORKFLOW')return 'leave';
@@ -1311,7 +1312,7 @@ function notificationRows(items){
  return items.map(item=>`<button type="button" class="notification-row api-notification-row ${item.readAt?'':'unread'}" data-noti-read="${e(item.id)}"><span class="icon-tile blue">${icon('bell',16)}</span><span class="api-notification-content"><strong>${e(item.title)}</strong><span class="api-notification-text">${e(item.content)}</span><small>${e(notificationTime(item.publishedAt||item.createdAt))} · ${item.readAt?'Đã đọc':'Chưa đọc'}</small></span>${item.readAt?'':'<span class="api-notification-dot" aria-label="Chưa đọc"></span>'}</button>`).join('');
 }
 function notificationDetailMarkup(item){
- const label=({system:'Thông báo chung',attendance:'Chấm công',leave:'Nghỉ phép',task:'Công việc'})[notificationCategory(item)];
+ const label=({system:'Thông báo chung',attendance:'Chấm công',leave:'Nghỉ phép',task:'Công việc',kpi:'KPI'})[notificationCategory(item)];
  return `<section id="notification-detail"><div class="notification-detail-meta"><span class="notification-detail-category">${label}</span><time>${e(notificationTime(item.publishedAt||item.createdAt))}</time></div><h3>${e(item.title)}</h3><p class="notification-detail-content">${e(item.content)}</p><p id="notification-detail-error" class="form-error" role="alert"></p></section>`;
 }
 async function openNotificationDetail(item,service=notificationService,showDialog=openDialog){

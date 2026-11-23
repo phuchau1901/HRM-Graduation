@@ -94,7 +94,7 @@ test('only unread notification rows display an unread dot',()=>{
 });
 
 test('restored notification categories filter API records without inferring categories from message content',()=>{
- assert.deepEqual(notificationTabs.map(([key])=>key),['all','unread','task','attendance','leave','system']);
+ assert.deepEqual(notificationTabs.map(([key])=>key),['all','unread','task','attendance','leave','kpi','system']);
  const items=[{id:1,readAt:null,source:'SYSTEM'},{id:2,readAt:'2026-11-15',referenceType:'LEAVE_REQUEST'},{id:3,readAt:null,referenceType:'TASK'},{id:4,referenceType:'ATTENDANCE'},{id:5,source:'WORKFLOW',title:'Nghỉ phép'}];
  assert.deepEqual(filterNotificationItems(items,'system').map(item=>item.id),[1]);
  assert.deepEqual(filterNotificationItems(items,'leave').map(item=>item.id),[2,5]);
@@ -152,4 +152,10 @@ test('default notification polling and reconnect timers use the browser global r
  const service=new NotificationService({getSession:()=>({accessToken:'test',user:{userId:'test'}}),rest:{list:async()=>({items:[]}),count:async()=>({count:0})},createConnection:()=>({on(){},onreconnecting(){},onreconnected(){},onclose(){},start:async()=>{throw Error('offline');},stop:async()=>{}})});
  try{await service.syncAuth();await settle();assert.ok(calls.includes('setInterval'));assert.ok(calls.includes('setTimeout'));await service.stop();assert.ok(calls.includes('clearInterval'));assert.ok(calls.includes('clearTimeout'));}
  finally{Object.assign(globalThis,originals);}
+});
+
+test('KPI_PERIOD notifications belong to KPI regardless of source and preserve unread/all filters',async()=>{
+ const {notificationCategory,notificationDetailMarkup}=await import('../assets/js/pages/notifications/notifications.js');
+ const items=[{id:1,source:'SYSTEM',referenceType:'KPI_PERIOD',readAt:null},{id:2,source:'WORKFLOW',referenceType:'kpi_period',readAt:'2026-11-23T01:00:00Z'},{id:3,source:'SYSTEM',referenceType:'ATTENDANCE'}];
+ assert.equal(notificationCategory(items[0]),'kpi');assert.deepEqual(filterNotificationItems(items,'kpi').map(item=>item.id),[1,2]);assert.deepEqual(filterNotificationItems(items,'system'),[]);assert.deepEqual(filterNotificationItems(items,'leave'),[]);assert.equal(filterNotificationItems(items,'all'),items);assert.ok(filterNotificationItems(items,'unread').some(item=>item.id===1));assert.ok(!filterNotificationItems(items,'unread').some(item=>item.id===2));assert.match(notificationDetailMarkup({...items[0],title:'KPI đã giao',content:'Nội dung'}),/notification-detail-category">KPI</);
 });

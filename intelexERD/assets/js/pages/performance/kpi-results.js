@@ -37,7 +37,7 @@ export function kpiStatisticsMarkup(response=null,error=''){
 }
 export function kpiResultsRows(rows){return rows.map(row=>`<tr><td><strong>${e(row.employeeName)}</strong><small>${e(row.employeeCode)}</small></td><td>${e(row.departmentName)}<small>${e(row.teamName||'—')}</small></td><td>${e(row.periodKey)}</td><td><span class="badge ${row.status==='APPROVED'?'active':row.status==='REJECTED'?'high':''}">${e(kpiEvaluationStatuses[row.status]||row.status)}</span></td><td>${kpiNumber(row.finalScore)}</td><td><button class="btn small" type="button" data-kpi-detail="${row.id}">Chi tiết</button></td></tr>`).join('');}
 
-export function mountKpiResults(root,{employeeFilter=true}={}){
+export function mountKpiResults(root,{employeeFilter=false}={}){
  if(!root)return ()=>{};if(!kpiEvaluationGrant('canView')){root.innerHTML='<p>Bạn cần quyền WEB_KPI_EVALUATION/VIEW để xem đánh giá KPI.</p>';return ()=>{};}
  let filters={},page=1,generation=0,metadataGeneration=0,rows=[],teams=[],periods=[],employeePage=1,employeeGeneration=0,searchTimer,employeeTimer,dialogForm=null,disposed=false,detailGeneration=0,detailDirty=false,detailBusy=false;
  const pageSize=20,active=()=>!disposed&&root.isConnected;
