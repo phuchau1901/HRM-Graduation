@@ -2,7 +2,7 @@
 
 Cấu hình qua API System Settings bên dưới. API lưu vào bảng `system_settings` hiện có, key `TERMINAL_LOGGING`, không cần Migration. Khi chưa có dữ liệu lưu, dùng `TerminalLogging` trong `backend/HRM.API/appsettings.json`, file theo environment hoặc biến môi trường làm mặc định. Cấu hình đã lưu qua API được ưu tiên hơn file/env. Cấu hình này chỉ lọc output console; không tắt job, không sửa Audit Logs, không thay response API, JWT, phân quyền hoặc correlation ID.
 
-Mặc định tất cả tắt (`N`). Chỉ in khi **Enabled=Y, user=Y và module=Y** đồng thời. Quy tắc áp dụng cả log lỗi; cờ N không chỉ chặn request thành công. Chỉ chuỗi Y/y có nghĩa bật, không dùng boolean true. Module và user so khớp không phân biệt hoa/thường.
+Mặc định tất cả tắt (`N`). Chỉ in khi **Enabled=Y, user=Y và module=Y** đồng thời. Quy tắc áp dụng cả log lỗi; cờ N không chỉ chặn request thành công. Chỉ chuỗi Y/y có nghĩa bật, không dùng boolean true. Module và user so khớp không phân biệt hoa/thường. Các default Y trong cấu hình cũ không còn tự bật log; nên gửi DefaultUser=N, DefaultModule=N.
 
 ## API System Settings
 
@@ -79,7 +79,7 @@ API PUT toàn hệ thống hỗ trợ thêm `userModules`:
 }
 ```
 
-Hai user phải tồn tại. Admin chỉ in Employees; bob chỉ in Attendance. Một khi có entry userModules[user], chỉ dùng map đó và các module thiếu là N, kể cả DefaultModule=Y. User chưa có map riêng vẫn dùng Modules/DefaultModule như phiên bản cũ. Cả hai trường hợp vẫn cần Enabled=Y, user flag=Y và IncludeSql=Y nếu là SQL. PUT admin là thay toàn bộ settings: gửi lại userModules hiện hành để giữ lựa chọn cá nhân đã lưu.
+Hai user phải tồn tại. Admin chỉ in Employees; bob chỉ in Attendance. Một khi có entry userModules[user], chỉ dùng map đó và các module thiếu là N, kể cả DefaultModule=Y. User chưa có map riêng vẫn dùng các mục Y/N khai báo rõ trong Modules; module không khai báo là N. DefaultUser/DefaultModule giữ field để tương thích JSON cũ, nhưng Y ở hai field này không tự bật user/module chưa cấu hình. Cả hai trường hợp vẫn cần Enabled=Y, user flag=Y và IncludeSql=Y nếu là SQL. PUT admin là thay toàn bộ settings: gửi lại userModules hiện hành để giữ lựa chọn cá nhân đã lưu.
 
 Không đổi schema, không cần Migration. Cache tức thì/cross-instance refresh vẫn như trước.
 
@@ -89,14 +89,14 @@ Không đổi schema, không cần Migration. Cache tức thì/cross-instance re
 "TerminalLogging": {
   "Enabled": "Y",
   "DefaultUser": "N",
-  "DefaultModule": "Y",
+  "DefaultModule": "N",
   "IncludeSql": "N",
   "Users": { "admin": "Y", "system": "N", "anonymous": "N" },
-  "Modules": {}
+  "Modules": { "Employees": "Y", "Authorization": "Y" }
 }
 ```
 
-Admin gọi API sẽ có log; các job nền không in log vì user log của chúng là `system`, không phải user đã tạo dữ liệu. Nếu chỉ muốn xem một số module, đặt `DefaultModule=N` và bật riêng:
+Admin chỉ có log ở Employees/Authorization; các job nền không in log vì user log của chúng là `system`, không phải user đã tạo dữ liệu. Muốn thêm/bỏ module phải khai báo rõ Y/N:
 
 ```json
 "Modules": {
@@ -106,7 +106,7 @@ Admin gọi API sẽ có log; các job nền không in log vì user log của ch
 }
 ```
 
-Cờ riêng N luôn ghi đè default Y; cờ riêng Y ghi đè default N. `Enabled=N` tắt toàn bộ output của application console provider.
+User chưa có cờ Y rõ trong Users luôn tắt, kể cả DefaultUser=Y. Module chưa có cờ Y rõ trong UserModules[user] (hoặc Modules nếu chưa có map riêng) luôn tắt, kể cả DefaultModule=Y. Cờ N không được vượt qua bởi default hoặc map khác. `Enabled=N` tắt toàn bộ output của application console provider.
 
 ## Tên module
 
@@ -119,7 +119,7 @@ Log trong cùng request (kể cả EF) dùng module của Controller để dễ 
 - NotificationWorker: user `system`, module `Notifications`.
 - LeaveAccrualWorker: user `system`, module `Leave`.
 - WorkScheduleWorker: user `system`, module `Work`.
-- Startup/seed/model diagnostics: user `system`, module `System`.
+- Startup/seed/model diagnostics: user `system`, module `System`, cũng cần hai cờ Y rõ ràng.
 - Chưa xác thực, login, JWT không hợp lệ: user `anonymous`. Backend không đọc username từ request body/header để quyết định bộ lọc. User đã xác thực lấy từ identity được middleware JWT kiểm chứng.
 
 Muốn xem job Notifications thì bật `Users.system=Y` và `Modules.Notifications=Y` (cùng Enabled=Y). Giữ các module khác N nếu không muốn log của job khác. Ngữ cảnh module job được truyền qua async calls, kể cả EF, và không lan sang job chạy song song.
@@ -168,3 +168,13 @@ Kết quả xác nhận: 80/80 tests liên quan terminal logging, authorization,
 API settings bổ sung: 60/60 tests liên quan API terminal settings, System Settings, Authorization, API inventory và model/Approval đạt. Bao gồm nạp policy DB bởi worker vào cache mới, quyền không Scope, audit, version cũ và validation không làm đổi runtime policy.
 
 Cấu hình module riêng theo user: 63/63 tests liên quan đạt, bao gồm cách ly module giữa hai user, API me không đọc/sửa user khác, không bật master/SQL, bảo vệ ETag và tương thích cấu hình cũ. Backend build đạt, không cần Migration.
+
+## Kiểm tra trường hợp chưa bật nhưng vẫn thấy log
+
+- Backend chỉ đăng ký một TerminalConsoleProvider cho mọi Controller, EF và job; không còn Console.WriteLine/LogTo riêng trong module.
+- Cần kiểm tra rule thực tế của user: API `/terminal-logging/me` trả enabled/modules sau khi loại bỏ default Y, còn API quản trị cho biết user có được admin bật Y hay không.
+- Request có token đang xác thực không áp anonymous=Y cho log trung gian (bao gồm EF và SignalR query-token); chưa biết danh tính thì không đoán user từ token/header. Final access event của request401/500 chưa xác thực vẫn dùng anonymous theo cấu hình.
+- Log được in thêm TerminalPolicySource (File/Database) và TerminalPolicyVersion khi là cấu hình DB, bên cạnh TerminalUserId/TerminalModule/TerminalTraceId, để đối chiếu rule/version/replica đang áp dụng. Policy và version đọc cùng một snapshot, tránh gắn nhầm version khi cập nhật đồng thời.
+- PUT áp dụng ngay instance xử lý; replica khác vẫn refresh tối đa khoảng30 giây khi DB truy cập được. DB lỗi giữ last-known-good theo thiết kế, không thể kết luận cấu hình runtime Railway chỉ từ source. Không tự deploy hoặc chỉnh DB để đồng bộ.
+
+Audit mọi module: 106/106 tests liên quan đạt, gồm duy nhất một console provider, mọi Controller/module, severity lỗi, EF trước JWT/SignalR validation, user thiếu/N, default Y cũ và các worker. Backend build đạt; không sửa DB hoặc deploy.

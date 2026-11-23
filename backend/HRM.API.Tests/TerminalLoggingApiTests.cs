@@ -130,4 +130,19 @@ public sealed class TerminalLoggingApiTests
         Assert.Equal("N", mine.Settings.GlobalEnabled);
         Assert.False(f.App.Services.GetRequiredService<TerminalLoggingState>().Current.Allows("api-user", "Employees"));
     }
+    [Fact]
+    public async Task PersonalViewDoesNotShowEnabledFromLegacyDefaults()
+    {
+        using var f = new AdministrationApiTests.Fixture(); await f.Start(); await Grant(f);
+        var request = Request(); request.DefaultUser = "Y"; request.DefaultModule = "Y"; request.Modules.Clear();
+        (await f.Send(HttpMethod.Put, Url, request, "0")).EnsureSuccessStatusCode();
+        var me = (await f.Client.GetFromJsonAsync<SettingsView<TerminalUserLoggingView>>(Url + "/me"))!;
+        Assert.All(me.Settings.Modules.Values, value => Assert.Equal("N", value));
+        using var target = f.App.CreateClient(new() { BaseAddress = new("https://localhost") });
+        var login = await target.PostAsJsonAsync("/api/auth/login", new { userId = "target", password = f.App.Password }); login.EnsureSuccessStatusCode();
+        target.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<HRM.API.Modules.Auth.DTOs.LoginResponse>())!.AccessToken);
+        var own = (await target.GetFromJsonAsync<SettingsView<TerminalUserLoggingView>>(Url + "/me"))!;
+        Assert.Equal("N", own.Settings.Enabled);
+        Assert.All(own.Settings.Modules.Values, value => Assert.Equal("N", value));
+    }
 }

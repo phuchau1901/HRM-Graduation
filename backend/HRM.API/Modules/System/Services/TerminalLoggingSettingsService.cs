@@ -48,7 +48,7 @@ public sealed class TerminalLoggingSettingsService(AppDbContext db, SystemSettin
         var own = settings.ModulesFor(actor);
         var effective = modules.ToDictionary(m => m, m => own != null
             ? own.FirstOrDefault(p => p.Key.Equals(m, StringComparison.OrdinalIgnoreCase)).Value ?? "N"
-            : settings.Modules.FirstOrDefault(p => p.Key.Equals(m, StringComparison.OrdinalIgnoreCase)).Value ?? settings.DefaultModule);
+            : settings.Modules.FirstOrDefault(p => p.Key.Equals(m, StringComparison.OrdinalIgnoreCase)).Value ?? "N");
         return new(settings.UserFlag(actor), effective, settings.Enabled, settings.IncludeSql, modules);
     }
     public async Task<SettingsView<TerminalUserLoggingView>> GetMe(string actor, CancellationToken ct)

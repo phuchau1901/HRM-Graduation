@@ -46,17 +46,22 @@ public sealed class TerminalLoggingState(IOptionsMonitor<TerminalLoggingOptions>
 {
     public const string Key = "TERMINAL_LOGGING";
     private readonly object sync = new();
-    private TerminalLoggingOptions? stored;
-    private long version = -1;
-    public TerminalLoggingOptions Current => Volatile.Read(ref stored) ?? fallback.CurrentValue;
+    private sealed record StoredPolicy(TerminalLoggingOptions Settings, long Revision);
+    private StoredPolicy? stored;
+    public TerminalLoggingOptions Current => Snapshot().Settings;
+    internal (TerminalLoggingOptions Settings, long? Revision) Snapshot()
+    {
+        var policy = Volatile.Read(ref stored);
+        return (policy?.Settings ?? fallback.CurrentValue, policy?.Revision);
+    }
     public void Publish(TerminalLoggingOptions settings, long revision)
     {
         var copy = SettingsDefaults.Read<TerminalLoggingRequest>(JsonSerializer.Serialize(settings, SettingsDefaults.Json));
         SettingsDefaults.Validate(copy);
         lock (sync)
         {
-            if (revision < version) return;
-            Volatile.Write(ref stored, copy); version = revision;
+            if (stored != null && revision < stored.Revision) return;
+            Volatile.Write(ref stored, new StoredPolicy(copy, revision));
         }
     }
 }
