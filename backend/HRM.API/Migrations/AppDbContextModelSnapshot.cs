@@ -1534,6 +1534,82 @@ namespace HRM.API.Migrations
                     b.ToTable("teams", (string)null);
                 });
 
+            modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.PayrollAdjustment", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<long>("ComponentId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("component_id");
+
+                    b.Property<string>("ComponentSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("json")
+                        .HasColumnName("component_snapshot_json");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("created_by");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("int")
+                        .HasColumnName("employee_id");
+
+                    b.Property<bool>("IsCancelled")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_cancelled");
+
+                    b.Property<long>("PayrollPeriodId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("payroll_period_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<string>("RequestKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("request_key");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ComponentId");
+
+                    b.HasIndex("EmployeeId");
+
+                    b.HasIndex("PayrollPeriodId");
+
+                    b.HasIndex("RequestKey")
+                        .IsUnique();
+
+                    b.ToTable("payroll_adjustments", (string)null);
+                });
+
             modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.PayrollDetail", b =>
                 {
                     b.Property<long>("ID")
@@ -1571,6 +1647,26 @@ namespace HRM.API.Migrations
                         .HasColumnType("int")
                         .HasColumnName("employee_id");
 
+                    b.Property<string>("EmployeePeriodKey")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)")
+                        .HasColumnName("employee_period_key");
+
+                    b.Property<decimal>("EmployerInsurance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("employer_insurance");
+
+                    b.Property<decimal>("GrossSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("gross_salary");
+
+                    b.Property<decimal>("InsuranceAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("insurance_amount");
+
                     b.Property<decimal>("KPIBonus")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(18, 2)
@@ -1594,11 +1690,27 @@ namespace HRM.API.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("payroll_period_id");
 
+                    b.Property<decimal>("TaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("tax_amount");
+
+                    b.Property<string>("UniqueKey")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)")
+                        .HasColumnName("unique_key");
+
                     b.HasKey("ID");
 
                     b.HasIndex("EmployeeID");
 
+                    b.HasIndex("EmployeePeriodKey")
+                        .IsUnique();
+
                     b.HasIndex("PayrollPeriodID");
+
+                    b.HasIndex("UniqueKey")
+                        .IsUnique();
 
                     b.ToTable("payroll_details", (string)null);
                 });
@@ -1612,10 +1724,60 @@ namespace HRM.API.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
 
+                    b.Property<long?>("ApprovalId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("approval_id");
+
                     b.Property<string>("ApprovedByUserID")
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)")
                         .HasColumnName("approved_by_user_id");
+
+                    b.Property<string>("CalculatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("calculated_by");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("created_by");
+
+                    b.Property<int?>("DepartmentId")
+                        .HasColumnType("int")
+                        .HasColumnName("department_id");
+
+                    b.Property<string>("ErrorsJson")
+                        .HasColumnType("json")
+                        .HasColumnName("errors_json");
+
+                    b.Property<string>("InputHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("input_hash");
+
+                    b.Property<string>("LastCalculationKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("last_calculation_key");
+
+                    b.Property<DateTime?>("LockedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("locked_at");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PaidBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("paid_by");
+
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)")
+                        .HasColumnName("payment_reference");
 
                     b.Property<string>("PeriodKey")
                         .IsRequired()
@@ -1623,9 +1785,21 @@ namespace HRM.API.Migrations
                         .HasColumnType("char(7)")
                         .HasColumnName("period_key");
 
+                    b.Property<long?>("PolicyId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("policy_id");
+
                     b.Property<DateTime?>("PublishedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("published_at");
+
+                    b.Property<string>("ScopeKey")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasDefaultValue("ALL")
+                        .HasColumnName("scope_key");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1637,17 +1811,144 @@ namespace HRM.API.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("timesheet_period_id");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
                     b.HasKey("ID");
+
+                    b.HasIndex("ApprovalId");
 
                     b.HasIndex("ApprovedByUserID");
 
-                    b.HasIndex("PeriodKey")
-                        .IsUnique()
-                        .HasDatabaseName("uq_payroll_periods_period_key");
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("PolicyId");
 
                     b.HasIndex("TimesheetPeriodID");
 
+                    b.HasIndex("PeriodKey", "ScopeKey")
+                        .IsUnique();
+
                     b.ToTable("payroll_periods", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.PayrollPolicy", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasColumnName("code");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_from");
+
+                    b.Property<DateOnly?>("EffectiveTo")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_to");
+
+                    b.Property<string>("LegalReference")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)")
+                        .HasColumnName("legal_reference");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("RulesJson")
+                        .IsRequired()
+                        .HasColumnType("json")
+                        .HasColumnName("rules_json");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "EffectiveFrom");
+
+                    b.ToTable("payroll_policies", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.SalaryComponent", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("varchar(150)")
+                        .HasColumnName("name");
+
+                    b.Property<bool>("OvertimeIncluded")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("overtime_included");
+
+                    b.Property<bool>("TaxDeductible")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("tax_deductible");
+
+                    b.Property<bool>("Taxable")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("taxable");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("salary_components", (string)null);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.SalaryProfile", b =>
@@ -1679,6 +1980,10 @@ namespace HRM.API.Migrations
                         .HasDefaultValue("VND")
                         .HasColumnName("currency_code");
 
+                    b.Property<int>("Dependents")
+                        .HasColumnType("int")
+                        .HasColumnName("dependents");
+
                     b.Property<DateOnly>("EffectiveFrom")
                         .HasColumnType("date")
                         .HasColumnName("effective_from");
@@ -1691,9 +1996,44 @@ namespace HRM.API.Migrations
                         .HasColumnType("int")
                         .HasColumnName("employee_id");
 
+                    b.Property<decimal>("InsuranceBase")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("insurance_base");
+
+                    b.Property<bool>("IsVerified")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_verified");
+
+                    b.Property<string>("ItemsJson")
+                        .HasColumnType("json")
+                        .HasColumnName("items_json");
+
+                    b.Property<decimal>("KpiBonusAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("kpi_bonus_amount");
+
+                    b.Property<string>("PayBasis")
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("pay_basis");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)")
+                        .HasColumnName("reason");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
                     b.HasKey("ID");
 
                     b.HasIndex("EmployeeID");
+
+                    b.HasIndex("EmployeeID", "EffectiveFrom");
 
                     b.ToTable("salary_profiles", (string)null);
                 });
@@ -1739,6 +2079,15 @@ namespace HRM.API.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("period_id");
 
+                    b.Property<string>("SnapshotJson")
+                        .HasColumnType("json")
+                        .HasColumnName("snapshot_json");
+
+                    b.Property<string>("UniqueKey")
+                        .HasMaxLength(60)
+                        .HasColumnType("varchar(60)")
+                        .HasColumnName("unique_key");
+
                     b.Property<decimal>("WorkedDays")
                         .ValueGeneratedOnAdd()
                         .HasPrecision(7, 2)
@@ -1751,6 +2100,9 @@ namespace HRM.API.Migrations
                     b.HasIndex("EmployeeID");
 
                     b.HasIndex("PeriodID");
+
+                    b.HasIndex("UniqueKey")
+                        .IsUnique();
 
                     b.ToTable("timesheet_details", (string)null);
                 });
@@ -1773,6 +2125,20 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(100)")
                         .HasColumnName("closed_by_user_id");
 
+                    b.Property<string>("ErrorsJson")
+                        .HasColumnType("json")
+                        .HasColumnName("errors_json");
+
+                    b.Property<string>("InputHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)")
+                        .HasColumnName("input_hash");
+
+                    b.Property<string>("LastCalculationKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("last_calculation_key");
+
                     b.Property<string>("PeriodKey")
                         .IsRequired()
                         .HasMaxLength(7)
@@ -1784,6 +2150,11 @@ namespace HRM.API.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)")
                         .HasColumnName("status");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
 
                     b.HasKey("ID");
 
@@ -2982,6 +3353,27 @@ namespace HRM.API.Migrations
                     b.Navigation("Department");
                 });
 
+            modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.PayrollAdjustment", b =>
+                {
+                    b.HasOne("HRM.API.Modules.Payroll.Entities.SalaryComponent", null)
+                        .WithMany()
+                        .HasForeignKey("ComponentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HRM.API.Modules.Payroll.Entities.PayrollPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("PayrollPeriodId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.PayrollDetail", b =>
                 {
                     b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
@@ -3001,11 +3393,26 @@ namespace HRM.API.Migrations
 
             modelBuilder.Entity("HRM.API.Modules.Payroll.Entities.PayrollPeriod", b =>
                 {
+                    b.HasOne("HRM.API.Modules.Approvals.Entities.ApprovalRequest", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("ApprovedByUserID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_payroll_periods_approved_by_user_id");
+
+                    b.HasOne("HRM.API.Modules.Organization.Entities.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Payroll.Entities.PayrollPolicy", null)
+                        .WithMany()
+                        .HasForeignKey("PolicyId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("HRM.API.Modules.Payroll.Entities.TimesheetPeriod", null)
                         .WithMany()

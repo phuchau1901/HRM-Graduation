@@ -1,4 +1,3 @@
-// Generated from HRM_Schema_Reference.sql (proposed schema, not deployed).
 namespace HRM.API.Modules.Payroll.Entities;
 
 public class PayrollDetail
@@ -13,4 +12,10 @@ public class PayrollDetail
     public decimal Deductions { get; set; }
     public decimal NetSalary { get; set; }
     public string CalculationSnapshot { get; set; } = string.Empty;
+ public decimal GrossSalary {get;set;}
+ public decimal TaxAmount {get;set;}
+ public decimal InsuranceAmount {get;set;}
+ public decimal EmployerInsurance {get;set;}
+ public string? UniqueKey {get;set;}
+ public string? EmployeePeriodKey {get;set;}
 }

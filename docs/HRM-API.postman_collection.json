@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "119 source-backed REST endpoints; 129 request examples. Leave/Overtime/Approval/Attendance adjustment APIs and configurable workflow. See docs/modules/Leave/API.md. Mutations are manual; no migrations/deployment are executed by this collection. Leave Balance Management: carried-over/adjustment/remaining/available amounts, scoped create-only bulk grants with operationId, adjustments with reason/version and balance audit history. See docs/modules/Leave/BALANCES_API.md. My leave balance and configurable month/year recurring positional grants/reset via System Settings; disabled sample policy. Approvals is now a parent module with Leave/Overtime/Attendance child examples; source endpoint count remains119."
+    "description": "199 source-backed REST endpoints. Payroll & Compensation includes 35 APIs for salary configuration, locked timesheets, payroll workflow, adjustments, export and own payslips. Synthetic policy examples must be replaced with approved effective business/legal rules. See docs/API/README.md and docs/modules/Payroll/API.md. All mutations are manual; no migration or deployment is executed by this collection."
   },
   "auth": {
     "type": "bearer",
@@ -334,6 +334,36 @@
     {
       "key": "kpiUnitId",
       "value": "12"
+    },
+    {
+      "key": "payrollPeriodId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "timesheetPeriodId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "payslipId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "salaryPolicyId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "salaryComponentId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "payrollAdjustmentId",
+      "value": "1",
+      "type": "string"
     }
   ],
   "item": [
@@ -3929,6 +3959,586 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"code\": \"KG\",\n  \"name\": \"Kilogram\",\n  \"isActive\": false,\n  \"sortOrder\": 20,\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Payroll & Compensation",
+      "description": "Salary Configuration, verified locked timesheets, Payroll workflow, adjustments, XLSX and own PDF. Examples contain synthetic policy only; configure approved business/legal rules before use. See docs/modules/Payroll/API.md.",
+      "item": [
+        {
+          "name": "GET /api/payroll/employees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/employees?page=1&pageSize=20",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/export",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/export",
+            "description": "WEB_PAYROLL/EXPORT. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/lookups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/lookups",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/payslips",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/payslips?page=1&pageSize=20",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/payslips/{id:long}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/payslips/{{payslipId}}",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/periods",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/periods?page=1&pageSize=20",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/periods",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/periods",
+            "description": "WEB_PAYROLL/NEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodKey\": \"2026-10\",\n  \"departmentId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/periods/{id:long}/adjustments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/periods/{{payrollPeriodId}}/adjustments",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/periods/{id:long}/adjustments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/periods/{{payrollPeriodId}}/adjustments",
+            "description": "WEB_PAYROLL/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": 1,\n  \"componentId\": 1,\n  \"amount\": 500000,\n  \"reason\": \"Theo quyết định đã duyệt\",\n  \"requestKey\": \"{{$guid}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/periods/{id:long}/adjustments/{adjustmentId:long}/cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/periods/{{payrollPeriodId}}/adjustments/{{payrollAdjustmentId}}/cancel",
+            "description": "WEB_PAYROLL/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/periods/{id:long}/calculate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/periods/{{payrollPeriodId}}/calculate",
+            "description": "WEB_PAYROLL/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1,\n  \"requestKey\": \"{{$guid}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/periods/{id:long}/lock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/periods/{{payrollPeriodId}}/lock",
+            "description": "WEB_PAYROLL/APPROVE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/periods/{id:long}/paid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/periods/{{payrollPeriodId}}/paid",
+            "description": "WEB_PAYROLL/APPROVE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 5,\n  \"reference\": \"BANK-CONFIRMATION-REPLACE\",\n  \"paidAt\": \"2026-11-17T12:00:00+07:00\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/periods/{id:long}/submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/periods/{{payrollPeriodId}}/submit",
+            "description": "WEB_PAYROLL/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/policies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/policies?page=1&pageSize=20",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/statistics",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/timesheets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/timesheets?page=1&pageSize=20",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/timesheets",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/timesheets",
+            "description": "WEB_PAYROLL/NEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodKey\": \"2026-10\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payroll/timesheets/{id:long}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payroll/timesheets/{{timesheetPeriodId}}",
+            "description": "WEB_PAYROLL/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/timesheets/{id:long}/calculate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/timesheets/{{timesheetPeriodId}}/calculate",
+            "description": "WEB_PAYROLL/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1,\n  \"requestKey\": \"{{$guid}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/payroll/timesheets/{id:long}/lock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/payroll/timesheets/{{timesheetPeriodId}}/lock",
+            "description": "WEB_PAYROLL/APPROVE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payslips/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payslips/me?page=1&pageSize=20",
+            "description": "WEB_MY_PAYSLIPS/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payslips/me/{id:long}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payslips/me/{{payslipId}}",
+            "description": "WEB_MY_PAYSLIPS/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/payslips/me/{id:long}/pdf",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/payslips/me/{{payslipId}}/pdf",
+            "description": "WEB_MY_PAYSLIPS/EXPORT. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/salary-configuration/components",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/salary-configuration/components?page=1&pageSize=20",
+            "description": "WEB_SALARY_CONFIGURATION/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/salary-configuration/components",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/salary-configuration/components",
+            "description": "WEB_SALARY_CONFIGURATION/NEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"MEAL\",\n  \"name\": \"Phụ cấp ăn\",\n  \"kind\": \"EARNING\",\n  \"taxable\": true,\n  \"taxDeductible\": false,\n  \"overtimeIncluded\": false,\n  \"isActive\": true,\n  \"version\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/salary-configuration/components/{id:long}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/salary-configuration/components/{{salaryComponentId}}",
+            "description": "WEB_SALARY_CONFIGURATION/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"MEAL\",\n  \"name\": \"Phụ cấp ăn\",\n  \"kind\": \"EARNING\",\n  \"taxable\": true,\n  \"taxDeductible\": false,\n  \"overtimeIncluded\": false,\n  \"isActive\": true,\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/salary-configuration/employees",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/salary-configuration/employees?page=1&pageSize=20",
+            "description": "WEB_SALARY_CONFIGURATION/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/salary-configuration/lookups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/salary-configuration/lookups",
+            "description": "WEB_SALARY_CONFIGURATION/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/salary-configuration/policies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/salary-configuration/policies?page=1&pageSize=20",
+            "description": "WEB_SALARY_CONFIGURATION/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/salary-configuration/policies",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/salary-configuration/policies",
+            "description": "WEB_SALARY_CONFIGURATION/NEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"POLICY_TEST_ONLY\",\n  \"name\": \"Policy mẫu kiểm thử - cần nghiệp vụ xác nhận\",\n  \"effectiveFrom\": \"2026-10-01\",\n  \"effectiveTo\": null,\n  \"legalReference\": \"SYNTHETIC TEST ONLY: thay bằng căn cứ và tỷ lệ đã duyệt trước khi dùng nghiệp vụ\",\n  \"rules\": {\n    \"currencyCode\": \"VND\",\n    \"standardDays\": 22,\n    \"hoursPerDay\": 8,\n    \"roundingStep\": 1,\n    \"roundingMode\": \"AWAY_FROM_ZERO\",\n    \"payPublicHolidays\": false,\n    \"nightStart\": \"22:00:00\",\n    \"nightEnd\": \"06:00:00\",\n    \"nightWorkPremiumRate\": 0,\n    \"overtimeMultipliers\": {\n      \"NORMAL\": 1,\n      \"NORMAL_NIGHT\": 1,\n      \"REST\": 1,\n      \"REST_NIGHT\": 1,\n      \"HOLIDAY\": 1,\n      \"HOLIDAY_NIGHT\": 1\n    },\n    \"overtimeTaxMode\": \"BASE_ONLY\",\n    \"includeLegacyAllowanceInOvertime\": false,\n    \"taxMode\": \"NONE\",\n    \"flatTaxRate\": 0,\n    \"personalDeduction\": 0,\n    \"dependentDeduction\": 0,\n    \"taxBrackets\": [],\n    \"insurance\": [],\n    \"minimumPaidDaysForInsurance\": 0,\n    \"insuranceBaseMode\": \"WEIGHTED\",\n    \"kpiPeriodType\": \"MONTH\",\n    \"kpiScoreCap\": 100,\n    \"prorateKpiBonus\": true\n  },\n  \"version\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/salary-configuration/policies/{id:long}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/salary-configuration/policies/{{salaryPolicyId}}",
+            "description": "WEB_SALARY_CONFIGURATION/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"POLICY_TEST_ONLY\",\n  \"name\": \"Policy mẫu kiểm thử - cần nghiệp vụ xác nhận\",\n  \"effectiveFrom\": \"2026-10-01\",\n  \"effectiveTo\": null,\n  \"legalReference\": \"SYNTHETIC TEST ONLY: thay bằng căn cứ và tỷ lệ đã duyệt trước khi dùng nghiệp vụ\",\n  \"rules\": {\n    \"currencyCode\": \"VND\",\n    \"standardDays\": 22,\n    \"hoursPerDay\": 8,\n    \"roundingStep\": 1,\n    \"roundingMode\": \"AWAY_FROM_ZERO\",\n    \"payPublicHolidays\": false,\n    \"nightStart\": \"22:00:00\",\n    \"nightEnd\": \"06:00:00\",\n    \"nightWorkPremiumRate\": 0,\n    \"overtimeMultipliers\": {\n      \"NORMAL\": 1,\n      \"NORMAL_NIGHT\": 1,\n      \"REST\": 1,\n      \"REST_NIGHT\": 1,\n      \"HOLIDAY\": 1,\n      \"HOLIDAY_NIGHT\": 1\n    },\n    \"overtimeTaxMode\": \"BASE_ONLY\",\n    \"includeLegacyAllowanceInOvertime\": false,\n    \"taxMode\": \"NONE\",\n    \"flatTaxRate\": 0,\n    \"personalDeduction\": 0,\n    \"dependentDeduction\": 0,\n    \"taxBrackets\": [],\n    \"insurance\": [],\n    \"minimumPaidDaysForInsurance\": 0,\n    \"insuranceBaseMode\": \"WEIGHTED\",\n    \"kpiPeriodType\": \"MONTH\",\n    \"kpiScoreCap\": 100,\n    \"prorateKpiBonus\": true\n  },\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/salary-configuration/policies/{id:long}/publish",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/salary-configuration/policies/{{salaryPolicyId}}/publish",
+            "description": "WEB_SALARY_CONFIGURATION/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1,\n  \"supersedePolicyId\": null,\n  \"supersedeVersion\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/salary-configuration/profiles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/salary-configuration/profiles?page=1&pageSize=20",
+            "description": "WEB_SALARY_CONFIGURATION/VIEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/salary-configuration/profiles",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/salary-configuration/profiles",
+            "description": "WEB_SALARY_CONFIGURATION/NEW. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": 1,\n  \"baseSalary\": 20000000,\n  \"allowanceAmount\": 0,\n  \"insuranceBase\": 0,\n  \"dependents\": 0,\n  \"kpiBonusAmount\": 0,\n  \"payBasis\": \"MONTH\",\n  \"currencyCode\": \"VND\",\n  \"effectiveFrom\": \"2026-10-01\",\n  \"effectiveTo\": null,\n  \"reason\": \"Cấp cấu hình lương theo quyết định đã duyệt\",\n  \"items\": [],\n  \"supersedeProfileId\": null,\n  \"supersedeVersion\": null\n}",
               "options": {
                 "raw": {
                   "language": "json"

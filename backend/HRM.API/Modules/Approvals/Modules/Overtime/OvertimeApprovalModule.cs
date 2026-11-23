@@ -18,6 +18,8 @@ public sealed class OvertimeApprovalModule(AppDbContext db) : IApprovalModule
     public async Task CompleteAsync(ApprovalRequest approval, bool approved, string actor, CancellationToken ct)
     {
         var overtime = await db.Set<OvertimeRequest>().FindAsync([approval.ReferenceID], ct) ?? throw BusinessException.Missing();
+        if(approved) {var start=HRM.API.Modules.Payroll.Services.PayrollEngine.LocalDay(overtime.StartAt);var end=HRM.API.Modules.Payroll.Services.PayrollEngine.LocalDay(overtime.EndAt);
+            await HRM.API.Modules.Payroll.Services.TimesheetLocks.RequireOpen(db,start,ct);if(start.Month!=end.Month||start.Year!=end.Year)await HRM.API.Modules.Payroll.Services.TimesheetLocks.RequireOpen(db,end,ct);}
         if (overtime.EmployeeID != approval.EmployeeId || overtime.Status != "PENDING") throw BusinessException.Conflict("Overtime is no longer pending.");
         overtime.Status = approved ? "APPROVED" : "REJECTED"; overtime.ApprovedHours = approved ? overtime.RequestedHours : null; overtime.Version++;
     }

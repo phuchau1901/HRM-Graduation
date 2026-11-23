@@ -1,0 +1,16 @@
+{
+  "employeeId": 1,
+  "baseSalary": 20000000,
+  "allowanceAmount": 0,
+  "insuranceBase": 0,
+  "dependents": 0,
+  "kpiBonusAmount": 0,
+  "payBasis": "MONTH",
+  "currencyCode": "VND",
+  "effectiveFrom": "2026-10-01",
+  "effectiveTo": null,
+  "reason": "Cấp cấu hình lương theo quyết định đã duyệt",
+  "items": [],
+  "supersedeProfileId": null,
+  "supersedeVersion": null
+}

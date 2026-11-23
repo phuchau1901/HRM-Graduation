@@ -1,4 +1,3 @@
-// Generated from HRM_Schema_Reference.sql (proposed schema, not deployed).
 namespace HRM.API.Modules.Payroll.Entities;
 
 public class TimesheetPeriod
@@ -8,4 +7,8 @@ public class TimesheetPeriod
     public string Status { get; set; } = string.Empty;
     public DateTime? ClosedAt { get; set; }
     public string? ClosedByUserID { get; set; }
+ public long Version {get;set;}=1;
+ public string? InputHash {get;set;}
+ public string? LastCalculationKey {get;set;}
+ public string? ErrorsJson {get;set;}
 }

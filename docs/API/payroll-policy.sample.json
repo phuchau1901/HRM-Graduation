@@ -1,0 +1,40 @@
+{
+  "code": "POLICY_TEST_ONLY",
+  "name": "Policy mẫu kiểm thử - cần nghiệp vụ xác nhận",
+  "effectiveFrom": "2026-10-01",
+  "effectiveTo": null,
+  "legalReference": "SYNTHETIC TEST ONLY: thay bằng căn cứ và tỷ lệ đã duyệt trước khi dùng nghiệp vụ",
+  "rules": {
+    "currencyCode": "VND",
+    "standardDays": 22,
+    "hoursPerDay": 8,
+    "roundingStep": 1,
+    "roundingMode": "AWAY_FROM_ZERO",
+    "payPublicHolidays": false,
+    "nightStart": "22:00:00",
+    "nightEnd": "06:00:00",
+    "nightWorkPremiumRate": 0,
+    "overtimeMultipliers": {
+      "NORMAL": 1,
+      "NORMAL_NIGHT": 1,
+      "REST": 1,
+      "REST_NIGHT": 1,
+      "HOLIDAY": 1,
+      "HOLIDAY_NIGHT": 1
+    },
+    "overtimeTaxMode": "BASE_ONLY",
+    "includeLegacyAllowanceInOvertime": false,
+    "taxMode": "NONE",
+    "flatTaxRate": 0,
+    "personalDeduction": 0,
+    "dependentDeduction": 0,
+    "taxBrackets": [],
+    "insurance": [],
+    "minimumPaidDaysForInsurance": 0,
+    "insuranceBaseMode": "WEIGHTED",
+    "kpiPeriodType": "MONTH",
+    "kpiScoreCap": 100,
+    "prorateKpiBonus": true
+  },
+  "version": 0
+}

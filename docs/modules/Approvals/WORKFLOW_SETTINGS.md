@@ -106,3 +106,7 @@ Cấu hình USER cũ chỉ có userId cần GET rồi PUT lại bằng employeeI
 | Chưa có route lúc gửi đơn | 409 |
 | Sai người duyệt hoặc User đã đổi/gỡ liên kết nhân viên | 403 nếu bản ghi nằm trong scope; ngoài scope có thể404 |
 | Duyệt trùng, sai version hoặc đơn đã kết thúc | 409 |
+
+## Luồng kỳ lương PAYROLL_PERIOD
+
+Thêm route PAYROLL_PERIOD khi cần gửi Payroll duyệt. Global batch dùng USER(employeeId) hoặc HR(userId/roleCode); batch một phòng ban có thể dùng DEPARTMENT_MANAGER lấy từ Department của nhân viên đại diện. Không dùng TEAM_LEAD vì một batch có nhiều team. allowSelfApproval phải false. Quyền approver được kiểm tra khi quyết định: WEB_APPROVALS/APPROVE và WEB_PAYROLL/APPROVE, đủ scope toàn batch, đúng bước; người tính/gửi không tự duyệt. Giữ các route khác trong payload PUT. [Payroll hướng dẫn](../Payroll/README.md).

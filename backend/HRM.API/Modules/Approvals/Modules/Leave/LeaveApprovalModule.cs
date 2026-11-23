@@ -23,6 +23,7 @@ public sealed class LeaveApprovalModule(AppDbContext db, LeaveBalanceAccounting 
     public async Task CompleteAsync(ApprovalRequest approval, bool approved, string actor, CancellationToken ct)
     {
         var leave = await db.Set<LeaveRequest>().FindAsync([approval.ReferenceID], ct) ?? throw BusinessException.Missing();
+        if(approved) {var month=new DateOnly(leave.FromDate.Year,leave.FromDate.Month,1);while(month<=leave.ToDate) {await HRM.API.Modules.Payroll.Services.TimesheetLocks.RequireOpen(db,month,ct);month=month.AddMonths(1);}}
         if (leave.EmployeeID != approval.EmployeeId) throw BusinessException.Conflict("Leave approval linkage mismatch.");
         if (approval.RequestType == "LEAVE")
         {

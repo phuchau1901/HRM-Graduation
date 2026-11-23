@@ -21,5 +21,8 @@ public class TimesheetDetailConfiguration : IEntityTypeConfiguration<TimesheetDe
         entity.Property(x => x.CalculatedAt).HasColumnName("calculated_at").HasColumnType("datetime(6)").IsRequired();
         entity.HasOne<TimesheetPeriod>().WithMany().HasForeignKey(x => x.PeriodID).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_timesheet_details_period_id");
         entity.HasOne<Employee>().WithMany().HasForeignKey(x => x.EmployeeID).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_timesheet_details_employee_id");
+        entity.Property(x=>x.SnapshotJson).HasColumnName("snapshot_json").HasColumnType("json");
+        entity.Property(x=>x.UniqueKey).HasColumnName("unique_key").HasMaxLength(60);
+        entity.HasIndex(x=>x.PeriodID); entity.HasIndex(x=>x.UniqueKey).IsUnique();
     }
 }

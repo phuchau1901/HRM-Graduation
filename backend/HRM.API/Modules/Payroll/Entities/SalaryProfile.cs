@@ -1,4 +1,3 @@
-// Generated from HRM_Schema_Reference.sql (proposed schema, not deployed).
 namespace HRM.API.Modules.Payroll.Entities;
 
 public class SalaryProfile
@@ -10,4 +9,12 @@ public class SalaryProfile
     public DateOnly EffectiveFrom { get; set; }
     public DateOnly? EffectiveTo { get; set; }
     public string CurrencyCode { get; set; } = string.Empty;
+ public string? PayBasis {get;set;}
+ public string? ItemsJson {get;set;}
+ public decimal InsuranceBase {get;set;}
+ public int Dependents {get;set;}
+ public decimal KpiBonusAmount {get;set;}
+ public string? Reason {get;set;}
+ public bool IsVerified {get;set;}
+ public long Version {get;set;}=1;
 }

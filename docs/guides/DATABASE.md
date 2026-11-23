@@ -104,3 +104,33 @@ Snapshot theo lịch chứa timezone/date và UTC start/end/windows, break/grace
 ## Mô tả audit_logs
 
 Bảng có từ InitialHRMDatabase, chứa actor/action/entity/before_json/after_json/created_at UTC. Chưa có cột Description hoặc UI; API đọc `/api/audit-logs` dùng bảng hiện có; schema/payload khác nhau theo service. Xem [AuditLog chi tiết](../modules/System/AUDIT_LOG.md) để tra action, ví dụ và coverage; không cần migration cho lần bổ sung tài liệu này.
+
+## Payroll & Compensation
+
+Migration cần duyệt: [20261123171325_CompletePayrollCompensation](../../backend/HRM.API/Migrations/20261123171325_CompletePayrollCompensation.cs) · [SQL sinh offline để review](../../database/migrations/20261123171325_CompletePayrollCompensation.sql). Chưa apply; không truy cập DB live hoặc Railway. [Thiết kế và vận hành](../modules/Payroll/README.md) · [API](../modules/Payroll/API.md).
+
+Giữ các bảng hiện có:
+
+| Table | Phần bổ sung |
+|---|---|
+| salary_profiles | pay_basis nullable cho legacy, items_json, insurance_base decimal(18,2), dependents, kpi_bonus_amount decimal(18,2), reason, is_verified=false cho legacy, version concurrency; index employee_id/effective_from |
+| timesheet_periods | version, input_hash, last_calculation_key, errors_json; unique period_key cũ giữ nguyên |
+| timesheet_details | snapshot_json, unique_key nullable unique; giữ FK indexes PeriodID/EmployeeID |
+| payroll_periods | department_id/scope_key, policy_id, created/calculated/paid actors, approval_id, version/hash/requestKey/errors, locked_at/paid_at/payment_reference; unique mới (period_key,scope_key), thay unique period_key cũ |
+| payroll_details | gross/tax/insurance/employer_insurance decimal(18,2), unique_key và employee_period_key nullable unique; giữ calculation_snapshot JSON và FK indexes |
+
+Chỉ tạo ba bảng:
+
+| Table | Cột/chỉ mục chính |
+|---|---|
+| salary_components | id, code UNIQUE, name, kind, taxable/tax_deductible/overtime_included, is_active, version |
+| payroll_policies | id, code UNIQUE, name, effective_from/to, status, rules_json, legal_reference, version; index status/effective_from |
+| payroll_adjustments | id, payroll_period_id FK RESTRICT, employee_id FK RESTRICT, component_id FK RESTRICT, amount decimal(18,2), reason, component_snapshot_json, request_key UNIQUE, is_cancelled, version, created_by/at |
+
+Quan hệ: TimesheetPeriod 1:N TimesheetDetail; PayrollPeriod → TimesheetPeriod, Department?, PayrollPolicy?, ApprovalRequest?; PayrollPeriod 1:N PayrollDetail/PayrollAdjustment; SalaryProfile/PayrollDetail/TimesheetDetail/Adjustment → Employee; Adjustment → SalaryComponent. Không tạo bảng Approval hoặc notification mới.
+
+Khóa nghiệp vụ: UNIQUE period_key/scope_key chống batch trùng, cùng serializable transaction khóa dòng source để ngăn global/department batch chồng nhau. PayrollDetail employee_period_key=`yyyy-MM:employeeId` chống trả trùng khi nhân viên chuyển phòng; unique_key=`payrollPeriodId:employeeId`. Cột unique mới nullable cho legacy, không tự normalize/xóa dòng cũ. TimesheetDetail unique_key=`timesheetPeriodId:employeeId`. Version concurrency tăng ở mọi mutation nghiệp vụ; cột version legacy được khởi tạo 1. Money không đổi precision các cột cũ.
+
+Migration Up chỉ DROP unique period_key cũ (không phải index chống đỡ FK), thêm cột, ba bảng, indexes, RESTRICT FKs và ba screen nếu thiếu. Không cấp role grants, không sửa salary amount/ContractNo/Attendance hoặc tạo lại bảng cũ. SQL và snapshot kiểm tra offline qua PayrollMigrationTests. MySQL DDL có thể auto-commit; review trên staging trước khi người vận hành apply theo quy trình đã duyệt.
+
+Không tự Down sau khi đã dùng nhiều batch phòng ban cùng tháng: unique period_key cũ không thể khôi phục nếu có nhiều dòng. Down cũng xóa chính sách, adjustment, snapshot và cột mới; cần backup, kế hoạch đối soát và phối hợp version ứng dụng. Legacy chưa có snapshot/IsVerified không được tự dùng làm căn cứ trả lương.

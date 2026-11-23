@@ -18,5 +18,10 @@ public class TimesheetPeriodConfiguration : IEntityTypeConfiguration<TimesheetPe
         entity.Property(x => x.ClosedByUserID).HasColumnName("closed_by_user_id").HasColumnType("varchar(100)").HasMaxLength(100).IsRequired(false);
         entity.HasIndex(x => new { x.PeriodKey }).HasDatabaseName("uq_timesheet_periods_period_key").IsUnique();
         entity.HasOne<User>().WithMany().HasForeignKey(x => x.ClosedByUserID).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_timesheet_periods_closed_by_user_id");
+        entity.Property(x=>x.Version).HasColumnName("version").IsConcurrencyToken();
+        entity.Property(x=>x.InputHash).HasColumnName("input_hash").HasMaxLength(64);
+        entity.Property(x=>x.LastCalculationKey).HasColumnName("last_calculation_key").HasMaxLength(100);
+        entity.Property(x=>x.ErrorsJson).HasColumnName("errors_json").HasColumnType("json");
+
     }
 }

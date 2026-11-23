@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **164 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **199 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ Có **164 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | System Settings | 12 | IMPLEMENTED |
 | Leave / Overtime / Adjustments / Balances | 20 | IMPLEMENTED |
 | Approvals / Workflow Settings | 7 | IMPLEMENTED; module cha với các module con |
-| Payroll / Timesheets | 0 | Model có, API MISSING |
+| Payroll / Timesheets | 35 | IMPLEMENTED; [đặc tả](../modules/Payroll/API.md), migration chưa apply |
 | Performance / KPI | 29 | IMPLEMENTED; Migration mới chưa apply |
 | AuditLog (System) | 2 | IMPLEMENTED; WEB_AUDIT_LOGS/VIEW |
 | Dashboard / Reports | 0 | API MISSING |
@@ -242,3 +242,45 @@ GET `/api/system-settings/password-policy` chỉ cần user đăng nhập/JWT h�
 Terminal logging: thêm GET/PUT `/api/system-settings/terminal-logging` và GET `/api/system-settings/terminal-logging/modules`. Quyền WEB_SYSTEM_SETTINGS VIEW/UPDATE, không Scope; If-Match, Audit và cache sau commit. [Đặc tả](../guides/TERMINAL_LOGGING.md).
 
 KPI Units: GET/POST `/api/kpi/configuration/units`, GET/PUT `/api/kpi/configuration/units/{id}`; WEB_KPI_CONFIGURATION VIEW/NEW/UPDATE, scope ALL khi ghi. Migration 20261123111950_AddKpiUnitCatalog chưa apply. [Đặc tả](../modules/Performance/API.md#danh-mục-đơn-vị-kpi).
+
+## Payroll & Compensation
+
+35 endpoint mới trên 5 bảng cũ và 3 bảng bổ sung. [API Specification đầy đủ](../modules/Payroll/API.md) · [Hướng dẫn tính và chính sách](../modules/Payroll/CALCULATION.md).
+
+| Method | URL | Permission |
+|---|---|---|
+| GET | `/api/payroll/employees` | `WEB_PAYROLL/VIEW` |
+| GET | `/api/payroll/export` | `WEB_PAYROLL/EXPORT` |
+| GET | `/api/payroll/lookups` | `WEB_PAYROLL/VIEW` |
+| GET | `/api/payroll/payslips` | `WEB_PAYROLL/VIEW` |
+| GET | `/api/payroll/payslips/{id:long}` | `WEB_PAYROLL/VIEW` |
+| GET | `/api/payroll/periods` | `WEB_PAYROLL/VIEW` |
+| POST | `/api/payroll/periods` | `WEB_PAYROLL/NEW` |
+| GET | `/api/payroll/periods/{id:long}/adjustments` | `WEB_PAYROLL/VIEW` |
+| POST | `/api/payroll/periods/{id:long}/adjustments` | `WEB_PAYROLL/UPDATE` |
+| POST | `/api/payroll/periods/{id:long}/adjustments/{adjustmentId:long}/cancel` | `WEB_PAYROLL/UPDATE` |
+| POST | `/api/payroll/periods/{id:long}/calculate` | `WEB_PAYROLL/UPDATE` |
+| POST | `/api/payroll/periods/{id:long}/lock` | `WEB_PAYROLL/APPROVE` |
+| POST | `/api/payroll/periods/{id:long}/paid` | `WEB_PAYROLL/APPROVE` |
+| POST | `/api/payroll/periods/{id:long}/submit` | `WEB_PAYROLL/UPDATE` |
+| GET | `/api/payroll/policies` | `WEB_PAYROLL/VIEW` |
+| GET | `/api/payroll/statistics` | `WEB_PAYROLL/VIEW` |
+| GET | `/api/payroll/timesheets` | `WEB_PAYROLL/VIEW` |
+| POST | `/api/payroll/timesheets` | `WEB_PAYROLL/NEW` |
+| GET | `/api/payroll/timesheets/{id:long}` | `WEB_PAYROLL/VIEW` |
+| POST | `/api/payroll/timesheets/{id:long}/calculate` | `WEB_PAYROLL/UPDATE` |
+| POST | `/api/payroll/timesheets/{id:long}/lock` | `WEB_PAYROLL/APPROVE` |
+| GET | `/api/payslips/me` | `WEB_MY_PAYSLIPS/VIEW` |
+| GET | `/api/payslips/me/{id:long}` | `WEB_MY_PAYSLIPS/VIEW` |
+| GET | `/api/payslips/me/{id:long}/pdf` | `WEB_MY_PAYSLIPS/EXPORT` |
+| GET | `/api/salary-configuration/components` | `WEB_SALARY_CONFIGURATION/VIEW` |
+| POST | `/api/salary-configuration/components` | `WEB_SALARY_CONFIGURATION/NEW` |
+| PUT | `/api/salary-configuration/components/{id:long}` | `WEB_SALARY_CONFIGURATION/UPDATE` |
+| GET | `/api/salary-configuration/employees` | `WEB_SALARY_CONFIGURATION/VIEW` |
+| GET | `/api/salary-configuration/lookups` | `WEB_SALARY_CONFIGURATION/VIEW` |
+| GET | `/api/salary-configuration/policies` | `WEB_SALARY_CONFIGURATION/VIEW` |
+| POST | `/api/salary-configuration/policies` | `WEB_SALARY_CONFIGURATION/NEW` |
+| PUT | `/api/salary-configuration/policies/{id:long}` | `WEB_SALARY_CONFIGURATION/UPDATE` |
+| POST | `/api/salary-configuration/policies/{id:long}/publish` | `WEB_SALARY_CONFIGURATION/UPDATE` |
+| GET | `/api/salary-configuration/profiles` | `WEB_SALARY_CONFIGURATION/VIEW` |
+| POST | `/api/salary-configuration/profiles` | `WEB_SALARY_CONFIGURATION/NEW` |

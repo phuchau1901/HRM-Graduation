@@ -1,4 +1,3 @@
-// Generated from HRM_Schema_Reference.sql (proposed schema, not deployed).
 namespace HRM.API.Modules.Payroll.Entities;
 
 public class TimesheetDetail
@@ -11,4 +10,6 @@ public class TimesheetDetail
     public decimal OvertimeHours { get; set; }
     public int LateMinutes { get; set; }
     public DateTime CalculatedAt { get; set; }
+ public string? SnapshotJson {get;set;}
+ public string? UniqueKey {get;set;}
 }

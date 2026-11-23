@@ -10,6 +10,7 @@ Approvals
 ├── Leave                  /#/approvals/leave
 ├── Overtime               /#/approvals/overtime
 ├── Attendance             /#/approvals/attendance
+├── Payroll                /#/approvals/payroll
 └── Cấu hình luồng duyệt    /#/approvals/settings
 ```
 
@@ -46,3 +47,7 @@ Các migration Leave trước đó vẫn cần được kiểm tra/apply bởi n
 - Frontend51/51 tests qua, gồm4 test module Approvals mới; production build thành công.
 - Postman sắp thành nhóm Approvals cha với Shared Workflow và các module con; thêm3 ví dụ lọc module, tổng129 examples, vẫn119 REST routes.
 - Không thêm migration cho refactor namespace/module, không apply migration, không deploy hoặc sửa database thật.
+
+## Payroll
+
+Module PAYROLL / PAYROLL_PERIOD dùng cùng engine, không thêm bảng phê duyệt. Ngoài WEB_APPROVALS, phải có WEB_PAYROLL VIEW/APPROVE và scope bao phủ toàn batch, được giao đúng bước; người gửi/người tính không tự duyệt. [Quy trình Payroll](../Payroll/README.md) · [API](../Payroll/API.md). PayrollAmount không được đưa vào approval list/notification/audit chung.
