@@ -24,7 +24,7 @@ Tài liệu được tổ chức theo module, đối chiếu source tại `backe
 | [Approvals](modules/Approvals/README.md) | Engine phê duyệt chung, module con Leave/Overtime/Attendance | API có |
 | [Leave](modules/Leave/README.md) | Nghỉ phép, tăng ca, approval, điều chỉnh công | API có |
 | [Payroll](modules/Payroll/README.md) | Lương và bảng công | Chỉ model; API chưa có |
-| [Performance](modules/Performance/README.md) | KPI và đánh giá | Chỉ model; API chưa có |
+| [Performance](modules/Performance/README.md) | KPI Configuration và Evaluation | API, UI, snapshot, Approval; Migration mới chưa apply |
 | [System](modules/System/README.md) | System Settings, password policy/history, Attendance configuration/services | API có; không tự apply migration |
 
 ## Cấu trúc
@@ -43,7 +43,7 @@ docs/
     Attendance/                 # README trạng thái thực tế
     Leave/                      # README trạng thái thực tế
     Payroll/                    # README trạng thái thực tế
-    Performance/                # README trạng thái thực tế
+    Performance/                # KPI Configuration, Evaluation, API và nghiệp vụ
     System/                     # README trạng thái thực tế
 ```
 

@@ -19,6 +19,7 @@ public sealed partial class ApprovalWorkflowService
         if (current.ApproverUserID != actor || !row.AllowSelfApproval && row.RequestedByUserID == actor) throw BusinessException.Scope();
         if (current.ApproverEmployeeId.HasValue && !await db.Set<User>().AnyAsync(u => u.UserId == actor && u.Status == "ACTIVE" && u.EmployeeId == current.ApproverEmployeeId, ct))
             throw BusinessException.Scope();
+        await module.AuthorizeDecisionAsync(row, actor, ct);
         var before = new { row.Status, row.Version, step = current.StepNo, current.Decision };
         current.Decision = approve ? "APPROVED" : "REJECTED"; current.Comment = request.Reason.Trim(); current.DecidedAt = Now; row.Version++;
         var next = steps.FirstOrDefault(s => s.Decision == "PENDING");

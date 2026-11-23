@@ -51,10 +51,14 @@ public sealed class SystemSettingsTests
         Assert.Throws<BusinessException>(() => AttendanceRules.Snapshot(new Shift { StartTime = new(2, 30), EndTime = new(8, 0) }, new(2026, 3, 8), dst, 1));
     }
     [Fact]
-    public async Task SettingsRequireExplicitGrantAndEtagAndAuditDoesNotRevokePasswords()
+    public async Task PasswordPolicyReadOnlyRequiresLoginWhileWritesRequireGrantAndEtag()
     {
         using var f = new AdministrationApiTests.Fixture(); await f.Start();
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.GetAsync("/api/system-settings/password-policy")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await f.Client.GetAsync("/api/system-settings/password-policy")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.GetAsync("/api/system-settings/attendance")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.PutAsJsonAsync("/api/system-settings/password-policy", new PasswordPolicyRequest())).StatusCode);
+        using (var anonymous=f.App.CreateClient(new(){BaseAddress=new Uri("https://localhost")}))
+            Assert.Equal(HttpStatusCode.Unauthorized,(await anonymous.GetAsync("/api/system-settings/password-policy")).StatusCode);
         await OrganizationApiTests.Grant(f.App, "WEB_SYSTEM_SETTINGS"); await OrganizationApiTests.Login(f.Client, f.App);
         var before = await f.Client.GetAsync("/api/system-settings/password-policy"); Assert.Equal(HttpStatusCode.OK, before.StatusCode);
         var etag = before.Headers.ETag!.ToString();

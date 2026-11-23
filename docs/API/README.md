@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **130 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **155 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ Có **130 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | Leave / Overtime / Adjustments / Balances | 20 | IMPLEMENTED |
 | Approvals / Workflow Settings | 7 | IMPLEMENTED; module cha với các module con |
 | Payroll / Timesheets | 0 | Model có, API MISSING |
-| Performance / KPI | 0 | Model có, API MISSING |
+| Performance / KPI | 25 | IMPLEMENTED; Migration mới chưa apply |
 | AuditLog (System) | 2 | IMPLEMENTED; WEB_AUDIT_LOGS/VIEW |
 | Dashboard / Reports | 0 | API MISSING |
 
@@ -26,7 +26,7 @@ Có **130 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | --- | --- | --- | --- |
 | GET | `/api/audit-logs` | [System](../modules/System/API.md#auditlog) | WEB_AUDIT_LOGS/VIEW |
 | GET | `/api/audit-logs/{id}` | [System](../modules/System/API.md#auditlog) | WEB_AUDIT_LOGS/VIEW |
-| GET | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/VIEW |
+| GET | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | JWT đăng nhập; không ScreenPermission, không Scope |
 | PUT | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/UPDATE + If-Match |
 | GET | `/api/system-settings/attendance` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/VIEW |
 | PUT | `/api/system-settings/attendance` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/UPDATE + If-Match |
@@ -120,7 +120,7 @@ Có **130 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 
 ## Chưa triển khai
 
-Không có public registration/forgot-password API, refresh-token HTTP endpoint, Data Scope management API, MFA/two-person approval, FCM, Attendance/Leave/Payroll/KPI/Dashboard HTTP workflow trong source hiện tại. Không ghi route dự kiến như route đang tồn tại. Endpoint Login anonymous có chủ đích; các endpoint inbox/profile yêu cầu JWT nhưng không đòi quyền xem một màn hình.
+Không có public registration/forgot-password API, refresh-token HTTP endpoint, Data Scope management API, MFA/two-person approval, FCM, Payroll/Dashboard HTTP workflow trong source hiện tại. Không ghi route dự kiến như route đang tồn tại. Endpoint Login anonymous có chủ đích; các endpoint inbox/profile yêu cầu JWT nhưng không đòi quyền xem một màn hình.
 
 Data Scope API extension: [specification and conversion rules](../modules/Employees/DATA_SCOPE.md), [audit](DATA_SCOPE_AUDIT.md), [review SQL](role-action-data-scope.review.sql), [JSON example](role-permissions-data-scope.sample.json).
 
@@ -227,3 +227,9 @@ GET `/api/attendances/me` chỉ cần `WEB_MY_ATTENDANCE / VIEW`, không đọc 
 Check-in và check-out: POST `/api/attendances/check-in` và `/api/attendances/check-out` chỉ cần `WEB_MY_ATTENDANCE / UPDATE`, không đọc Data Scope, không cần WEB_ATTENDANCE NEW/UPDATE. Server bắt buộc user ACTIVE có nhân viên liên kết hợp lệ và ca thuộc đúng nhân viên đó; ca của người khác trả404. API punch không bắt buộc VIEW, nhưng màn My Attendance cần thêm VIEW để tải danh sách. Giữ cửa sổ snapshot, QR/GPS, kỳ công khóa, requestKey/idempotency, transaction và audit. Các API quản lý vẫn giữ Scope theo action.
 
 GET `/api/attendances/daily/detail` chấp nhận VIEW trên **một trong** WEB_MY_ATTENDANCE hoặc WEB_ATTENDANCE, không yêu cầu cả hai. Với WEB_MY_ATTENDANCE VIEW, chỉ xem employee liên kết user đăng nhập và không đọc Scope; employeeId/scheduleId người khác trả404. Với WEB_ATTENDANCE VIEW, xem theo Scope VIEW hiện hành. Nếu có cả hai, chi tiết chính mình ưu tiên nhánh cá nhân; dữ liệu người khác vẫn phải nằm trong Scope quản lý. Thay đổi này chỉ cấp quyền đọc, không cấp quyền punch hoặc điều chỉnh.
+
+GET `/api/system-settings/password-policy` chỉ cần user đăng nhập/JWT hợp lệ, không yêu cầu WEB_SYSTEM_SETTINGS VIEW hoặc Data Scope, không cần liên kết EmployeeId. Giữ response `{settings,version,updatedAtUtc}` và ETag. Chưa đăng nhập trả401. PUT password-policy vẫn cần WEB_SYSTEM_SETTINGS UPDATE và If-Match; GET/PUT Attendance Settings giữ quyền hiện tại. Quyền đọc API này không tự cấp quyền vào màn hình quản trị hoặc chỉnh chính sách.
+
+## Performance Management — KPI
+
+25 endpoint mới, source đã triển khai; [API Specification](../modules/Performance/API.md), [audit / quyền / Migration](../modules/Performance/README.md). Screen WEB_KPI_CONFIGURATION (VIEW, NEW, UPDATE), WEB_KPI_EVALUATION (VIEW, UPDATE, APPROVE, EXPORT), scope theo action. Approvals dùng requestType KPI_EVALUATION/module PERFORMANCE qua engine hiện có. Migration 20261123090752_CompletePerformanceManagement chưa apply; đăng ký screen không tự cấp grant. Hai Postman Collection đã có folder Performance với25 request mẫu.

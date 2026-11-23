@@ -7,8 +7,8 @@ Controller/DTO/service thuộc `backend/HRM.API/Modules/Attendance/`. URL và qu
 | Method | URL | Quyền |
 | --- | --- | --- |
 | GET | /api/attendances | WEB_ATTENDANCE/VIEW + Employee scope |
-| POST | /api/attendances/check-in | WEB_MY_ATTENDANCE/UPDATE + scope + EmployeeId chính chủ |
-| POST | /api/attendances/check-out | WEB_MY_ATTENDANCE/UPDATE + scope + EmployeeId chính chủ |
+| POST | /api/attendances/check-in | WEB_MY_ATTENDANCE / UPDATE; không Scope; chỉ nhân viên đăng nhập |
+| POST | /api/attendances/check-out | WEB_MY_ATTENDANCE / UPDATE; không Scope; chỉ nhân viên đăng nhập |
 
 Punch body:
 
@@ -25,7 +25,7 @@ Punch body:
 
 Không nhận userId/employeeId/CheckInAt/CheckOutAt/timestamp trong body; unknown fields bị400. Lấy UTC hiện tại từ TimeProvider phía server, không header/query clock override. RequestKey bắt buộc <=100, unique; phát lại cùng key/operation/employee/schedule đang mở trả record hiện có, không ghi lặp. Key dùng cho resource/operation khác409; mỗi schedule tối đa một Attendance qua unique index có sẵn, row-lock serialize punch.
 
-Schedule phải SCHEDULED và EmployeeId liên kết JWT trùng EmployeeId lịch, kể cả actor có ALL. Quản trị viên không dùng punch để chấm công hộ; workflow adjustment/approval đầy đủ chưa được thêm trong phạm vi cấu hình này. SELF có thể punch chính mình; SELF vẫn không được tự phân ca bằng API quản trị schedule.
+Schedule phải SCHEDULED và EmployeeId lấy từ tài khoản ACTIVE đăng nhập trùng EmployeeId của lịch. Hai API punch không gọi EmployeeDataScope hoặc yêu cầu cấu hình SELF/DEPARTMENT/ALL; chỉ kiểm tra WEB_MY_ATTENDANCE / UPDATE. Ca người khác trả404, chưa có liên kết nhân viên hợp lệ trả403 HRM_AUTH_006. Quản trị viên cũng không được chấm công hộ qua các API này; sửa giờ công dùng Attendance Adjustment và Approval Workflow.
 
 Check-in từ start-before đến min(end,start+after); checkout từ max(start,end-before) đến end+after, bao gồm biên. LateMinutes=max(0,ceil(checkin-start)-lateGrace), EarlyMinutes tương tự với end-checkout-earlyGrace. Khi đủ hai đầu, WorkedMinutes=max(0,floor(checkout-checkin)-BreakMinutes) chỉ là số phút tổng, chưa phải payroll/overtime engine.
 

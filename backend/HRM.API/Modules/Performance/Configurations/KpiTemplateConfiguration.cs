@@ -16,5 +16,12 @@ public class KpiTemplateConfiguration : IEntityTypeConfiguration<KpiTemplate>
         entity.Property(x => x.PeriodType).HasColumnName("period_type").HasColumnType("varchar(20)").HasMaxLength(20).IsRequired();
         entity.Property(x => x.Status).HasColumnName("status").HasColumnType("varchar(20)").HasMaxLength(20).IsRequired();
         entity.HasIndex(x => new { x.Code }).HasDatabaseName("uq_kpi_templates_code").IsUnique();
+        entity.Property(x=>x.DepartmentId).HasColumnName("department_id");
+        entity.Property(x=>x.TeamId).HasColumnName("team_id");
+        entity.Property(x=>x.PositionId).HasColumnName("position_id");
+        entity.Property(x=>x.Version).HasColumnName("version").IsConcurrencyToken();
+        entity.HasOne<HRM.API.Modules.Organization.Entities.Department>().WithMany().HasForeignKey(x=>x.DepartmentId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne<HRM.API.Modules.Organization.Entities.Team>().WithMany().HasForeignKey(x=>x.TeamId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne<HRM.API.Modules.Organization.Entities.Position>().WithMany().HasForeignKey(x=>x.PositionId).OnDelete(DeleteBehavior.Restrict);
     }
 }

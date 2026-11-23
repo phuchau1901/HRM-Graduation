@@ -57,7 +57,7 @@ Chưa thêm AttendanceAdjustments approval endpoints hoặc payroll engine. Work
 
 ## 5. Quyền và bảo mật
 
-WEB_SYSTEM_SETTINGS VIEW/UPDATE global, không Employee scope. WEB_SHIFTS và WEB_QR_SESSIONS là catalog global qua grant. WEB_WORK_SCHEDULES và WEB_ATTENDANCE bắt buộc dataScopes theo action: SELF/DEPARTMENT/ALL. SELF được xem/punch chính chủ, không tự phân ca. ALL không cho punch hộ tài khoản khác. Không tự seed screen/grant; admin hiện tại cần bootstrap/cấp quyền có review qua cơ chế Screens/Role Matrix hiện có.
+WEB_SYSTEM_SETTINGS VIEW/UPDATE global, không Employee scope. WEB_SHIFTS và WEB_QR_SESSIONS là catalog global qua grant. WEB_WORK_SCHEDULES và các API quản lý WEB_ATTENDANCE dùng dataScopes theo action: SELF/DEPARTMENT/ALL. Riêng GET /api/attendances/me dùng WEB_MY_ATTENDANCE VIEW, check-in/check-out dùng WEB_MY_ATTENDANCE UPDATE; không áp Scope, chỉ dữ liệu/ca nhân viên đăng nhập. Scope quản lý không cấp quyền punch hộ hoặc quyền ghi của My Attendance. Không tự seed screen/grant; admin hiện tại cần bootstrap/cấp quyền có review qua cơ chế Screens/Role Matrix hiện có.
 
 Config/policy/shifts/schedule/attendance mutations đều audit trong cùng transaction dữ liệu. Không serialize password request, hash/salt hoặc QR token vào audit. QR token raw chỉ response lúc tạo; GPS kiểm tra geofence từ tọa độ client, không tuyên bố hardware attestation. History credential table cần được bảo vệ như users.password_hash.
 

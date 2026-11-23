@@ -54,3 +54,7 @@ URL `/#/hr/approvals` và cách gọi component LeaveWorkspace mode=approvals c�
 ApprovalModulesTests có module Travel giả chỉ trong tests để chứng minh thêm requestType không sửa engine, cấu hình5 loại, lấy detail theo handler và rollback khi handler đã SaveChanges rồi lỗi. Có test bộ lọc Leave/Overtime không trộn dữ liệu, thiếu quyền duyệt, từ chối type chưa đăng ký và model không có pending schema changes.
 
 Các test Leave/Overtime/Attendance/quota vẫn chạy qua engine mới; entity table names, audit EntityType, notification keys, routes và payload giữ compatibility. Không apply migration/deploy trong refactor này.
+
+### Module authorization hooks
+
+IApprovalModule có hai hook mặc định no-op để giữ hành vi các module hiện có: AuthorizeReadAsync trước khi trả domain details và AuthorizeDecisionAsync trước khi thay đổi bất kỳ bước nào. Performance dùng chúng để yêu cầu quyền/scope KPI tương ứng, cấm tự duyệt và chặn kỳ đã khóa. Không chỉ kiểm tra tại CompleteAsync: kiểm tra decision áp dụng từng bước trung gian, trước audit/notification/domain mutation. Adapter không phụ thuộc KpiService để tránh vòng DI với ApprovalWorkflowService.

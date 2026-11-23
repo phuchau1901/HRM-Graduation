@@ -42,6 +42,7 @@ public sealed partial class ApprovalWorkflowService
         var steps = await db.Set<ApprovalStep>().AsNoTracking().Where(s => s.ApprovalRequestID == id).OrderBy(s => s.StepNo).Select(s => new ApprovalStepView(s.ID, s.StepNo, s.ApproverUserID, s.Decision, s.Comment, s.DecidedAt, s.ApproverEmployeeId)).ToListAsync(ct);
         var module = modules.SingleOrDefault(m => m.RequestTypes.Contains(row.RequestType, StringComparer.Ordinal));
         var entity = await db.Set<ApprovalRequest>().AsNoTracking().SingleAsync(a => a.ID == id, ct);
+        if (module != null) await module.AuthorizeReadAsync(entity, actor, ct);
         var details = module == null ? null : await module.GetDetailsAsync(entity, ct);
         return new(row, steps, details);
     }

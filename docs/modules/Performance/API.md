@@ -1,0 +1,96 @@
+# KPI API Specification
+
+Base path `/api/kpi`; JWT bắt buộc. JSON camelCase. Trả lỗi theo chuẩn `{success:false,code,error,message,traceId}`. Danh sách `{success,total,page,pageSize,data}`, page>=1, pageSize1..100 (mặc định30); `search` mã/tên. Mutation trả `{success:true,data:...}` cho cấu hình; evaluation action trả `{success:true,id,status,version,...}`. GET template trả `{template,criteria}`; lookups trả `{departments,teams,positions}`.
+
+## Configuration — WEB_KPI_CONFIGURATION
+
+| Method | Path sau /api/kpi/configuration | Action / Scope |
+| --- | --- | --- |
+| GET | /lookups | VIEW + scope: org dùng trong biểu mẫu |
+| GET | /employees | VIEW + scope, active, phân trang/search |
+| GET | /periods | VIEW + scope cấu hình hợp lệ |
+| POST | /periods | NEW / ALL |
+| POST | /periods/{id:long}/close | UPDATE / ALL, version |
+| GET | /metrics | VIEW + scope cấu hình hợp lệ |
+| POST | /metrics | NEW / ALL |
+| PUT | /metrics/{id:long} | UPDATE / ALL, version |
+| GET | /templates | VIEW + scope |
+| GET | /templates/{id:long} | VIEW + scope |
+| POST | /templates | NEW / DEPARTMENT hoặc ALL |
+| PUT | /templates/{id:long} | UPDATE / DEPARTMENT hoặc ALL, version, chỉ DRAFT |
+| POST | /templates/{id:long}/publish | UPDATE / DEPARTMENT hoặc ALL, version |
+| POST | /assignments | NEW / DEPARTMENT hoặc ALL |
+
+Tạo kỳ: `{ "periodType":"MONTH", "year":2026, "number":11 }`. MONTH number1..12; QUARTER1..4; YEAR number1. Tự tính code `2026-11`, `2026-Q4`, `2026` và khoảng ngày theo lịch nghiệp vụ Việt Nam. Code unique, không tạo kỳ trùng. Chốt: `{ "version":1 }`; chỉ chốt khi mọi target trong kỳ APPROVED hoặc REJECTED. Không có API mở lại.
+
+Tạo/sửa metric:
+
+```json
+{"code":"SALES","name":"Doanh số","unit":"VND","direction":"HIGHER","method":"RATIO","source":"MANUAL","maxScore":100,"milestones":[],"isActive":true,"version":0}
+```
+
+Direction/method: HIGHER/RATIO, LOWER/RATIO, QUALITATIVE/DIRECT, MILESTONE/MILESTONE. Milestones ví dụ `[{"threshold":10,"score":40},{"threshold":20,"score":100}]`: ngưỡng không trùng, score không giảm theo ngưỡng. maxScore1..200. Version khi sửa là version GET hiện hành. Không hardcode công thức theo chức vụ.
+
+Tạo/sửa template:
+
+```json
+{"code":"SALES_MONTH_V1","name":"KPI Sales tháng","periodType":"MONTH","departmentId":null,"teamId":null,"positionId":null,"version":0,"criteria":[{"metricId":1,"weightPercent":100,"targetValue":100000000}]}
+```
+
+Chọn tối đa **một** departmentId, teamId hoặc positionId; cả ba NULL nghĩa dùng chung. Template Position cần scope ALL để quản trị vì Position dùng chung; template phòng ban/Team cho phép DEPARTMENT đúng phòng. DEPARTMENT được đọc/giao template dùng chung hoặc theo Position phù hợp, nhưng không sửa/phát hành template dùng chung. Tổng trọng số chính xác100, từng trọng số >0, tối đa hai chữ số lẻ; metric không trùng, active; ratio target>0. Mục tiêu/kết quả tối đa bốn chữ số lẻ. Snapshot metric được giữ trong từng criterion. Publish `{version:1}` chuyển DRAFT→PUBLISHED. Không sửa template đã phát hành, tạo template mã mới khi thay đổi bộ KPI. Sửa catalog không tác động snapshot template/target đã lưu.
+
+Giao / bulk / copy:
+
+```json
+{"periodId":1,"templateId":1,"reviewerEmployeeId":32,"target":"EMPLOYEE","employeeIds":[15,16],"departmentId":null,"teamId":null,"copyFromPeriodId":null}
+```
+
+Target ALL, DEPARTMENT (+departmentId), TEAM (+teamId), EMPLOYEE (+employeeIds). ALL nghĩa toàn bộ nhân viên **trong scope NEW**, không vượt scope. Chỉ active, HireDate<=ngày cuối kỳ, đúng applicability template; reviewer trong scope và có active linked user. Nếu reviewer chính cũng thuộc đợt giao (ví dụ ALL), bắt buộc thêm `alternateReviewerEmployeeId` khác họ, active/có linked user và trong scope; riêng KPI của reviewer chính giao cho người thay thế, các nhân viên còn lại dùng reviewer chính. Không bỏ qua nhân viên và không cho tự đánh giá. Giới hạn1000 nhân viên/đợt; dữ liệu không hợp lệ làm rollback cả đợt. Một nhân viên/kỳ chỉ có một bộ KPI. Giao lại trả `created:0,alreadyAssigned:N`, không sửa KPI đã có.
+
+Để copy: giữ periodId là kỳ mới, điền copyFromPeriodId là kỳ trước cùng loại, kết thúc trước ngày bắt đầu kỳ đích. Copy snapshot của **cùng template** trên từng nhân viên, không copy kết quả/trạng thái/điểm. Nếu nhân viên chưa có KPI nguồn thì từ chối cả đợt. Response `{success:true,created,alreadyAssigned,ids}`.
+
+## Evaluation — WEB_KPI_EVALUATION
+
+| Method | Path sau /api/kpi/evaluations | Action |
+| --- | --- | --- |
+| GET | / | VIEW |
+| GET | /periods | VIEW |
+| GET | /lookups | VIEW |
+| GET | /employees | VIEW |
+| GET | /statistics | VIEW |
+| GET | /export | EXPORT, .xlsx |
+| GET | /{id:long} | VIEW |
+| POST | /{id:long}/start | UPDATE, chỉ chủ KPI |
+| PUT | /{id:long}/results | UPDATE, chỉ chủ KPI |
+| POST | /{id:long}/submit | UPDATE, chỉ chủ KPI |
+| POST | /{id:long}/review | APPROVE, chỉ reviewer được giao |
+
+Tất cả áp scope action SELF/DEPARTMENT/ALL. Danh sách/thống kê/export cùng bộ lọc `periodId`, `departmentId`, `teamId`, `employeeId`, `status`, `search`. Không lộ tên/mã/count/score ngoài scope. Danh sách gồm employeeCode, employeeName, departmentName, teamName, periodKey, finalScore (chưa đánh giá là null), status, reviewerEmployeeId, version, approvalId. Statistics `{success:true,data:{total,statuses:[{status,count}],averageScore}}`; trung bình chỉ target APPROVED, không có điểm là null. SQL GROUP BY / AVG, không load toàn bộ target để thống kê. Export tối đa10000 dòng; quá giới hạn yêu cầu lọc hẹp hơn. Chuỗi trong Excel dùng inline strings, không thực thi công thức từ tên nhân viên.
+
+Chi tiết `{success:true,data:{target,criteria,results,reviewerComment,isClosed,history}}`; history tối đa100 sự kiện gần nhất có before/after trong Audit Logs (chi tiết trả afterJSON). Results giữ selfScore, managerScore và actualValue của nhân viên. Evidence dùng liên kết tài liệu HTTP(S), tối đa2000 ký tự, không có credentials; server không tải URL hoặc lưu file. Chưa có dịch vụ upload attachment trong dự án, không giả lập upload.
+
+Start/submit `{ "version":1 }`. Lưu kết quả:
+
+```json
+{"version":2,"results":[{"criterionId":1,"actualValue":80000000,"comment":"Kết quả kỳ","evidenceUrl":"https://example.com/evidence.pdf"}]}
+```
+
+Lưu từng phần được phép; submit chỉ khi mọi chỉ tiêu đã có actualValue. criterionId phải nằm trong snapshot, không nhận weight/target/formula từ client. Backend luôn tính selfScore. URL evidence tùy chọn. DRAFT phải start trước; IN_PROGRESS mới sửa được. Gửi xong không được sửa.
+
+Review:
+
+```json
+{"version":4,"comment":"Đã đối chiếu bằng chứng","results":[{"criterionId":1,"actualValue":90000000}]}
+```
+
+Reviewer cung cấp kết quả quản lý cho **đủ** chỉ tiêu. Backend tính managerScore và finalScore, lưu PerformanceReview cùng audit gồm input review. Giữ actualValue/bằng chứng gốc của nhân viên. Transaction đồng thời tạo request KPI_EVALUATION; thiếu workflow/approver cấu hình làm rollback review, target vẫn SUBMITTED.
+
+## Approval tích hợp
+
+Cấu hình `GET/PUT /api/approval-workflow-settings` thêm route `requestType:"KPI_EVALUATION"` với các bước TEAM_LEAD (teams.LeadEmployeeId), DEPARTMENT_MANAGER (departments.ManagerEmployeeId), USER (employeeId) hoặc HR theo engine có sẵn. Không kiểm tra grant người duyệt khi giao/gửi; kiểm tra khi duyệt thực tế. User người duyệt phải còn liên kết đúng EmployeeId snapshot. Không cho tự duyệt KPI kể cả route allowSelfApproval=true.
+
+Dùng API hiện có `/api/approvals?module=PERFORMANCE`, `/api/approvals/{id}`, `/approve`, `/reject`, `/history`. Mỗi bước cần WEB_APPROVALS APPROVE + scope, thêm WEB_KPI_EVALUATION APPROVE + scope; không bỏ bước, không duyệt trùng. Chi tiết cần VIEW của cả hai module và scopes tương ứng. Kết thúc APPROVED/REJECTED cập nhật target cùng transaction và thông báo cho nhân viên.
+
+## Concurrency / Errors
+
+Version bắt buộc trên start/results/submit/review/publish/close/update. Stale version hoặc transition sai409; ngoài scope403/404; validation400; không grant403; không JWT401. Transaction Serializable và khóa kỳ/target; unique employee/period chống giao trùng đồng thời. Deadlock1205/1213/duplicate1062 trả409, client reload trước khi thử lại, không tự replay decision. No N+1: query employee/org bằng joins; bulk lấy criteria, employees, existing, users theo tập, audit theo batch. Kỳ chốt khóa mọi ghi kết quả và quyết định workflow.

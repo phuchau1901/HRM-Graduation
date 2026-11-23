@@ -31,3 +31,5 @@ Chi tiết audit, quyền theo action, payload preview/bulk/copy/export, ngày l
 | GET | /api/work-schedules/export | WEB_WORK_SCHEDULES EXPORT + Scope; CSV trang đang chọn |
 
 Tự động phân lịch hàng tuần: cấu hình `autoScheduleEnabled` trong GET/PUT `/api/system-settings/attendance` (mặc định true). Job Work đầu Chủ nhật giờ Việt Nam sao chép tuần có lịch gần nhất của từng nhân viên ACTIVE còn hợp đồng ACTIVE, chỉ điền ngày trống và không ghi đè. [Chi tiết lịch chạy, hợp đồng và retry](../Work/WORK_SCHEDULES.md).
+
+Đọc chính sách mật khẩu: GET `/api/system-settings/password-policy` chỉ cần đăng nhập, không kiểm tra quyền màn hình hoặc Scope. PUT vẫn cần WEB_SYSTEM_SETTINGS UPDATE + If-Match.

@@ -1,4 +1,3 @@
-// Generated from HRM_Schema_Reference.sql (proposed schema, not deployed).
 namespace HRM.API.Modules.Performance.Entities;
 
 public class KpiCriterion
@@ -9,4 +8,7 @@ public class KpiCriterion
     public string Name { get; set; } = string.Empty;
     public decimal WeightPercent { get; set; }
     public decimal MaxScore { get; set; }
+ public long? MetricId {get;set;}
+ public decimal TargetValue {get;set;}
+ public string? MetricSnapshotJson {get;set;}
 }

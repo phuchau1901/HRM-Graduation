@@ -22,6 +22,125 @@ namespace HRM.API.Migrations
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
+            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalRequest", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<bool>("AllowSelfApproval")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false)
+                        .HasColumnName("allow_self_approval");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<int?>("EmployeeId")
+                        .HasColumnType("int")
+                        .HasColumnName("employee_id");
+
+                    b.Property<long>("ReferenceID")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reference_id");
+
+                    b.Property<string>("RequestType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("request_type");
+
+                    b.Property<string>("RequestedByUserID")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("requested_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("version");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("RequestedByUserID");
+
+                    b.HasIndex("EmployeeId", "Status");
+
+                    b.HasIndex("RequestType", "ReferenceID");
+
+                    b.ToTable("approval_requests", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalStep", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<long>("ApprovalRequestID")
+                        .HasColumnType("bigint")
+                        .HasColumnName("approval_request_id");
+
+                    b.Property<int?>("ApproverEmployeeId")
+                        .HasColumnType("int")
+                        .HasColumnName("approver_employee_id");
+
+                    b.Property<string>("ApproverUserID")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("approver_user_id");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)")
+                        .HasColumnName("comment");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("decided_at");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("PENDING")
+                        .HasColumnName("decision");
+
+                    b.Property<int>("StepNo")
+                        .HasColumnType("int")
+                        .HasColumnName("step_no");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ApproverEmployeeId");
+
+                    b.HasIndex("ApproverUserID");
+
+                    b.HasIndex("ApprovalRequestID", "StepNo")
+                        .IsUnique();
+
+                    b.ToTable("approval_steps", (string)null);
+                });
+
             modelBuilder.Entity("HRM.API.Modules.Attendance.Entities.Attendance", b =>
                 {
                     b.Property<long>("ID")
@@ -899,125 +1018,6 @@ namespace HRM.API.Migrations
                     b.ToTable("employee_histories", (string)null);
                 });
 
-            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalRequest", b =>
-                {
-                    b.Property<long>("ID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
-
-                    b.Property<bool>("AllowSelfApproval")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(false)
-                        .HasColumnName("allow_self_approval");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("created_at");
-
-                    b.Property<int?>("EmployeeId")
-                        .HasColumnType("int")
-                        .HasColumnName("employee_id");
-
-                    b.Property<long>("ReferenceID")
-                        .HasColumnType("bigint")
-                        .HasColumnName("reference_id");
-
-                    b.Property<string>("RequestType")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("varchar(30)")
-                        .HasColumnName("request_type");
-
-                    b.Property<string>("RequestedByUserID")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("requested_by_user_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)")
-                        .HasColumnName("status");
-
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(1L)
-                        .HasColumnName("version");
-
-                    b.HasKey("ID");
-
-                    b.HasIndex("RequestedByUserID");
-
-                    b.HasIndex("EmployeeId", "Status");
-
-                    b.HasIndex("RequestType", "ReferenceID");
-
-                    b.ToTable("approval_requests", (string)null);
-                });
-
-            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalStep", b =>
-                {
-                    b.Property<long>("ID")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
-
-                    b.Property<long>("ApprovalRequestID")
-                        .HasColumnType("bigint")
-                        .HasColumnName("approval_request_id");
-
-                    b.Property<int?>("ApproverEmployeeId")
-                        .HasColumnType("int")
-                        .HasColumnName("approver_employee_id");
-
-                    b.Property<string>("ApproverUserID")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)")
-                        .HasColumnName("approver_user_id");
-
-                    b.Property<string>("Comment")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)")
-                        .HasColumnName("comment");
-
-                    b.Property<DateTime?>("DecidedAt")
-                        .HasColumnType("datetime(6)")
-                        .HasColumnName("decided_at");
-
-                    b.Property<string>("Decision")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("varchar(20)")
-                        .HasDefaultValue("PENDING")
-                        .HasColumnName("decision");
-
-                    b.Property<int>("StepNo")
-                        .HasColumnType("int")
-                        .HasColumnName("step_no");
-
-                    b.HasKey("ID");
-
-                    b.HasIndex("ApproverEmployeeId");
-
-                    b.HasIndex("ApproverUserID");
-
-                    b.HasIndex("ApprovalRequestID", "StepNo")
-                        .IsUnique();
-
-                    b.ToTable("approval_steps", (string)null);
-                });
-
             modelBuilder.Entity("HRM.API.Modules.Leave.Entities.LeaveBalance", b =>
                 {
                     b.Property<long>("ID")
@@ -1816,11 +1816,24 @@ namespace HRM.API.Migrations
                         .HasColumnType("decimal(8,2)")
                         .HasColumnName("max_score");
 
+                    b.Property<long?>("MetricId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("metric_id");
+
+                    b.Property<string>("MetricSnapshotJson")
+                        .HasColumnType("longtext")
+                        .HasColumnName("metric_snapshot_json");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)")
                         .HasColumnName("name");
+
+                    b.Property<decimal>("TargetValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("target_value");
 
                     b.Property<long>("TemplateID")
                         .HasColumnType("bigint")
@@ -1833,9 +1846,138 @@ namespace HRM.API.Migrations
 
                     b.HasKey("ID");
 
+                    b.HasIndex("MetricId");
+
                     b.HasIndex("TemplateID");
 
                     b.ToTable("kpi_criteria", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiMetric", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Direction")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("direction");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<decimal>("MaxScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)")
+                        .HasColumnName("max_score");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("method");
+
+                    b.Property<string>("MilestonesJson")
+                        .IsRequired()
+                        .HasColumnType("longtext")
+                        .HasColumnName("milestones_json");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("source");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("unit");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("kpi_metrics", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiPeriod", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("closed_at");
+
+                    b.Property<string>("ClosedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("closed_by");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("varchar(7)")
+                        .HasColumnName("code");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date")
+                        .HasColumnName("end_date");
+
+                    b.Property<bool>("IsClosed")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_closed");
+
+                    b.Property<string>("PeriodType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("period_type");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("kpi_periods", (string)null);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiResult", b =>
@@ -1847,6 +1989,11 @@ namespace HRM.API.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
 
+                    b.Property<decimal?>("ActualValue")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)")
+                        .HasColumnName("actual_value");
+
                     b.Property<string>("Comment")
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)")
@@ -1855,6 +2002,11 @@ namespace HRM.API.Migrations
                     b.Property<long>("CriterionID")
                         .HasColumnType("bigint")
                         .HasColumnName("criterion_id");
+
+                    b.Property<string>("EvidenceUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)")
+                        .HasColumnName("evidence_url");
 
                     b.Property<decimal?>("ManagerScore")
                         .HasPrecision(8, 2)
@@ -1888,6 +2040,10 @@ namespace HRM.API.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
 
+                    b.Property<long?>("ApprovalId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("approval_id");
+
                     b.Property<string>("AssignedByUserID")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1898,11 +2054,33 @@ namespace HRM.API.Migrations
                         .HasColumnType("int")
                         .HasColumnName("employee_id");
 
+                    b.Property<decimal?>("FinalScore")
+                        .HasPrecision(8, 2)
+                        .HasColumnType("decimal(8,2)")
+                        .HasColumnName("final_score");
+
+                    b.Property<long?>("PeriodId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("period_id");
+
                     b.Property<string>("PeriodKey")
                         .IsRequired()
                         .HasMaxLength(7)
                         .HasColumnType("varchar(7)")
                         .HasColumnName("period_key");
+
+                    b.Property<string>("ReviewerComment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)")
+                        .HasColumnName("reviewer_comment");
+
+                    b.Property<int?>("ReviewerEmployeeId")
+                        .HasColumnType("int")
+                        .HasColumnName("reviewer_employee_id");
+
+                    b.Property<string>("SnapshotJson")
+                        .HasColumnType("longtext")
+                        .HasColumnName("snapshot_json");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -1910,17 +2088,33 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("status");
 
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("submitted_at");
+
                     b.Property<long>("TemplateID")
                         .HasColumnType("bigint")
                         .HasColumnName("template_id");
 
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
                     b.HasKey("ID");
+
+                    b.HasIndex("ApprovalId");
 
                     b.HasIndex("AssignedByUserID");
 
-                    b.HasIndex("EmployeeID");
+                    b.HasIndex("ReviewerEmployeeId");
 
                     b.HasIndex("TemplateID");
+
+                    b.HasIndex("EmployeeID", "PeriodId")
+                        .IsUnique();
+
+                    b.HasIndex("PeriodId", "Status");
 
                     b.ToTable("kpi_targets", (string)null);
                 });
@@ -1940,6 +2134,10 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(30)")
                         .HasColumnName("code");
 
+                    b.Property<int?>("DepartmentId")
+                        .HasColumnType("int")
+                        .HasColumnName("department_id");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1952,17 +2150,36 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(20)")
                         .HasColumnName("period_type");
 
+                    b.Property<long?>("PositionId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("position_id");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)")
                         .HasColumnName("status");
 
+                    b.Property<int?>("TeamId")
+                        .HasColumnType("int")
+                        .HasColumnName("team_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
                     b.HasKey("ID");
 
                     b.HasIndex("Code")
                         .IsUnique()
                         .HasDatabaseName("uq_kpi_templates_code");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("PositionId");
+
+                    b.HasIndex("TeamId");
 
                     b.ToTable("kpi_templates", (string)null);
                 });
@@ -2243,6 +2460,43 @@ namespace HRM.API.Migrations
                         });
                 });
 
+            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalRequest", b =>
+                {
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_approval_requests_requested_by_user_id");
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalStep", b =>
+                {
+                    b.HasOne("HRM.API.Modules.Approvals.Entities.ApprovalRequest", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovalRequestID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_approval_steps_approval_request_id");
+
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ApproverEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ApproverUserID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_approval_steps_approver_user_id");
+                });
+
             modelBuilder.Entity("HRM.API.Modules.Attendance.Entities.Attendance", b =>
                 {
                     b.HasOne("HRM.API.Modules.Attendance.Entities.QRSession", null)
@@ -2478,43 +2732,6 @@ namespace HRM.API.Migrations
                         .HasConstraintName("fk_employee_histories_old_position_id");
                 });
 
-            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalRequest", b =>
-                {
-                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("RequestedByUserID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_approval_requests_requested_by_user_id");
-                });
-
-            modelBuilder.Entity("HRM.API.Modules.Approvals.Entities.ApprovalStep", b =>
-                {
-                    b.HasOne("HRM.API.Modules.Approvals.Entities.ApprovalRequest", null)
-                        .WithMany()
-                        .HasForeignKey("ApprovalRequestID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_approval_steps_approval_request_id");
-
-                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
-                        .WithMany()
-                        .HasForeignKey("ApproverEmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
-                        .WithMany()
-                        .HasForeignKey("ApproverUserID")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired()
-                        .HasConstraintName("fk_approval_steps_approver_user_id");
-                });
-
             modelBuilder.Entity("HRM.API.Modules.Leave.Entities.LeaveBalance", b =>
                 {
                     b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
@@ -2687,6 +2904,11 @@ namespace HRM.API.Migrations
 
             modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiCriterion", b =>
                 {
+                    b.HasOne("HRM.API.Modules.Performance.Entities.KpiMetric", null)
+                        .WithMany()
+                        .HasForeignKey("MetricId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HRM.API.Modules.Performance.Entities.KpiTemplate", null)
                         .WithMany()
                         .HasForeignKey("TemplateID")
@@ -2714,6 +2936,11 @@ namespace HRM.API.Migrations
 
             modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiTarget", b =>
                 {
+                    b.HasOne("HRM.API.Modules.Approvals.Entities.ApprovalRequest", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
                         .WithMany()
                         .HasForeignKey("AssignedByUserID")
@@ -2728,12 +2955,40 @@ namespace HRM.API.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_kpi_targets_employee_id");
 
+                    b.HasOne("HRM.API.Modules.Performance.Entities.KpiPeriod", null)
+                        .WithMany()
+                        .HasForeignKey("PeriodId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("ReviewerEmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("HRM.API.Modules.Performance.Entities.KpiTemplate", null)
                         .WithMany()
                         .HasForeignKey("TemplateID")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_kpi_targets_template_id");
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiTemplate", b =>
+                {
+                    b.HasOne("HRM.API.Modules.Organization.Entities.Department", null)
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Organization.Entities.Position", null)
+                        .WithMany()
+                        .HasForeignKey("PositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Organization.Entities.Team", null)
+                        .WithMany()
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Performance.Entities.PerformanceReview", b =>

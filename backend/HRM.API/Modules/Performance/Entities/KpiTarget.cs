@@ -1,4 +1,3 @@
-// Generated from HRM_Schema_Reference.sql (proposed schema, not deployed).
 namespace HRM.API.Modules.Performance.Entities;
 
 public class KpiTarget
@@ -9,4 +8,12 @@ public class KpiTarget
     public string PeriodKey { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string AssignedByUserID { get; set; } = string.Empty;
+ public long? PeriodId {get;set;}
+ public int? ReviewerEmployeeId {get;set;}
+ public string? SnapshotJson {get;set;}
+ public long Version {get;set;} = 1;
+ public decimal? FinalScore {get;set;}
+ public string? ReviewerComment {get;set;}
+ public DateTime? SubmittedAt {get;set;}
+ public long? ApprovalId {get;set;}
 }

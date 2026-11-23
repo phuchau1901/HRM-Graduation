@@ -177,7 +177,7 @@ public sealed class AuthServiceTests : IDisposable
         Assert.Null(typeof(User).GetProperty("Username"));
         Assert.Equal("Id", Assert.Single(model.FindEntityType(typeof(Employee))!.FindPrimaryKey()!.Properties).Name);
         Assert.DoesNotContain(model.GetEntityTypes().SelectMany(e => e.GetProperties()),
-            p => p.GetColumnType() == "decimal(65,30)" || p.GetColumnType() == "longtext" && p.Name is not ("RulesSnapshotJson" or "JsonValue"));
+            p => p.GetColumnType() == "decimal(65,30)" || p.GetColumnType() == "longtext" && p.Name is not ("RulesSnapshotJson" or "JsonValue" or "MetricSnapshotJson" or "SnapshotJson" or "MilestonesJson"));
         Assert.False(db.Database.HasPendingModelChanges());
         var script = db.GetService<IMigrator>().GenerateScript();
         Assert.Contains("CREATE TABLE `screens`", script); Assert.Contains("CREATE TABLE `role_details`", script);

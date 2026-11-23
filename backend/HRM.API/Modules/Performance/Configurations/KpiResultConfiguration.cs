@@ -18,5 +18,7 @@ public class KpiResultConfiguration : IEntityTypeConfiguration<KpiResult>
         entity.Property(x => x.Comment).HasColumnName("comment").HasColumnType("varchar(1000)").HasMaxLength(1000).IsRequired(false);
         entity.HasOne<KpiTarget>().WithMany().HasForeignKey(x => x.TargetID).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_kpi_results_target_id");
         entity.HasOne<KpiCriterion>().WithMany().HasForeignKey(x => x.CriterionID).OnDelete(DeleteBehavior.Restrict).HasConstraintName("fk_kpi_results_criterion_id");
+        entity.Property(x=>x.ActualValue).HasColumnName("actual_value").HasPrecision(18,4);
+        entity.Property(x=>x.EvidenceUrl).HasColumnName("evidence_url").HasMaxLength(2000);
     }
 }

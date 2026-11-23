@@ -2,6 +2,8 @@
 
 [API Attendance](API.md) · [Module Work: ca và lịch](../Work/README.md) · [Cấu hình hệ thống](../System/API.md)
 
+My Attendance dùng WEB_MY_ATTENDANCE: VIEW để xem, UPDATE cho cả check-in/check-out, không cần Scope; tự lấy nhân viên từ user đăng nhập. [Ma trận quyền chi tiết](MANAGEMENT.md#my-attendance-và-punch).
+
 Chấm công/QR sở hữu controller, DTO và service tại Modules/Attendance; quy tắc AttendanceRules và AttendanceCorrectionRules ở cùng module. Ca và phân lịch do Modules/Work quản lý. Entity/Configuration của Shift/WorkSchedule chuyển file sang Work, giữ namespace cũ; các entity chấm công giữ tại Attendance. Không đổi mapping database hoặc lịch sử migration.
 
 API Shifts, WorkSchedules, Attendance và QRSessions giữ URL, RBAC, Data Scope và snapshot cũ. Giờ thực tế UTC do server cấp, ngày công theo timezone cấu hình; không tự tính lại lịch sử khi settings thay đổi.

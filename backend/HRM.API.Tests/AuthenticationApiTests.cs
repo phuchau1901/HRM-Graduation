@@ -173,6 +173,7 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
     private readonly SqliteConnection _connection = new("Data Source=:memory:");
     public string? NotificationOrigin { get; init; }
     public string? EmployeeScope { get; init; }
+    internal Exception? LastException { get; private set; }
     public bool FailNotificationWrites { get; init; }
     public string? SqliteDatabasePath { get; init; }
     public TimeProvider? TestClock { get; init; }
@@ -195,7 +196,7 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
         builder.ConfigureTestServices(services =>
         {
             if (TestClock is not null) { services.RemoveAll<TimeProvider>(); services.AddSingleton(TestClock); }
-            services.AddControllers().AddApplicationPart(typeof(PermissionProbeController).Assembly);
+            services.AddControllers(o => o.Filters.Add(new TestExceptionCapture(e => LastException = e))).AddApplicationPart(typeof(PermissionProbeController).Assembly);
             services.RemoveAll<AppDbContext>();
             services.AddScoped<AppDbContext>(_ =>
             {
@@ -231,7 +232,7 @@ internal sealed class AuthorizationTestContext(DbContextOptions<AppDbContext> op
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
-        var keep = new[] { typeof(HRM.API.Modules.Payroll.Entities.TimesheetPeriod), typeof(HRM.API.Modules.Leave.Entities.LeaveType), typeof(HRM.API.Modules.Leave.Entities.LeaveBalance), typeof(HRM.API.Modules.Leave.Entities.LeaveRequest), typeof(HRM.API.Modules.Leave.Entities.OvertimeRequest), typeof(HRM.API.Modules.Approvals.Entities.ApprovalRequest), typeof(HRM.API.Modules.Approvals.Entities.ApprovalStep), typeof(HRM.API.Modules.System.Entities.SystemSetting), typeof(HRM.API.Modules.System.Entities.PasswordHistory), typeof(HRM.API.Modules.Attendance.Entities.Shift), typeof(HRM.API.Modules.Attendance.Entities.WorkSchedule), typeof(HRM.API.Modules.Attendance.Entities.Attendance), typeof(HRM.API.Modules.Attendance.Entities.QRSession), typeof(HRM.API.Modules.Attendance.Entities.AttendanceRequest), typeof(HRM.API.Modules.Attendance.Entities.AttendanceAdjustment), typeof(HRM.API.Modules.Organization.Entities.Team), typeof(HRM.API.Modules.Auth.Entities.RefreshToken), typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction), typeof(HRM.API.Modules.Organization.Entities.Position),
+        var keep = new[] { typeof(HRM.API.Modules.Performance.Entities.KpiPeriod), typeof(HRM.API.Modules.Performance.Entities.KpiMetric), typeof(HRM.API.Modules.Performance.Entities.KpiTemplate), typeof(HRM.API.Modules.Performance.Entities.KpiCriterion), typeof(HRM.API.Modules.Performance.Entities.KpiTarget), typeof(HRM.API.Modules.Performance.Entities.KpiResult), typeof(HRM.API.Modules.Performance.Entities.PerformanceReview), typeof(HRM.API.Modules.Payroll.Entities.TimesheetPeriod), typeof(HRM.API.Modules.Leave.Entities.LeaveType), typeof(HRM.API.Modules.Leave.Entities.LeaveBalance), typeof(HRM.API.Modules.Leave.Entities.LeaveRequest), typeof(HRM.API.Modules.Leave.Entities.OvertimeRequest), typeof(HRM.API.Modules.Approvals.Entities.ApprovalRequest), typeof(HRM.API.Modules.Approvals.Entities.ApprovalStep), typeof(HRM.API.Modules.System.Entities.SystemSetting), typeof(HRM.API.Modules.System.Entities.PasswordHistory), typeof(HRM.API.Modules.Attendance.Entities.Shift), typeof(HRM.API.Modules.Attendance.Entities.WorkSchedule), typeof(HRM.API.Modules.Attendance.Entities.Attendance), typeof(HRM.API.Modules.Attendance.Entities.QRSession), typeof(HRM.API.Modules.Attendance.Entities.AttendanceRequest), typeof(HRM.API.Modules.Attendance.Entities.AttendanceAdjustment), typeof(HRM.API.Modules.Organization.Entities.Team), typeof(HRM.API.Modules.Auth.Entities.RefreshToken), typeof(User), typeof(Role), typeof(UserRole), typeof(RoleDetail), typeof(Screen), typeof(Department), typeof(RoleScreenAction), typeof(HRM.API.Modules.Organization.Entities.Position),
             typeof(HRM.API.Modules.Employees.Entities.EmployeeHistory), typeof(HRM.API.Modules.Employees.Entities.Contract), typeof(HRM.API.Modules.Employees.Entities.ContractType), typeof(HRM.API.Modules.Employees.Entities.DocumentSequence),
             typeof(HRM.API.Modules.Employees.Entities.Employee), typeof(HRM.API.Modules.System.Entities.Notification),
             typeof(HRM.API.Modules.System.Entities.AuditLog), typeof(HRM.API.Modules.Notifications.Entities.NotificationTarget),
@@ -239,4 +240,8 @@ internal sealed class AuthorizationTestContext(DbContextOptions<AppDbContext> op
         foreach (var entity in builder.Model.GetEntityTypes().Where(x => !keep.Contains(x.ClrType)).ToArray()) builder.Ignore(entity.ClrType);
         SqliteTestModel.UseSqliteIdentityTypes(builder);
     }
+}
+
+internal sealed class TestExceptionCapture(Action<Exception> record) : Microsoft.AspNetCore.Mvc.Filters.IExceptionFilter {
+ public void OnException(Microsoft.AspNetCore.Mvc.Filters.ExceptionContext context) => record(context.Exception);
 }

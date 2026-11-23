@@ -306,6 +306,22 @@
       "key": "attendanceScheduleId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "kpiPeriodId",
+      "value": "1"
+    },
+    {
+      "key": "kpiMetricId",
+      "value": "1"
+    },
+    {
+      "key": "kpiTemplateId",
+      "value": "1"
+    },
+    {
+      "key": "kpiTargetId",
+      "value": "1"
     }
   ],
   "item": [
@@ -1946,7 +1962,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/system-settings/password-policy",
-            "description": "WEB_SYSTEM_SETTINGS/VIEW, cấu hình global không dùng Employee data scope. 200 {settings,version,updatedAtUtc} + ETag. Chỉ chạy mutation thủ công trên môi trường được duyệt; không tự cấp quyền/apply migration."
+            "description": "Requires a valid authenticated JWT only. No WEB_SYSTEM_SETTINGS VIEW permission or data scope; no employee link required. Returns settings/version/updatedAtUtc and ETag. Anonymous401. PUT remains WEB_SYSTEM_SETTINGS UPDATE + If-Match; other settings endpoints remain unchanged."
           },
           "response": [],
           "event": [
@@ -3145,7 +3161,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/attendances/check-in",
-            "description": "Requires WEB_MY_ATTENDANCE / UPDATE only; no data scope and no WEB_ATTENDANCE NEW/UPDATE. Active user must have a valid linked employee and own the schedule (other schedules404). Existing snapshot time windows, QR/GPS, timesheet locks, idempotent requestKey, transactions and audit remain enforced. VIEW is needed only to load personal history, not to call the punch endpoint.",
+            "description": "WEB_MY_ATTENDANCE / UPDATE only. No SELF/DEPARTMENT/ALL data-scope configuration required; WEB_ATTENDANCE NEW/UPDATE is not used. Backend resolves employeeId from the active signed-in user and requires schedule ownership. Other employee schedules404; invalid employee link403 HRM_AUTH_006. API does not require VIEW (VIEW is needed to load personal history in the UI). Preserve snapshot/window checks, QR/GPS, locked timesheet protection, requestKey idempotency, transaction and audit. Body must not include employeeId/userId or client punch timestamps.",
             "body": {
               "mode": "raw",
               "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
@@ -3169,7 +3185,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/attendances/check-out",
-            "description": "Requires WEB_MY_ATTENDANCE / UPDATE only; no data scope and no WEB_ATTENDANCE NEW/UPDATE. Active user must have a valid linked employee and own the schedule (other schedules404). Existing snapshot time windows, QR/GPS, timesheet locks, idempotent requestKey, transactions and audit remain enforced. VIEW is needed only to load personal history, not to call the punch endpoint.",
+            "description": "WEB_MY_ATTENDANCE / UPDATE only. No SELF/DEPARTMENT/ALL data-scope configuration required; WEB_ATTENDANCE NEW/UPDATE is not used. Backend resolves employeeId from the active signed-in user and requires schedule ownership. Other employee schedules404; invalid employee link403 HRM_AUTH_006. API does not require VIEW (VIEW is needed to load personal history in the UI). Preserve snapshot/window checks, QR/GPS, locked timesheet protection, requestKey idempotency, transaction and audit. Body must not include employeeId/userId or client punch timestamps.",
             "body": {
               "mode": "raw",
               "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
@@ -3286,6 +3302,429 @@
             "header": [],
             "url": "{{baseUrl}}/api/attendances/export?from=2026-11-23&to=2026-11-29",
             "description": "Attendance Management: docs/modules/Attendance/MANAGEMENT.md. VIEW data scope for reads; EXPORT has independent scope. Dates limited to31 days, filters departmentId/teamId/employeeId/search/status. Daily includes employees without punches, statistics counts distinct employees before paging, LATE/EARLY are independent filters. My Attendance always uses signed-in employee. Export is true .xlsx, at most10000 rows. Replace example IDs/dates with your environment values."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Performance — KPI Configuration & Evaluation",
+      "item": [
+        {
+          "name": "GET /api/kpi/configuration/periods?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/configuration/periods?page=1&pageSize=20",
+            "description": "WEB_KPI_CONFIGURATION VIEW; lookup nhân viên và org chỉ trong scope. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/configuration/metrics?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/configuration/metrics?page=1&pageSize=20",
+            "description": "WEB_KPI_CONFIGURATION VIEW; lookup nhân viên và org chỉ trong scope. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/configuration/templates?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/configuration/templates?page=1&pageSize=20",
+            "description": "WEB_KPI_CONFIGURATION VIEW; lookup nhân viên và org chỉ trong scope. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/configuration/employees?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/configuration/employees?page=1&pageSize=20",
+            "description": "WEB_KPI_CONFIGURATION VIEW; lookup nhân viên và org chỉ trong scope. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/configuration/lookups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/configuration/lookups",
+            "description": "WEB_KPI_CONFIGURATION VIEW; lookup nhân viên và org chỉ trong scope. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/configuration/periods",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/periods",
+            "description": "WEB_KPI_CONFIGURATION NEW / ALL. Tháng1..12, quý1..4, năm number1. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodType\": \"MONTH\",\n  \"year\": 2026,\n  \"number\": 11\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/configuration/periods/{{kpiPeriodId}}/close",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/periods/{{kpiPeriodId}}/close",
+            "description": "WEB_KPI_CONFIGURATION UPDATE / ALL. Chỉ khi mọi KPI kết thúc. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/configuration/metrics",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/metrics",
+            "description": "WEB_KPI_CONFIGURATION NEW / ALL. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SALES\",\n  \"name\": \"Doanh số\",\n  \"unit\": \"VND\",\n  \"direction\": \"HIGHER\",\n  \"method\": \"RATIO\",\n  \"source\": \"MANUAL\",\n  \"maxScore\": 100,\n  \"milestones\": [],\n  \"isActive\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/kpi/configuration/metrics/{{kpiMetricId}}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/metrics/{{kpiMetricId}}",
+            "description": "WEB_KPI_CONFIGURATION UPDATE / ALL. Không thay snapshot đã lưu. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SALES\",\n  \"name\": \"Doanh số\",\n  \"unit\": \"VND\",\n  \"direction\": \"HIGHER\",\n  \"method\": \"RATIO\",\n  \"source\": \"MANUAL\",\n  \"maxScore\": 100,\n  \"milestones\": [],\n  \"isActive\": true,\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/configuration/templates",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/templates",
+            "description": "WEB_KPI_CONFIGURATION NEW. Tổng weight100; điền metricId từ GET metrics. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SALES_MONTH_V1\",\n  \"name\": \"KPI Sales tháng\",\n  \"periodType\": \"MONTH\",\n  \"departmentId\": null,\n  \"teamId\": null,\n  \"positionId\": null,\n  \"criteria\": [\n    {\n      \"metricId\": 1,\n      \"weightPercent\": 100,\n      \"targetValue\": 100000000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/configuration/templates/{{kpiTemplateId}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/configuration/templates/{{kpiTemplateId}}",
+            "description": "WEB_KPI_CONFIGURATION VIEW, criteria snapshot. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/kpi/configuration/templates/{{kpiTemplateId}}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/templates/{{kpiTemplateId}}",
+            "description": "WEB_KPI_CONFIGURATION UPDATE. Chỉ DRAFT. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"SALES_MONTH_V1\",\n  \"name\": \"KPI Sales tháng\",\n  \"periodType\": \"MONTH\",\n  \"departmentId\": null,\n  \"teamId\": null,\n  \"positionId\": null,\n  \"criteria\": [\n    {\n      \"metricId\": 1,\n      \"weightPercent\": 100,\n      \"targetValue\": 100000000\n    }\n  ],\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/configuration/templates/{{kpiTemplateId}}/publish",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/templates/{{kpiTemplateId}}/publish",
+            "description": "WEB_KPI_CONFIGURATION UPDATE. Immutable sau publish. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/configuration/assignments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/assignments",
+            "description": "WEB_KPI_CONFIGURATION NEW. Target EMPLOYEE/TEAM/DEPARTMENT/ALL; scope NEW. Điền các ID thực; reviewer không phải nhân viên được giao. copyFromPeriodId tùy chọn. Giao lại không tạo trùng. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodId\": 1,\n  \"templateId\": 1,\n  \"reviewerEmployeeId\": 2,\n  \"alternateReviewerEmployeeId\": null,\n  \"target\": \"EMPLOYEE\",\n  \"employeeIds\": [\n    1\n  ],\n  \"departmentId\": null,\n  \"teamId\": null,\n  \"copyFromPeriodId\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/evaluations?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/evaluations?page=1&pageSize=20",
+            "description": "WEB_KPI_EVALUATION VIEW. Filter periodId/departmentId/teamId/employeeId/status/search. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/evaluations/statistics?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/evaluations/statistics?page=1&pageSize=20",
+            "description": "WEB_KPI_EVALUATION VIEW. Filter periodId/departmentId/teamId/employeeId/status/search. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/evaluations/export?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/evaluations/export?page=1&pageSize=20",
+            "description": "WEB_KPI_EVALUATION EXPORT, XLSX tối đa10000 dòng. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/evaluations/periods?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/evaluations/periods?page=1&pageSize=20",
+            "description": "WEB_KPI_EVALUATION VIEW. Filter periodId/departmentId/teamId/employeeId/status/search. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/evaluations/employees?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/evaluations/employees?page=1&pageSize=20",
+            "description": "WEB_KPI_EVALUATION VIEW. Filter periodId/departmentId/teamId/employeeId/status/search. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/evaluations/lookups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/evaluations/lookups",
+            "description": "WEB_KPI_EVALUATION VIEW. Filter periodId/departmentId/teamId/employeeId/status/search. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/evaluations/{{kpiTargetId}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/evaluations/{{kpiTargetId}}",
+            "description": "WEB_KPI_EVALUATION VIEW. Snapshot/results/history/period lock. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/evaluations/{{kpiTargetId}}/start",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/evaluations/{{kpiTargetId}}/start",
+            "description": "WEB_KPI_EVALUATION UPDATE; đúng chủ KPI DRAFT. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/kpi/evaluations/{{kpiTargetId}}/results",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/evaluations/{{kpiTargetId}}/results",
+            "description": "WEB_KPI_EVALUATION UPDATE; đúng chủ KPI IN_PROGRESS. criterionId lấy từ GET detail. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 2,\n  \"results\": [\n    {\n      \"criterionId\": 1,\n      \"actualValue\": 80000000,\n      \"comment\": \"Báo cáo kỳ\",\n      \"evidenceUrl\": \"https://example.com/evidence.pdf\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/evaluations/{{kpiTargetId}}/submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/evaluations/{{kpiTargetId}}/submit",
+            "description": "WEB_KPI_EVALUATION UPDATE; đủ mọi kết quả; lưu trước. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/evaluations/{{kpiTargetId}}/review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/evaluations/{{kpiTargetId}}/review",
+            "description": "WEB_KPI_EVALUATION APPROVE; đúng reviewerEmployeeId. Cần workflow KPI_EVALUATION. Tiếp tục duyệt bằng /api/approvals/{approvalId}/approve hoặc reject; thêm WEB_APPROVALS APPROVE; tuyệt đối không tự duyệt. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 4,\n  \"comment\": \"Đã đối chiếu\",\n  \"results\": [\n    {\n      \"criterionId\": 1,\n      \"actualValue\": 90000000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
           },
           "response": []
         }

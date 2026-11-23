@@ -11,8 +11,8 @@ public sealed class SystemSettingsController(SystemSettingsService service) : Co
 {
     private string Actor => User.FindFirst("sub")!.Value;
     private IActionResult Result<T>(SettingsView<T> view) { Response.Headers.ETag = $"\"{view.Version}\""; return Ok(view); }
-    [HttpGet("password-policy"), ScreenPermission(SystemSettingsService.Screen, "VIEW")]
-    public async Task<IActionResult> Password(CancellationToken ct) => Result(await service.Get<PasswordPolicyRequest>(Actor, SettingsDefaults.PasswordKey, ct));
+    [HttpGet("password-policy")]
+    public async Task<IActionResult> Password(CancellationToken ct) => Result(await service.Read<PasswordPolicyRequest>(SettingsDefaults.PasswordKey, ct));
     [HttpPut("password-policy"), ScreenPermission(SystemSettingsService.Screen, "UPDATE")]
     public async Task<IActionResult> Password(PasswordPolicyRequest request, CancellationToken ct) => Result(await service.Put(Actor, SettingsDefaults.PasswordKey, request, Request.Headers.IfMatch, ct));
     [HttpGet("attendance"), ScreenPermission(SystemSettingsService.Screen, "VIEW")]

@@ -4,7 +4,7 @@
 
 - `attendances`, `work_schedules`, `shifts`, `leave_requests`, `attendance_adjustments`, ApprovalRequest/Step, TimesheetPeriod đã có Entity/Fluent/migration. Không tạo bảng, không đổi Entity/schema.
 - `GET /api/attendances` chỉ trả các bản ghi Attendance đã tồn tại. Giữ nguyên contract để không ảnh hưởng client cũ; không dùng endpoint này để thống kê tất cả nhân viên.
-- `POST /api/attendances/check-in`, `/check-out` đã có server UTC clock, snapshot windows, scope theo action, kiểm tra user/employee, QR/GPS, requestKey chống trùng và transaction. Giữ nguyên URL/body/quyền.
+- `POST /api/attendances/check-in`, `/check-out` dùng WEB_MY_ATTENDANCE / UPDATE, không Scope. Giữ server UTC clock, snapshot windows, kiểm tra user/employee, QR/GPS, requestKey chống trùng và transaction; URL/body không đổi.
 - Work quản lý ca và phân lịch; các snapshot sẵn có chứa timezone, giờ ca, cửa sổ punch, break/grace và evidence policy. Leave/Approvals đã có luồng điều chỉnh công với audit trước/sau; không sửa giờ trực tiếp.
 - TimesheetPeriod khóa theo tháng `period_key=yyyy-MM`. Không có lịch sử org/date-effective hoặc bảng ngày nghỉ không phân ca.
 
@@ -123,9 +123,17 @@ Kỳ TimesheetPeriod có ClosedAt hoặc status khác OPEN/DRAFT bị khóa. B�
 
 ### My Attendance và punch
 
-Màn cá nhân dùng `/me`, không lấy danh sách ALL rồi lọc ở client. Dùng nguyên POST `/attendances/check-in`, `/check-out` với WEB_MY_ATTENDANCE / UPDATE, không kiểm tra Scope; backend vẫn ràng buộc nhân viên đăng nhập. Trong cửa sổ server asOfUtc, nút hành động được bật khi thiếu punch tương ứng, có snapshot, không phải phép và kỳ không khóa.
+| API | Quyền | Data Scope |
+| --- | --- | --- |
+| GET /api/attendances/me | WEB_MY_ATTENDANCE / VIEW | Không áp dụng; chỉ nhân viên đăng nhập |
+| POST /api/attendances/check-in | WEB_MY_ATTENDANCE / UPDATE | Không áp dụng; chỉ ca của nhân viên đăng nhập |
+| POST /api/attendances/check-out | WEB_MY_ATTENDANCE / UPDATE | Không áp dụng; chỉ ca của nhân viên đăng nhập |
 
-Form cung cấp qrSessionId/qrToken khi snapshot yêu cầu QR; GPS lấy bằng geolocation khi snapshot yêu cầu. Client không gửi giờ punch hoặc employeeId. requestKey được giữ nguyên khi retry trong form để không ghi trùng sau lỗi mạng. Backend luôn kiểm tra lại thời gian/evidence; nút ở client không cấp quyền. Không có cơ chế bypass QR/GPS để chấm công.
+Hai API punch không cần WEB_ATTENDANCE NEW/UPDATE và không yêu cầu VIEW để gọi trực tiếp. Màn My Attendance cần VIEW để tải lịch sử và UPDATE để hiển thị cả hai nút chấm công. Backend kiểm tra quyền UPDATE hiện hành, user ACTIVE, liên kết EmployeeId hợp lệ và lịch thuộc đúng nhân viên đó; không nhận employeeId/userId hoặc giờ thực tế từ client. SELF trong bộ lọc sở hữu cá nhân là điều kiện cố định, không phải Scope lấy từ phân quyền.
+
+Trong cửa sổ server asOfUtc, nút hành động được bật khi thiếu punch tương ứng, có snapshot, không phải phép và kỳ không khóa. Snapshot, cửa sổ giờ, ca qua đêm, QR/GPS, trạng thái lịch, kỳ công khóa, requestKey/idempotency, transaction và audit vẫn được kiểm tra ở server; không có cơ chế bypass chứng cứ hoặc chấm công hộ. Các API quản lý daily/statistics/filters/export vẫn dùng quyền và Scope WEB_ATTENDANCE theo action.
+
+Form cung cấp qrSessionId/qrToken khi snapshot yêu cầu QR; GPS lấy bằng geolocation khi snapshot yêu cầu. requestKey được giữ nguyên khi retry trong form để không ghi trùng sau lỗi mạng. Nếu thiếu VIEW/UPDATE, cấp đúng action trên WEB_MY_ATTENDANCE qua API phân quyền hiện có; không cần thêm dataScopes cho screen này.
 
 ### Excel
 

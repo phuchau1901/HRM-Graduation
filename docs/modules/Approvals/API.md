@@ -39,3 +39,7 @@ Cấp cuối gọi handler nghiệp vụ trong cùng transaction. Handler lỗi 
 History query page/pageSize, đọc AuditLog scoped theo approval và thứ tự ID tăng dần. Không đổi cấu trúc `{id,actorUserId,action,beforeJson,afterJson,createdAt}`.
 
 Settings vẫn `{version,routes}` và lưu JSON key APPROVAL_WORKFLOWS. Routes tối đa100, requestType phải thuộc một handler đã đăng ký, không trùng; mỗi route1–10 bước. Hiện có4 requestType thuộc3 module. USER cấu hình employeeId, Team Lead/Department Manager tự lấy từ bảng tổ chức, HR legacy vẫn hỗ trợ. Xem [đặc tả settings](WORKFLOW_SETTINGS.md).
+
+### Performance / KPI
+
+Module PERFORMANCE, requestType KPI_EVALUATION. Cấu hình workflow bằng API settings hiện có; /api/approvals?module=PERFORMANCE. Detail cần thêm WEB_KPI_EVALUATION VIEW + scope; quyết định cần WEB_KPI_EVALUATION APPROVE + scope bên cạnh WEB_APPROVALS APPROVE và đúng bước. KPI luôn cấm tự duyệt kể cả allowSelfApproval=true. Kết thúc cập nhật KPI target trong transaction chung. [KPI API](../Performance/API.md).

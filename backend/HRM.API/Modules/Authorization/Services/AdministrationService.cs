@@ -22,7 +22,7 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
 {
     public const string Users = "WEB_USERS", Roles = "WEB_ROLES", Permissions = "WEB_PERMISSIONS";
     public static string Version(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
-    private static BusinessException Denied(string? message = null) => new(403, "HRM_ADMIN_403", message ?? "Operation exceeds current administrative authority.");
+    private static BusinessException Denied(string? message = null) => new(403, "", message ?? "Operation exceeds current administrative authority.");
     private static void Match(string? header, string version)
     {
         if (string.IsNullOrEmpty(header)) throw new BusinessException(428, "HRM_ADMIN_428", "If-Match is required; read the resource first.");

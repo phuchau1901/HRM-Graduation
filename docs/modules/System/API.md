@@ -2,13 +2,13 @@
 
 [Module](README.md) · [Postman](../../HRM-API.postman_collection.json) · [Audit](IMPLEMENTATION.md)
 
-Tất cả route yêu cầu JWT và ScreenPermission tương ứng; service còn kiểm tra live grant. Không bypass theo tên role. Lỗi giữ envelope dự án; validation JSON/DTO dùng ValidationProblemDetails. List giữ success/total/page/pageSize/data, page>=1, pageSize1..100. Timestamps thực tế là UTC, giờ ca là TimeOnly địa phương và WorkDate là ngày công tại timezone snapshot.
+Tất cả route yêu cầu JWT. Riêng GET /api/system-settings/password-policy không cần ScreenPermission hoặc Scope; các route khác vẫn yêu cầu quyền tương ứng và live grant tại service. Không bypass theo tên role. Lỗi giữ envelope dự án; validation JSON/DTO dùng ValidationProblemDetails. List giữ success/total/page/pageSize/data, page>=1, pageSize1..100. Timestamps thực tế là UTC, giờ ca là TimeOnly địa phương và WorkDate là ngày công tại timezone snapshot.
 
 ## Password Policy và Attendance Settings
 
 | Method | URL | Quyền |
 | --- | --- | --- |
-| GET | /api/system-settings/password-policy | WEB_SYSTEM_SETTINGS/VIEW |
+| GET | /api/system-settings/password-policy | JWT đăng nhập; không ScreenPermission, không Scope |
 | PUT | /api/system-settings/password-policy | WEB_SYSTEM_SETTINGS/UPDATE |
 | GET | /api/system-settings/attendance | WEB_SYSTEM_SETTINGS/VIEW |
 | PUT | /api/system-settings/attendance | WEB_SYSTEM_SETTINGS/UPDATE |
@@ -91,3 +91,5 @@ Cùng JWT/quyền VIEW, kiểm tra quyền trước lookup. Trả trực tiếp 
 Status: 200 thành công; 400 query sai; 401 chưa xác thực; 403 thiếu quyền; 404 không có log (detail). Lỗi giữ envelope hiện tại. Không tạo migration, không sửa log cũ.
 
 Tự động phân lịch hàng tuần: cấu hình `autoScheduleEnabled` trong GET/PUT `/api/system-settings/attendance` (mặc định true). Job Work đầu Chủ nhật giờ Việt Nam sao chép tuần có lịch gần nhất của từng nhân viên ACTIVE còn hợp đồng ACTIVE, chỉ điền ngày trống và không ghi đè. [Chi tiết lịch chạy, hợp đồng và retry](../Work/WORK_SCHEDULES.md).
+
+GET `/api/system-settings/password-policy` chỉ cần user đăng nhập/JWT hợp lệ, không yêu cầu WEB_SYSTEM_SETTINGS VIEW hoặc Data Scope, không cần liên kết EmployeeId. Giữ response `{settings,version,updatedAtUtc}` và ETag. Chưa đăng nhập trả401. PUT password-policy vẫn cần WEB_SYSTEM_SETTINGS UPDATE và If-Match; GET/PUT Attendance Settings giữ quyền hiện tại. Quyền đọc API này không tự cấp quyền vào màn hình quản trị hoặc chỉnh chính sách.
