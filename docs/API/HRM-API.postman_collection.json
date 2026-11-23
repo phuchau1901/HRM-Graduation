@@ -322,6 +322,10 @@
     {
       "key": "kpiTargetId",
       "value": "1"
+    },
+    {
+      "key": "terminalLoggingVersion",
+      "value": "0"
     }
   ],
   "item": [
@@ -2055,6 +2059,76 @@
                 }
               }
             }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/system-settings/terminal-logging",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/system-settings/terminal-logging",
+            "description": "JWT; WEB_SYSTEM_SETTINGS VIEW. Không Scope. Lưu system_settings TERMINAL_LOGGING; cache ngay instance sau commit, replica refresh30s. Xem docs/guides/TERMINAL_LOGGING.md."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"terminalLoggingVersion\", String(pm.response.json().version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/system-settings/terminal-logging",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "\"{{terminalLoggingVersion}}\""
+              }
+            ],
+            "url": "{{baseUrl}}/api/system-settings/terminal-logging",
+            "description": "JWT; WEB_SYSTEM_SETTINGS UPDATE. Không Scope. Lưu system_settings TERMINAL_LOGGING; cache ngay instance sau commit, replica refresh30s. Xem docs/guides/TERMINAL_LOGGING.md.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": \"Y\",\n  \"defaultUser\": \"N\",\n  \"defaultModule\": \"N\",\n  \"includeSql\": \"N\",\n  \"users\": {\n    \"admin\": \"Y\",\n    \"system\": \"N\"\n  },\n  \"modules\": {\n    \"Employees\": \"Y\",\n    \"Authorization\": \"Y\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"terminalLoggingVersion\", String(pm.response.json().version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/system-settings/terminal-logging/modules",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/system-settings/terminal-logging/modules",
+            "description": "JWT; WEB_SYSTEM_SETTINGS VIEW. Không Scope. Lưu system_settings TERMINAL_LOGGING; cache ngay instance sau commit, replica refresh30s. Xem docs/guides/TERMINAL_LOGGING.md."
           },
           "response": []
         }

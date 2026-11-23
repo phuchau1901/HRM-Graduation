@@ -47,7 +47,13 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 
-builder.Logging.AddJsonConsole(o => { o.UseUtcTimestamp = true; o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ"; });
+builder.Services.AddHttpContextAccessor();
+builder.Services.Configure<HRM.API.Logging.TerminalLoggingOptions>(builder.Configuration.GetSection("TerminalLogging"));
+builder.Services.AddSingleton<HRM.API.Logging.TerminalLoggingState>();
+builder.Services.Configure<HRM.API.Logging.TerminalLoggingRefreshOptions>(builder.Configuration.GetSection("TerminalLoggingRefresh"));
+builder.Services.AddHostedService<HRM.API.Logging.TerminalLoggingRefreshWorker>();
+builder.Services.AddScoped<HRM.API.Modules.System.Services.TerminalLoggingSettingsService>();
+builder.Services.AddSingleton<ILoggerProvider, HRM.API.Logging.TerminalConsoleProvider>();
 
 // Hosting diagnostics include raw URLs; the access middleware records safe route templates instead.
 
@@ -100,7 +106,7 @@ if (notificationOrigins.Length != allowedOrigins.Length)
 {
     // Fail closed: invalid origins are not added to the policy.
     builder.Logging.AddFilter("Microsoft.AspNetCore.Cors", LogLevel.Warning);
-    Console.WriteLine("[Notification CORS] Invalid origins ignored; no cross-origin fallback enabled.");
+    // Logged through the configurable terminal provider after the app is built.
 }
 
 builder.Services.AddCors(options =>
@@ -377,6 +383,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 );
 
 var app = builder.Build();
+if (notificationOrigins.Length != allowedOrigins.Length)
+    app.Logger.LogWarning("Invalid notification CORS origins ignored; no cross-origin fallback enabled.");
 
 // Validate JWT configuration before any explicitly enabled seed can write data.
 
@@ -400,17 +408,17 @@ if (app.Environment.IsDevelopment())
 
         .ToList();
 
-    Console.WriteLine("=================================");
+    app.Logger.LogInformation("=================================");
 
-    Console.WriteLine($"TOTAL ENTITIES: {entities.Count}");
+    app.Logger.LogInformation($"TOTAL ENTITIES: {entities.Count}");
 
-    Console.WriteLine("=================================");
+    app.Logger.LogInformation("=================================");
 
     foreach (var entity in entities)
 
     {
 
-        Console.WriteLine(
+        app.Logger.LogInformation(
 
             $"ENTITY: {entity.ClrType.Name} => {entity.GetTableName()}"
 
@@ -430,7 +438,7 @@ if (app.Environment.IsDevelopment()
 
 {
 
-    Console.WriteLine("[AUTH SEED] Starting...");
+    app.Logger.LogInformation("[AUTH SEED] Starting...");
 
     using var scope = app.Services.CreateScope();
 
@@ -446,7 +454,7 @@ if (app.Environment.IsDevelopment()
 
         .SeedAsync(seedSecrets);
 
-    Console.WriteLine("[AUTH SEED] Completed.");
+    app.Logger.LogInformation("[AUTH SEED] Completed.");
 
 }
 
@@ -454,7 +462,7 @@ else
 
 {
 
-    Console.WriteLine(
+    app.Logger.LogInformation(
 
         $"[AUTH SEED] Skipped. Environment={app.Environment.EnvironmentName}, Enabled={builder.Configuration.GetValue<bool>("AuthSeed:Enabled")}"
 

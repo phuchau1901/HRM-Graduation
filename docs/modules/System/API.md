@@ -93,3 +93,7 @@ Status: 200 thành công; 400 query sai; 401 chưa xác thực; 403 thiếu quy�
 Tự động phân lịch hàng tuần: cấu hình `autoScheduleEnabled` trong GET/PUT `/api/system-settings/attendance` (mặc định true). Job Work đầu Chủ nhật giờ Việt Nam sao chép tuần có lịch gần nhất của từng nhân viên ACTIVE còn hợp đồng ACTIVE, chỉ điền ngày trống và không ghi đè. [Chi tiết lịch chạy, hợp đồng và retry](../Work/WORK_SCHEDULES.md).
 
 GET `/api/system-settings/password-policy` chỉ cần user đăng nhập/JWT hợp lệ, không yêu cầu WEB_SYSTEM_SETTINGS VIEW hoặc Data Scope, không cần liên kết EmployeeId. Giữ response `{settings,version,updatedAtUtc}` và ETag. Chưa đăng nhập trả401. PUT password-policy vẫn cần WEB_SYSTEM_SETTINGS UPDATE và If-Match; GET/PUT Attendance Settings giữ quyền hiện tại. Quyền đọc API này không tự cấp quyền vào màn hình quản trị hoặc chỉnh chính sách.
+
+## Terminal logging
+
+GET/PUT `/api/system-settings/terminal-logging`: VIEW/UPDATE trên WEB_SYSTEM_SETTINGS, JWT, không Scope. PUT dùng If-Match theo ETag GET; gửi trực tiếp settings object. GET `/api/system-settings/terminal-logging/modules` lấy module catalog và specialUsers (VIEW). Lưu bảng system_settings key TERMINAL_LOGGING, tạo row ở lần PUT đầu, không thêm bảng/Migration. Áp dụng ngay instance nhận request sau commit và đồng bộ replica/restart qua cache refresh mặc định30 giây. [Payload, ví dụ và thứ tự ưu tiên](../../guides/TERMINAL_LOGGING.md).

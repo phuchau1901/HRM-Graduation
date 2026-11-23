@@ -18,6 +18,7 @@ public sealed class WorkScheduleWorker(IServiceScopeFactory scopes, IOptions<Wor
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var terminalContext = HRM.API.Logging.TerminalLogContext.BeginJob("Work");
         if (!options.Value.WorkerEnabled) return;
         while (!stoppingToken.IsCancellationRequested)
         {

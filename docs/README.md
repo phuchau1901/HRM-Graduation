@@ -64,3 +64,5 @@ Notifications__WorkerEnabled=true \
 dotnet run --project HRM.API.csproj \
   --no-launch-profile \
   --urls http://localhost:5000
+
+Log terminal theo user/module: [Terminal Logging](guides/TERMINAL_LOGGING.md). Mặc định N, hỗ trợ riêng SQL và job nền.

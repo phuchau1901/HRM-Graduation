@@ -10,6 +10,7 @@ public sealed class LeaveAccrualWorker(IServiceScopeFactory scopes, IOptions<Lea
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var terminalContext = HRM.API.Logging.TerminalLogContext.BeginJob("Leave");
         if (!options.Value.WorkerEnabled) return;
         while (!stoppingToken.IsCancellationRequested)
         {

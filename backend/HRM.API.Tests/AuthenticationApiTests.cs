@@ -188,6 +188,7 @@ internal sealed class AuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:Issuer", "hrm-test"); builder.UseSetting("Jwt:Audience", "hrm-test-client");
         builder.UseSetting("Jwt:SigningKey", SigningKey);
         builder.UseSetting("AuthSeed:Enabled", "false");
+        builder.UseSetting("TerminalLoggingRefresh:WorkerEnabled", "false");
         builder.UseSetting("Notifications:WorkerEnabled", "false");
         builder.UseSetting("LeaveAccrual:WorkerEnabled", "false");
         builder.UseSetting("WorkScheduleAutomation:WorkerEnabled", "false");

@@ -5,6 +5,7 @@ public sealed class NotificationWorker(IServiceScopeFactory scopes, IOptions<Not
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        using var terminalContext = HRM.API.Logging.TerminalLogContext.BeginJob("Notifications");
         if (!options.Value.WorkerEnabled) return;
         while (!stoppingToken.IsCancellationRequested)
         {

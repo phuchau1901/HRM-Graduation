@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **155 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **158 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Có **155 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | Employees / Contracts / Contract Types / History | 19 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
 | Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow qua module Leave |
-| System Settings | 7 | IMPLEMENTED |
+| System Settings | 10 | IMPLEMENTED |
 | Leave / Overtime / Adjustments / Balances | 20 | IMPLEMENTED |
 | Approvals / Workflow Settings | 7 | IMPLEMENTED; module cha với các module con |
 | Payroll / Timesheets | 0 | Model có, API MISSING |
@@ -26,6 +26,9 @@ Có **155 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | --- | --- | --- | --- |
 | GET | `/api/audit-logs` | [System](../modules/System/API.md#auditlog) | WEB_AUDIT_LOGS/VIEW |
 | GET | `/api/audit-logs/{id}` | [System](../modules/System/API.md#auditlog) | WEB_AUDIT_LOGS/VIEW |
+| GET | `/api/system-settings/terminal-logging` | [Terminal Logging](../guides/TERMINAL_LOGGING.md) | WEB_SYSTEM_SETTINGS/VIEW; không Scope |
+| PUT | `/api/system-settings/terminal-logging` | [Terminal Logging](../guides/TERMINAL_LOGGING.md) | WEB_SYSTEM_SETTINGS/UPDATE; If-Match; không Scope |
+| GET | `/api/system-settings/terminal-logging/modules` | [Terminal Logging](../guides/TERMINAL_LOGGING.md) | WEB_SYSTEM_SETTINGS/VIEW; không Scope |
 | GET | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | JWT đăng nhập; không ScreenPermission, không Scope |
 | PUT | `/api/system-settings/password-policy` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/UPDATE + If-Match |
 | GET | `/api/system-settings/attendance` | [System](../modules/System/API.md) | WEB_SYSTEM_SETTINGS/VIEW |
@@ -233,3 +236,5 @@ GET `/api/system-settings/password-policy` chỉ cần user đăng nhập/JWT h�
 ## Performance Management — KPI
 
 25 endpoint mới, source đã triển khai; [API Specification](../modules/Performance/API.md), [audit / quyền / Migration](../modules/Performance/README.md). Screen WEB_KPI_CONFIGURATION (VIEW, NEW, UPDATE), WEB_KPI_EVALUATION (VIEW, UPDATE, APPROVE, EXPORT), scope theo action. Approvals dùng requestType KPI_EVALUATION/module PERFORMANCE qua engine hiện có. Migration 20261123090752_CompletePerformanceManagement chưa apply; đăng ký screen không tự cấp grant. Hai Postman Collection đã có folder Performance với25 request mẫu.
+
+Terminal logging: thêm GET/PUT `/api/system-settings/terminal-logging` và GET `/api/system-settings/terminal-logging/modules`. Quyền WEB_SYSTEM_SETTINGS VIEW/UPDATE, không Scope; If-Match, Audit và cache sau commit. [Đặc tả](../guides/TERMINAL_LOGGING.md).
