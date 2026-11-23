@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **160 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **164 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ Có **160 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | Leave / Overtime / Adjustments / Balances | 20 | IMPLEMENTED |
 | Approvals / Workflow Settings | 7 | IMPLEMENTED; module cha với các module con |
 | Payroll / Timesheets | 0 | Model có, API MISSING |
-| Performance / KPI | 25 | IMPLEMENTED; Migration mới chưa apply |
+| Performance / KPI | 29 | IMPLEMENTED; Migration mới chưa apply |
 | AuditLog (System) | 2 | IMPLEMENTED; WEB_AUDIT_LOGS/VIEW |
 | Dashboard / Reports | 0 | API MISSING |
 
@@ -240,3 +240,5 @@ GET `/api/system-settings/password-policy` chỉ cần user đăng nhập/JWT h�
 25 endpoint mới, source đã triển khai; [API Specification](../modules/Performance/API.md), [audit / quyền / Migration](../modules/Performance/README.md). Screen WEB_KPI_CONFIGURATION (VIEW, NEW, UPDATE), WEB_KPI_EVALUATION (VIEW, UPDATE, APPROVE, EXPORT), scope theo action. Approvals dùng requestType KPI_EVALUATION/module PERFORMANCE qua engine hiện có. Migration 20261123090752_CompletePerformanceManagement chưa apply; đăng ký screen không tự cấp grant. Hai Postman Collection đã có folder Performance với25 request mẫu.
 
 Terminal logging: thêm GET/PUT `/api/system-settings/terminal-logging` và GET `/api/system-settings/terminal-logging/modules`. Quyền WEB_SYSTEM_SETTINGS VIEW/UPDATE, không Scope; If-Match, Audit và cache sau commit. [Đặc tả](../guides/TERMINAL_LOGGING.md).
+
+KPI Units: GET/POST `/api/kpi/configuration/units`, GET/PUT `/api/kpi/configuration/units/{id}`; WEB_KPI_CONFIGURATION VIEW/NEW/UPDATE, scope ALL khi ghi. Migration 20261123111950_AddKpiUnitCatalog chưa apply. [Đặc tả](../modules/Performance/API.md#danh-mục-đơn-vị-kpi).

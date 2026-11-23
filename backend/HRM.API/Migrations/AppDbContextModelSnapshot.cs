@@ -1912,6 +1912,10 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(30)")
                         .HasColumnName("unit");
 
+                    b.Property<long?>("UnitId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("unit_id");
+
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("bigint")
@@ -1921,6 +1925,8 @@ namespace HRM.API.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("UnitId");
 
                     b.ToTable("kpi_metrics", (string)null);
                 });
@@ -2182,6 +2188,149 @@ namespace HRM.API.Migrations
                     b.HasIndex("TeamId");
 
                     b.ToTable("kpi_templates", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiUnit", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int")
+                        .HasColumnName("sort_order");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("kpi_units", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            ID = 1L,
+                            Code = "%",
+                            IsActive = true,
+                            Name = "Phần trăm (%)",
+                            SortOrder = 1,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 2L,
+                            Code = "VND",
+                            IsActive = true,
+                            Name = "Tiền (VND)",
+                            SortOrder = 2,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 3L,
+                            Code = "Điểm",
+                            IsActive = true,
+                            Name = "Điểm",
+                            SortOrder = 3,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 4L,
+                            Code = "Số lượng",
+                            IsActive = true,
+                            Name = "Số lượng",
+                            SortOrder = 4,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 5L,
+                            Code = "Giờ",
+                            IsActive = true,
+                            Name = "Giờ",
+                            SortOrder = 5,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 6L,
+                            Code = "Ngày",
+                            IsActive = true,
+                            Name = "Ngày",
+                            SortOrder = 6,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 7L,
+                            Code = "Lần",
+                            IsActive = true,
+                            Name = "Lần",
+                            SortOrder = 7,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 8L,
+                            Code = "Sản phẩm",
+                            IsActive = true,
+                            Name = "Sản phẩm",
+                            SortOrder = 8,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 9L,
+                            Code = "Công việc",
+                            IsActive = true,
+                            Name = "Công việc",
+                            SortOrder = 9,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 10L,
+                            Code = "Khách hàng",
+                            IsActive = true,
+                            Name = "Khách hàng",
+                            SortOrder = 10,
+                            Version = 1L
+                        },
+                        new
+                        {
+                            ID = 11L,
+                            Code = "Hợp đồng",
+                            IsActive = true,
+                            Name = "Hợp đồng",
+                            SortOrder = 11,
+                            Version = 1L
+                        });
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Performance.Entities.PerformanceReview", b =>
@@ -2915,6 +3064,14 @@ namespace HRM.API.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_kpi_criteria_template_id");
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiMetric", b =>
+                {
+                    b.HasOne("HRM.API.Modules.Performance.Entities.KpiUnit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Performance.Entities.KpiResult", b =>

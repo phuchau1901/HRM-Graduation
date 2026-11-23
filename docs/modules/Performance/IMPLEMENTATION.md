@@ -43,3 +43,9 @@ Các test SQLite xác minh transaction/concurrency ở cấp nghiệp vụ; chư
 - `npm run build`: đạt. `npm test`: **78 đạt / 78**, 11 file.
 - `git diff --check`: đạt. Hai Postman Collection JSON hợp lệ, folder Performance có25 request riêng biệt.
 - Migration được kiểm tra offline về hai bảng mới, index thay thế trước khi drop index employee FK, model không pending. Không chạy database update, không sửa DB thực tế, không deploy Railway. Chưa chạy concurrency trên MySQL thực tế.
+
+## Bổ sung KPI Unit Catalog
+
+Migration `20261123111950_AddKpiUnitCatalog` tạo kpi_units, seed11 đơn vị, import code legacy vào chính catalog mới và thêm nullable FK unit_id cho metric. Không đổi unit string/snapshot cũ, không backfill FK hàng loạt. GET/POST units và GET/PUT units/{id} dùng KPI Configuration; ghi global scope ALL, version và audit. Chọn metric mới cần code active; metric cũ được giữ code inactive/legacy. Frontend tab Đơn vị KPI quản lý danh mục và dropdown tải units active từ API, không còn list cố định.
+
+Kiểm thử KPI/Units/API Inventory/Approval/schema: 30/30 đạt. Frontend: 80/80 đạt. Backend và Frontend build thành công; git diff --check đạt. Chưa apply Migration, chưa deploy; chưa chạy Migration trên MySQL thực tế.

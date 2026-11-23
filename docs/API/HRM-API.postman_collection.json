@@ -330,6 +330,10 @@
     {
       "key": "terminalLoggingMeVersion",
       "value": "0"
+    },
+    {
+      "key": "kpiUnitId",
+      "value": "12"
     }
   ],
   "item": [
@@ -3857,6 +3861,74 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"version\": 4,\n  \"comment\": \"Đã đối chiếu\",\n  \"results\": [\n    {\n      \"criterionId\": 1,\n      \"actualValue\": 90000000\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/configuration/units?page=1&pageSize=20&isActive=true",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/configuration/units?page=1&pageSize=20&isActive=true",
+            "description": "JWT; WEB_KPI_CONFIGURATION VIEW. Code immutable. Dùng isActive=false thay xóa cứng. Metric vẫn gửi unit=code; tạo metric cần unit active. Migration 20261123111950_AddKpiUnitCatalog cần được review/apply riêng, không tự chạy. Xem docs/modules/Performance/API.md."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/kpi/configuration/units/{{kpiUnitId}}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/kpi/configuration/units/{{kpiUnitId}}",
+            "description": "JWT; WEB_KPI_CONFIGURATION VIEW. Code immutable. Dùng isActive=false thay xóa cứng. Metric vẫn gửi unit=code; tạo metric cần unit active. Migration 20261123111950_AddKpiUnitCatalog cần được review/apply riêng, không tự chạy. Xem docs/modules/Performance/API.md."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/kpi/configuration/units",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/units",
+            "description": "JWT; WEB_KPI_CONFIGURATION NEW / ALL. Code immutable. Dùng isActive=false thay xóa cứng. Metric vẫn gửi unit=code; tạo metric cần unit active. Migration 20261123111950_AddKpiUnitCatalog cần được review/apply riêng, không tự chạy. Xem docs/modules/Performance/API.md.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"KG\",\n  \"name\": \"Kilôgam\",\n  \"isActive\": true,\n  \"sortOrder\": 20\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /api/kpi/configuration/units/{{kpiUnitId}}",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/kpi/configuration/units/{{kpiUnitId}}",
+            "description": "JWT; WEB_KPI_CONFIGURATION UPDATE / ALL. Code immutable. Dùng isActive=false thay xóa cứng. Metric vẫn gửi unit=code; tạo metric cần unit active. Migration 20261123111950_AddKpiUnitCatalog cần được review/apply riêng, không tự chạy. Xem docs/modules/Performance/API.md.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"KG\",\n  \"name\": \"Kilogram\",\n  \"isActive\": false,\n  \"sortOrder\": 20,\n  \"version\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"

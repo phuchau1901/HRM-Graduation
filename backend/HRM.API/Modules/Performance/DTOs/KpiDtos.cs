@@ -57,3 +57,11 @@ public sealed class KpiRow {
  public long? PositionId {get;init;} public long? PeriodId {get;init;} public string PeriodKey {get;init;}=""; public string Status {get;init;}="";
  public decimal? FinalScore {get;init;} public int? ReviewerEmployeeId {get;init;} public long Version {get;init;} public long? ApprovalId {get;init;}
 }
+public class KpiUnitQuery : PageQuery { public bool? IsActive {get;set;} }
+public class KpiUnitRequest {
+ [Required,StringLength(30)] public string Code {get;set;}="";
+ [Required,StringLength(100)] public string Name {get;set;}="";
+ public bool IsActive {get;set;}=true;
+ [Range(0,100000)] public int SortOrder {get;set;}
+ public long Version {get;set;}
+}

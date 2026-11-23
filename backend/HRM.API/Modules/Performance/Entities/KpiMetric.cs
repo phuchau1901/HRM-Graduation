@@ -4,6 +4,7 @@ public class KpiMetric {
  public string Code {get;set;} = "";
  public string Name {get;set;} = "";
  public string Unit {get;set;} = "";
+ public long? UnitId {get;set;}
  public string Direction {get;set;} = "HIGHER";
  public string Method {get;set;} = "RATIO";
  public string Source {get;set;} = "MANUAL";

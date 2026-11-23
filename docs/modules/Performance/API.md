@@ -11,6 +11,10 @@ Base path `/api/kpi`; JWT bắt buộc. JSON camelCase. Trả lỗi theo chuẩn
 | GET | /periods | VIEW + scope cấu hình hợp lệ |
 | POST | /periods | NEW / ALL |
 | POST | /periods/{id:long}/close | UPDATE / ALL, version |
+| GET | /units | VIEW + scope cấu hình hợp lệ; search, isActive, paging |
+| GET | /units/{id:long} | VIEW + scope cấu hình hợp lệ |
+| POST | /units | NEW / ALL |
+| PUT | /units/{id:long} | UPDATE / ALL, version |
 | GET | /metrics | VIEW + scope cấu hình hợp lệ |
 | POST | /metrics | NEW / ALL |
 | PUT | /metrics/{id:long} | UPDATE / ALL, version |
@@ -94,3 +98,35 @@ Dùng API hiện có `/api/approvals?module=PERFORMANCE`, `/api/approvals/{id}`,
 ## Concurrency / Errors
 
 Version bắt buộc trên start/results/submit/review/publish/close/update. Stale version hoặc transition sai409; ngoài scope403/404; validation400; không grant403; không JWT401. Transaction Serializable và khóa kỳ/target; unique employee/period chống giao trùng đồng thời. Deadlock1205/1213/duplicate1062 trả409, client reload trước khi thử lại, không tự replay decision. No N+1: query employee/org bằng joins; bulk lấy criteria, employees, existing, users theo tập, audit theo batch. Kỳ chốt khóa mọi ghi kết quả và quyết định workflow.
+
+Frontend cấu hình chỉ tiêu: unit dùng dropdown bắt buộc chọn, tải toàn bộ trang GET `/api/kpi/configuration/units?isActive=true`. Không còn danh sách cố định trong Frontend. Giá trị gửi qua `unit` là code của đơn vị; backend tra danh mục và lưu `unitId` FK kèm code vào metric. API không nhận unitId để thay code; unitId trong response là tham chiếu backend giải quyết.
+
+## Danh mục đơn vị KPI
+
+Bảng `kpi_units`: id, code (unique, tối đa30), name (tối đa100), is_active, sort_order (0..100000), version. Cùng WEB_KPI_CONFIGURATION VIEW/NEW/UPDATE; thao tác ghi cần scope ALL vì danh mục dùng chung. GET hỗ trợ search code/name, isActive=true/false, page/pageSize; trả PageResult như danh sách khác. GET detail và POST/PUT trả `{success:true,data:{id,code,name,isActive,sortOrder,version}}`.
+
+Tạo đơn vị:
+
+```http
+POST /api/kpi/configuration/units
+```
+
+```json
+{"code":"KG","name":"Kilôgam","isActive":true,"sortOrder":20}
+```
+
+Sửa tên, thứ tự hoặc ngừng dùng:
+
+```http
+PUT /api/kpi/configuration/units/12
+```
+
+```json
+{"code":"KG","name":"Kilogram","isActive":false,"sortOrder":20,"version":1}
+```
+
+Lấy id/version thật từ GET hoặc POST response, không mặc định12. Code không được đổi sau tạo; muốn code khác thì thêm đơn vị mới. Duplicate code/stale version/đổi code trả409; chưa login401; thiếu quyền/scope403; đơn vị mới không có hoặc inactive khi tạo metric trả400. Không có API xóa cứng; dùng isActive=false để giữ FK và lịch sử.
+
+Tạo/sửa chỉ tiêu vẫn gửi `unit:"KG"`. Chỉ tiêu mới hoặc đổi đơn vị phải chọn code active. Khi sửa chỉ tiêu cũ có thể giữ nguyên unit inactive/legacy; frontend giữ option hiện tại để không tự đổi dữ liệu. Thay đổi tên/status của đơn vị không sửa mục tiêu, kết quả hoặc snapshot KPI đã giao.
+
+Migration `20261123111950_AddKpiUnitCatalog` tạo kpi_units và FK nullable kpi_metrics.unit_id. Seed11 đơn vị chuẩn: %, VND, Điểm, Số lượng, Giờ, Ngày, Lần, Sản phẩm, Công việc, Khách hàng, Hợp đồng. SQL Migration nhập thêm các code khác rỗng đã có trong kpi_metrics vào danh mục mới, không sửa metric.unit hoặc snapshot. Bản ghi metric cũ có unit_id=NULL vẫn đọc được; lần sửa chỉ tiêu hợp lệ sẽ liên kết với catalog. Cần người vận hành chạy Migration trên đúng database trước khi dùng API; không tự apply/deploy.

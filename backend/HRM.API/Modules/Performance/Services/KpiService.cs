@@ -76,9 +76,14 @@ public sealed partial class KpiService(AppDbContext db, EmployeeDataScope scopes
  }
  public Task<KpiMetric> SaveMetric(string actor,long? id,MetricRequest r,CancellationToken ct)=>Transaction(async()=> {
   await Configuration(actor,id.HasValue?"UPDATE":"NEW",ct,true);
-  var snapshot=new MetricSnapshot(r.Code.Trim(),r.Name.Trim(),r.Unit.Trim(),r.Direction,r.Method,r.Source,r.MaxScore,r.Milestones);KpiScoring.Validate(snapshot);
   var row=id.HasValue?await db.Set<KpiMetric>().SingleOrDefaultAsync(x=>x.ID==id,ct)??throw BusinessException.Missing():new KpiMetric();
+  var unitCode=r.Unit.Trim();
+  var unit=await db.Set<KpiUnit>().SingleOrDefaultAsync(x=>x.Code==unitCode,ct);
+  if((unit==null || !unit.IsActive) && (!id.HasValue || row.Unit!=unitCode)) throw BusinessException.Invalid("Select an active KPI unit from the catalog.");
+  var frozenUnit=id.HasValue && row.Unit==unitCode?row.Unit:unit!.Code;
+  var snapshot=new MetricSnapshot(r.Code.Trim(),r.Name.Trim(),frozenUnit,r.Direction,r.Method,r.Source,r.MaxScore,r.Milestones);KpiScoring.Validate(snapshot);
   var before=id.HasValue?Json(row):null;if(id.HasValue) {Version(row.Version,r.Version);row.Version++;}
+  row.UnitId=unit?.ID;
   row.Code=snapshot.Code;row.Name=snapshot.Name;row.Unit=snapshot.Unit;row.Direction=r.Direction;row.Method=r.Method;row.Source=r.Source;row.MaxScore=r.MaxScore;row.MilestonesJson=Json(r.Milestones);row.IsActive=r.IsActive;
   if(!id.HasValue)db.Add(row);await db.SaveChangesAsync(ct);Audit(actor,"KPI_METRIC",row.ID,"KPI_METRIC_SAVED",before,row);return row;
  },ct);

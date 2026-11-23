@@ -25,7 +25,7 @@ public sealed class PerformanceTests {
   Assert.Throws<BusinessException>(()=>KpiScoring.Score(C("QUALITATIVE"),101));
   Assert.Equal(85,KpiScoring.Total([(C(weight:50),90m),(C(weight:50),80m)]));
  }
- private static async Task<LeaveWorkflowTests.Fixture> Setup(string? path=null) {
+ internal static async Task<LeaveWorkflowTests.Fixture> Setup(string? path=null) {
   var f=await LeaveWorkflowTests.Fixture.Create(path);
   foreach(var code in new[]{KpiScreens.Configuration,KpiScreens.Evaluation})await OrganizationApiTests.Grant(f.H.App,code);
   using(var scope=f.H.App.Services.CreateScope()) {

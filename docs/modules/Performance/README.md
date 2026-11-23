@@ -23,7 +23,7 @@
 - Cấu hình scope theo **từng action** SELF / DEPARTMENT / ALL. Thiếu scope bị từ chối. Quản trị kỳ và danh mục dùng scope ALL vì là cấu hình dùng chung. Ghi template/giao KPI dùng DEPARTMENT hoặc ALL, SELF không được giao KPI.
 - Phê duyệt cuối dùng `WEB_APPROVALS / VIEW, APPROVE` và scope hiện có; chi tiết KPI còn yêu cầu `WEB_KPI_EVALUATION / VIEW`, quyết định yêu cầu `WEB_KPI_EVALUATION / APPROVE` + scope và đúng bước được giao. VIEW/ALL không cấp quyền duyệt.
 
-Frontend: `/#/performance/configuration`, `/#/performance/evaluation`, phê duyệt tại `/#/approvals/performance`. Các tab cấu hình: Kỳ KPI, Chỉ tiêu, KPI Templates, Giao KPI.
+Frontend: `/#/performance/configuration`, `/#/performance/evaluation`, phê duyệt tại `/#/approvals/performance`. Các tab cấu hình: Kỳ KPI, Chỉ tiêu, Đơn vị KPI, KPI Templates, Giao KPI.
 
 ## Migration cần được người vận hành xem và chạy riêng
 
@@ -32,3 +32,7 @@ Frontend: `/#/performance/configuration`, `/#/performance/evaluation`, phê duy�
 Migration đăng ký hai screen nếu chưa có, **không cấp grant hoặc scope tự động**. Down giữ screen để tránh xóa cấu hình phân quyền đã có. Không backfill snapshot cho KPI cũ; bản ghi thiếu snapshot không được sửa hoặc đánh giá, cần đối soát và giao bộ mới đúng kỳ. Không có cơ chế tự mở lại KPI đã chốt.
 
 Không tự apply Migration hoặc deploy Railway. Xem kết quả build/test được ghi trong [IMPLEMENTATION.md](IMPLEMENTATION.md).
+
+## KPI Units
+
+Bổ sung bảng kpi_units cho danh mục đơn vị mở rộng theo nghiệp vụ. GET/POST `/api/kpi/configuration/units`, GET/PUT `/api/kpi/configuration/units/{id}` dùng WEB_KPI_CONFIGURATION VIEW/NEW/UPDATE; tạo/sửa scope ALL. Dropdown lấy đơn vị active từ API, tab Đơn vị KPI quản lý code/name/status/order/version. Không xóa cứng hoặc đổi code, giữ unit/snapshot lịch sử. Migration cần chạy riêng: `20261123111950_AddKpiUnitCatalog` (sau CompletePerformanceManagement), chưa apply. [Payload và tương thích dữ liệu cũ](API.md#danh-mục-đơn-vị-kpi).

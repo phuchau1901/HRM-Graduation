@@ -9,6 +9,14 @@ namespace HRM.API.Modules.Performance.Controllers;
 [Route("api/kpi/configuration")]
 public sealed class KpiConfigurationController(KpiService service):ControllerBase {
  private string Actor=>User.FindFirst("sub")!.Value;
+ [HttpGet("units"),ScreenPermission(KpiScreens.Configuration,"VIEW")]
+ public async Task<IActionResult> Units([FromQuery]KpiUnitQuery q,CancellationToken ct)=>Ok(await service.Units(Actor,q,ct));
+ [HttpGet("units/{id:long}"),ScreenPermission(KpiScreens.Configuration,"VIEW")]
+ public async Task<IActionResult> Unit(long id,CancellationToken ct)=>Ok(new{success=true,data=await service.Unit(Actor,id,ct)});
+ [HttpPost("units"),ScreenPermission(KpiScreens.Configuration,"NEW")]
+ public async Task<IActionResult> CreateUnit(KpiUnitRequest r,CancellationToken ct)=>Ok(new{success=true,data=await service.SaveUnit(Actor,null,r,ct)});
+ [HttpPut("units/{id:long}"),ScreenPermission(KpiScreens.Configuration,"UPDATE")]
+ public async Task<IActionResult> UpdateUnit(long id,KpiUnitRequest r,CancellationToken ct)=>Ok(new{success=true,data=await service.SaveUnit(Actor,id,r,ct)});
  [HttpGet("lookups"),ScreenPermission(KpiScreens.Configuration,"VIEW")]
  public async Task<IActionResult> Lookups(CancellationToken ct)=>Ok(await service.Lookups(Actor,ct,true));
  [HttpGet("periods"),ScreenPermission(KpiScreens.Configuration,"VIEW")]
