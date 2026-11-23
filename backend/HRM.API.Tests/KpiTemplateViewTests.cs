@@ -40,4 +40,52 @@ public sealed class KpiTemplateViewTests
         var second = (await f.H.Client.GetFromJsonAsync<PageResult<KpiTemplateView>>("/api/kpi/configuration/templates?page=2&pageSize=2"))!;
         Assert.Equal(4, second.Total); Assert.Equal(new[] { "C_TEAM", "D_ALL" }, second.Data.Select(x => x.Code));
     }
+    [Fact]
+    public async Task SixDatabaseRowsReturnSixForAllAndOnlySharedPositionForDepartment()
+    {
+        await using var f = await PerformanceTests.Setup();
+        using(var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var position = new Position { Code = "BACKEND_SCOPE", Name = "Backend Developer", IsActive = true }; db.Add(position); await db.SaveChangesAsync();
+            db.Add(new KpiTemplate { Code = "TPL_IT_BACKEND", Name = "KPI Backend Developer", PositionId = position.ID, Status = "PUBLISHED", PeriodType = "MONTH" });
+            for(var n = 1; n <= 5; n++) db.Add(new KpiTemplate { Code = $"TPL_OTHER_{n}", Name = $"Department template {n}", DepartmentId = f.H.OtherDepartment, Status = "PUBLISHED", PeriodType = "MONTH" });
+            await db.SaveChangesAsync();
+            Assert.Equal(6, await db.Set<KpiTemplate>().CountAsync());
+        }
+        var allResponse = await f.H.Client.GetAsync("/api/kpi/configuration/templates"); allResponse.EnsureSuccessStatusCode();
+        Assert.Equal("ALL", Assert.Single(allResponse.Headers.GetValues("X-Effective-Data-Scope")));
+        Assert.Equal("false", Assert.Single(allResponse.Headers.GetValues("X-Search-Applied")));
+        var all = (await allResponse.Content.ReadFromJsonAsync<PageResult<KpiTemplateView>>())!;
+        Assert.Equal(6, all.Total); Assert.Equal(6, all.Data.Count);
+        var filteredResponse = await f.H.Client.GetAsync("/api/kpi/configuration/templates?search=TPL_IT_BACKEND"); filteredResponse.EnsureSuccessStatusCode();
+        Assert.Equal("ALL", Assert.Single(filteredResponse.Headers.GetValues("X-Effective-Data-Scope")));
+        Assert.Equal("true", Assert.Single(filteredResponse.Headers.GetValues("X-Search-Applied")));
+        var filtered = (await filteredResponse.Content.ReadFromJsonAsync<PageResult<KpiTemplateView>>())!;
+        Assert.Equal(1, filtered.Total); Assert.Single(filtered.Data);
+        using(var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await db.Set<HRM.API.Modules.Authorization.Entities.RoleScreenAction>().Where(x => x.ActionCode == "VIEW" && db.Screens.Any(s => s.ID == x.ScreenID && s.Code == "WEB_KPI_CONFIGURATION"))
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.DataScope, "DEPARTMENT"));
+        }
+        var departmentResponse = await f.H.Client.GetAsync("/api/kpi/configuration/templates"); departmentResponse.EnsureSuccessStatusCode();
+        Assert.Equal("DEPARTMENT", Assert.Single(departmentResponse.Headers.GetValues("X-Effective-Data-Scope")));
+        var department = (await departmentResponse.Content.ReadFromJsonAsync<PageResult<KpiTemplateView>>())!;
+        Assert.Equal(1, department.Total);Assert.Equal("TPL_IT_BACKEND", Assert.Single(department.Data).Code);
+        // ALL on another granted role must still win; no dependence on role ordering.
+        using(var scope = f.H.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var role = await db.Set<HRM.API.Modules.Authorization.Entities.Role>().SingleAsync(x => x.Code == "EMPLOYEE");
+            var screen = await db.Screens.SingleAsync(x => x.Code == "WEB_KPI_CONFIGURATION");
+            db.Add(new HRM.API.Modules.Authorization.Entities.RoleDetail { RoleID = role.ID, ScreenID = screen.ID, CanView = "Y" });
+            db.Add(new HRM.API.Modules.Authorization.Entities.RoleScreenAction { RoleID = role.ID, ScreenID = screen.ID, ActionCode = "VIEW", DataScope = "ALL" });
+            await db.SaveChangesAsync();
+        }
+        var mergedResponse = await f.H.Client.GetAsync("/api/kpi/configuration/templates"); mergedResponse.EnsureSuccessStatusCode();
+        Assert.Equal("ALL", Assert.Single(mergedResponse.Headers.GetValues("X-Effective-Data-Scope")));
+        var merged = (await mergedResponse.Content.ReadFromJsonAsync<PageResult<KpiTemplateView>>())!;
+        Assert.Equal(6, merged.Total); Assert.Equal(6, merged.Data.Count);
+    }
 }

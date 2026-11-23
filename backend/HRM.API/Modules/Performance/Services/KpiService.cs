@@ -16,7 +16,7 @@ using HRM.API.Modules.Approvals.Services;
 using Microsoft.EntityFrameworkCore;
 using MySqlConnector;
 namespace HRM.API.Modules.Performance.Services;
-public sealed partial class KpiService(AppDbContext db, EmployeeDataScope scopes, IPermissionService permissions, TimeProvider clock, NotificationService notifications, ApprovalWorkflowService workflows) {
+public sealed partial class KpiService(AppDbContext db, EmployeeDataScope scopes, IPermissionService permissions, TimeProvider clock, NotificationService notifications, ApprovalWorkflowService workflows, ILogger<KpiService> logger) {
  internal static readonly JsonSerializerOptions JsonOptions=new(JsonSerializerDefaults.Web);
  internal static string Json(object value)=>JsonSerializer.Serialize(value,JsonOptions);
  internal static T Read<T>(string? value)=>value is null?throw BusinessException.Conflict("Legacy KPI has no verified snapshot; assign a new KPI."):JsonSerializer.Deserialize<T>(value,JsonOptions)??throw BusinessException.Conflict("Invalid KPI snapshot.");
@@ -111,9 +111,20 @@ public sealed partial class KpiService(AppDbContext db, EmployeeDataScope scopes
   select new KpiTemplateView(template.ID,template.Code,template.Name,template.PeriodType,template.Status,
    template.DepartmentId,department==null?null:department.DepartmentName,template.PositionId,position==null?null:position.Name,
    template.TeamId,team==null?null:team.TeamName,template.Version);
- public async Task<object> Templates(string actor,PageQuery q,CancellationToken ct) {
-  var a=await Configuration(actor,"VIEW",ct);var rows=VisibleTemplates(a).AsNoTracking();if(!string.IsNullOrWhiteSpace(q.Search))rows=rows.Where(x=>x.Code.Contains(q.Search)||x.Name.Contains(q.Search));
-  return new PageResult<KpiTemplateView>(true,await rows.CountAsync(ct),q.Page,q.PageSize,await TemplateViews(rows.OrderBy(x=>x.Code).Skip(Paging.Offset(q)).Take(q.PageSize)).ToListAsync(ct));
+ public async Task<KpiTemplateListing> Templates(string actor,PageQuery q,CancellationToken ct) {
+  var access=await Configuration(actor,"VIEW",ct);
+  var rows=VisibleTemplates(access).AsNoTracking();
+  var searchApplied=!string.IsNullOrWhiteSpace(q.Search);
+  if(searchApplied) rows=rows.Where(x=>x.Code.Contains(q.Search!)||x.Name.Contains(q.Search!));
+  var total=await rows.CountAsync(ct);
+  var data=await TemplateViews(rows.OrderBy(x=>x.Code).Skip(Paging.Offset(q)).Take(q.PageSize)).ToListAsync(ct);
+  var connection=db.Database.GetDbConnection();
+  // Scope/counts are those already authorized for the caller. Never log unscoped counts,
+  // search text, SQL parameters, or the connection string/credentials.
+  logger.LogInformation(new EventId(1101,"KpiTemplateQuery"),
+   "KPI template query {EffectiveScope} {SearchApplied} {Page} {PageSize} {Total} {ReturnedCount} {DatabaseServer} {DatabaseName}",
+   access.Scope,searchApplied,q.Page,q.PageSize,total,data.Count,connection.DataSource,connection.Database);
+  return new(new PageResult<KpiTemplateView>(true,total,q.Page,q.PageSize,data),access.Scope,searchApplied);
  }
  public async Task<object> Template(string actor,long id,CancellationToken ct) {
   var a=await Configuration(actor,"VIEW",ct);var row=await TemplateViews(VisibleTemplates(a).AsNoTracking().Where(x=>x.ID==id)).SingleOrDefaultAsync(ct)??throw BusinessException.Missing();

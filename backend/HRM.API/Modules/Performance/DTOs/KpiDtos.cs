@@ -68,3 +68,6 @@ public class KpiUnitRequest {
 public sealed record KpiTemplateView(long Id, string Code, string Name, string PeriodType, string Status,
  int? DepartmentId, string? DepartmentName, long? PositionId, string? PositionName,
  int? TeamId, string? TeamName, long Version);
+
+// Service metadata stays out of the response body; the controller exposes safe diagnostic headers.
+public sealed record KpiTemplateListing(PageResult<KpiTemplateView> Page, string EffectiveScope, bool SearchApplied);

@@ -134,3 +134,11 @@ Migration `20261123111950_AddKpiUnitCatalog` tạo kpi_units và FK nullable kpi
 ## Tên đối tượng áp dụng trong template
 
 GET `/api/kpi/configuration/templates` giữ các field id/code/name/periodType/status/departmentId/positionId/teamId/version và bổ sung departmentName, positionName, teamName vào từng phần tử data. Không cấu hình quan hệ thì cả ID và tên tương ứng là null. GET `/api/kpi/configuration/templates/{id}` cũng trả các field tên trong object template, giữ criteria như cũ. Source lọc scope trước count/paging và LEFT JOIN metadata trong query dữ liệu, không query từng template/N+1. Không thay schema hoặc quyền.
+
+### Chẩn đoán tổng số template khác với màn SQL
+
+GET templates thêm response headers X-Effective-Data-Scope (Scope thực tế backend đọc từ các Role của user) và X-Search-Applied=true/false. Body giữ PageResult như cũ. ALL không thêm WHERE phòng ban/Team; total là COUNT sau scope/search, trước LEFT JOIN và phân trang. Với cùng database có6 template và không search, ALL phải trả total6. ALL có search vẫn có thể trả total1. Scope cao nhất trong các Role có VIEW hợp lệ được dùng; không phụ thuộc thứ tự Role.
+
+Khi terminal logging cho user/module Performance bật Y, event1101 KpiTemplateQuery ghi EffectiveScope, SearchApplied, Page/PageSize, Total, ReturnedCount, DatabaseServer và DatabaseName. Không ghi connection string/password/token, raw search, SQL parameters hoặc count ngoài phạm vi được phép. Dùng cùng TerminalTraceId để ghép access event. Thông tin database chỉ trong log vận hành, không trả về response.
+
+Đối chiếu bằng query chỉ đọc trên màn SQL: `SELECT DATABASE() AS database_name, COUNT(*) AS total FROM kpi_templates;`. Nếu header ALL, Search-Applied=false mà total1 trong khi màn SQL có6, cần so backend/database/proxy hoặc phiên bản deploy thực tế; không tự bỏ Scope hay sửa grant để che lỗi.

@@ -32,7 +32,13 @@ public sealed class KpiConfigurationController(KpiService service):ControllerBas
  [HttpPut("metrics/{id:long}"),ScreenPermission(KpiScreens.Configuration,"UPDATE")]
  public async Task<IActionResult> UpdateMetric(long id,MetricRequest r,CancellationToken ct)=>Ok(new{success=true,data=await service.SaveMetric(Actor,id,r,ct)});
  [HttpGet("templates"),ScreenPermission(KpiScreens.Configuration,"VIEW")]
- public async Task<IActionResult> Templates([FromQuery]PageQuery q,CancellationToken ct)=>Ok(await service.Templates(Actor,q,ct));
+ public async Task<IActionResult> Templates([FromQuery]PageQuery q,CancellationToken ct)
+ {
+  var result=await service.Templates(Actor,q,ct);
+  Response.Headers["X-Effective-Data-Scope"]=result.EffectiveScope;
+  Response.Headers["X-Search-Applied"]=result.SearchApplied?"true":"false";
+  return Ok(result.Page);
+ }
  [HttpGet("templates/{id:long}"),ScreenPermission(KpiScreens.Configuration,"VIEW")]
  public async Task<IActionResult> Template(long id,CancellationToken ct)=>Ok(await service.Template(Actor,id,ct));
  [HttpPost("templates"),ScreenPermission(KpiScreens.Configuration,"NEW")]
