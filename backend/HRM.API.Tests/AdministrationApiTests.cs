@@ -496,6 +496,47 @@ public sealed class AdministrationApiTests
         Assert.Equal(HttpStatusCode.OK, (await f.Send(HttpMethod.Put, $"/api/roles/{roleView.Id}/permissions", new { screens = new object[] { new { screenCode = "TEST_WEB", standard = new { DELETE = true } } } }, roleView.Version)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.PostAsJsonAsync("/api/users", new { userId = "escalated", email = "escalated@example.invalid", password = f.App.Password, roleIds = root.Roles.Select(x => x.Id).ToArray() })).StatusCode);
     }
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task NewUnassignedBusinessRoleCanBeRenamedAndAssignedByPermissionAdministrator(bool permissionApprove)
+    {
+        using var f = new Fixture(); await f.Start();
+        var created = await f.Client.PostAsJsonAsync("/api/roles", new RoleRequest { Code = "NEW_BUSINESS", Name = "New business role" });
+        created.EnsureSuccessStatusCode(); var role = (await created.Content.ReadFromJsonAsync<AdminRoleView>())!;
+        (await f.Send(HttpMethod.Put, $"/api/roles/{role.Id}/permissions", new { screens = new[] { new { screenCode = "TEST_WEB", standard = new { VIEW = true, DELETE = true } } } }, role.Version)).EnsureSuccessStatusCode();
+        using (var scope = f.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var root = await db.Set<Role>().SingleAsync(r => r.Code == "HR");
+            await db.RoleDetails.Where(d => d.RoleID == root.ID && d.ScreenID == f.Web).ExecuteUpdateAsync(s => s.SetProperty(d => d.CanView, "N").SetProperty(d => d.CanDelete, "N"));
+            if (!permissionApprove)
+            {
+                // Preserve a recovery administrator while testing a delegated actor without APPROVE.
+                var backupRole = new Role { Code = "RECOVERY", Name = "Recovery" };
+                var owner = await db.Set<User>().SingleAsync(u => u.UserId == "api-user");
+                db.AddRange(backupRole, new User { UserId = "recovery", Email = "recovery@example.invalid", Status = "ACTIVE", PasswordHash = owner.PasswordHash, Salt = owner.Salt });
+                await db.SaveChangesAsync();
+                db.Add(new UserRole { UserID = "recovery", RoleID = backupRole.ID });
+                foreach (var screen in await db.Screens.Where(s => s.Code == "WEB_USERS" || s.Code == "WEB_ROLES" || s.Code == "WEB_PERMISSIONS").ToListAsync())
+                    db.Add(new RoleDetail { RoleID = backupRole.ID, ScreenID = screen.ID, CanView = "Y", CanUpdate = "Y", CanApprove = "Y" });
+                await db.SaveChangesAsync();
+                await db.RoleDetails.Where(d => d.RoleID == root.ID && db.Screens.Any(s => s.ID == d.ScreenID && s.Code == "WEB_PERMISSIONS")).ExecuteUpdateAsync(s => s.SetProperty(d => d.CanApprove, "N"));
+            }
+        }
+        role = (await f.Client.GetFromJsonAsync<AdminRoleView>($"/api/roles/{role.Id}"))!;
+        var renamed = await f.Send(HttpMethod.Put, $"/api/roles/{role.Id}", new RoleRequest { Code = role.Code, Name = "Renamed business role" }, role.Version);
+        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+        var target = await f.User();
+        var assigned = await f.Send(HttpMethod.Put, "/api/users/target/roles", new { roleIds = new[] { role.Id } }, target.Version);
+        Assert.Equal(permissionApprove ? HttpStatusCode.OK : HttpStatusCode.Forbidden, assigned.StatusCode);
+        if (permissionApprove)
+        {
+            Assert.Equal(role.Id, Assert.Single((await f.User()).Roles).Id);
+            using var verify = f.App.Services.CreateScope(); var db = verify.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.True(await db.Set<AuditLog>().AnyAsync(a => a.Action == "USER_ROLES"));
+        }
+    }
     [Fact]
     public async Task RoleCrudStartsEmptyAndBlocksDeletionWhileAssigned()
     {

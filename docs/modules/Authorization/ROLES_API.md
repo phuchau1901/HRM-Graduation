@@ -202,3 +202,7 @@ Response thành công:
   ]
 }
 ```
+
+## Role mới và quyền ủy quyền
+
+PUT /api/roles/{id}: sửa Name và giữ nguyên Code chỉ cần WEB_ROLES UPDATE, JWT và If-Match đúng phiên bản; không so sánh quyền nghiệp vụ trong role với quyền sử dụng cá nhân của người đổi tên. Đổi Code vẫn kiểm tra dominance vì có thể ảnh hưởng workflow dựa trên role code. Role mới không cần có user trước khi sửa tên. Xóa vẫn yêu cầu DELETE, If-Match, không còn membership/grant và bảo vệ tài khoản quản trị cuối.

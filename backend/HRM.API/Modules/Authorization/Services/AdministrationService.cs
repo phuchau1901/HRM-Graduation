@@ -22,7 +22,7 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
 {
     public const string Users = "WEB_USERS", Roles = "WEB_ROLES", Permissions = "WEB_PERMISSIONS";
     public static string Version(object value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
-    private static BusinessException Denied(string? message = null) => new(403, "", message ?? "Operation exceeds current administrative authority.");
+    private static BusinessException Denied(string? message = null) => new(403, "HRM_ADMIN_403", message ?? "Operation exceeds current administrative authority.");
     private static void Match(string? header, string version)
     {
         if (string.IsNullOrEmpty(header)) throw new BusinessException(428, "HRM_ADMIN_428", "If-Match is required; read the resource first.");
@@ -81,17 +81,23 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
         result.UnionWith(extended.Where(x => PermissionActions.Extended.Contains(x.ActionCode)).Select(x => x.Code + ":" + x.ActionCode));
         return result;
     }
-    private async Task Dominates(string actor, long[] roleIds, CancellationToken ct)
+    private async Task Dominates(string actor, long[] roleIds, CancellationToken ct, bool allowBusinessDelegation = false)
     {
         var own = await permissions.GetSnapshotAsync(actor, ct);
         var allowed = own.SelectMany(x => x.Value.Select(a => x.Key + ":" + a)).ToHashSet(StringComparer.Ordinal);
-        if (!(await RawCapabilities(roleIds, ct)).IsSubsetOf(allowed)) throw Denied();
+        var required = await RawCapabilities(roleIds, ct);
+        // Permission administrators can configure and assign business grants without personally
+        // exercising them. Administrative grants still require the actor's own authority.
+        if (allowBusinessDelegation && await permissions.HasPermissionAsync(actor, Permissions, "UPDATE", ct)
+            && await permissions.HasPermissionAsync(actor, Permissions, "APPROVE", ct))
+            required.RemoveWhere(capability => !new[] { Users, Roles, Permissions }.Any(screen => capability.StartsWith(screen + ":", StringComparison.Ordinal)));
+        if (!required.IsSubsetOf(allowed)) throw Denied();
     }
     private async Task ValidateRoles(string actor, long[] ids, CancellationToken ct)
     {
         if (ids.Distinct().Count() != ids.Length || ids.Any(x => x <= 0) || await db.Set<Role>().CountAsync(x => ids.Contains(x.ID), ct) != ids.Length)
             throw BusinessException.Invalid("Role IDs must be unique existing positive IDs.");
-        await Dominates(actor, ids, ct);
+        await Dominates(actor, ids, ct, allowBusinessDelegation: true);
     }
     private async Task CheckUser(string? id, UserUpdateRequestBase request, CancellationToken ct)
     {
@@ -154,7 +160,7 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
         => Write(actor, Users, request is UserRolesRequest ? "APPROVE" : "UPDATE", async () =>
         {
             var before = await User(id, ct); Match(etag, before.Version);
-            await Dominates(actor, before.Roles.Select(x => x.Id).ToArray(), ct);
+            await Dominates(actor, before.Roles.Select(x => x.Id).ToArray(), ct, allowBusinessDelegation: request is UserRolesRequest);
             var user = await db.Set<User>().SingleAsync(x => x.UserId == id, ct);
             string operation;
             switch (request)
@@ -299,7 +305,12 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
         => Write<AdminRoleView?>(actor, Roles, id == null ? "NEW" : request == null ? "DELETE" : "UPDATE", async () =>
         {
             var before = id == null ? null : await Role(id.Value, ct);
-            if (before != null) { Match(etag, before.Version); await Dominates(actor, [id!.Value], ct); }
+            if (before != null)
+            {
+                Match(etag, before.Version);
+                // Name-only edits do not change grants. Code changes may affect role-based workflows.
+                if (request != null && request.Code != before.Code) await Dominates(actor, [id!.Value], ct);
+            }
             var role = id == null ? new Role() : await db.Set<Role>().SingleAsync(x => x.ID == id, ct);
             if (request == null)
             {
