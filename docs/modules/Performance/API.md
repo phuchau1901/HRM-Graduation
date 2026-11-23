@@ -130,3 +130,7 @@ Lấy id/version thật từ GET hoặc POST response, không mặc định12. C
 Tạo/sửa chỉ tiêu vẫn gửi `unit:"KG"`. Chỉ tiêu mới hoặc đổi đơn vị phải chọn code active. Khi sửa chỉ tiêu cũ có thể giữ nguyên unit inactive/legacy; frontend giữ option hiện tại để không tự đổi dữ liệu. Thay đổi tên/status của đơn vị không sửa mục tiêu, kết quả hoặc snapshot KPI đã giao.
 
 Migration `20261123111950_AddKpiUnitCatalog` tạo kpi_units và FK nullable kpi_metrics.unit_id. Seed11 đơn vị chuẩn: %, VND, Điểm, Số lượng, Giờ, Ngày, Lần, Sản phẩm, Công việc, Khách hàng, Hợp đồng. SQL Migration nhập thêm các code khác rỗng đã có trong kpi_metrics vào danh mục mới, không sửa metric.unit hoặc snapshot. Bản ghi metric cũ có unit_id=NULL vẫn đọc được; lần sửa chỉ tiêu hợp lệ sẽ liên kết với catalog. Cần người vận hành chạy Migration trên đúng database trước khi dùng API; không tự apply/deploy.
+
+## Tên đối tượng áp dụng trong template
+
+GET `/api/kpi/configuration/templates` giữ các field id/code/name/periodType/status/departmentId/positionId/teamId/version và bổ sung departmentName, positionName, teamName vào từng phần tử data. Không cấu hình quan hệ thì cả ID và tên tương ứng là null. GET `/api/kpi/configuration/templates/{id}` cũng trả các field tên trong object template, giữ criteria như cũ. Source lọc scope trước count/paging và LEFT JOIN metadata trong query dữ liệu, không query từng template/N+1. Không thay schema hoặc quyền.

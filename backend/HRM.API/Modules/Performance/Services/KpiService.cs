@@ -100,12 +100,23 @@ public sealed partial class KpiService(AppDbContext db, EmployeeDataScope scopes
   if(team.HasValue)actualDept=await db.Set<Team>().Where(x=>x.Id==team && x.IsActive).Select(x=>(int?)x.DepartmentId).SingleOrDefaultAsync(ct)??throw BusinessException.Invalid("Invalid team.");
   if(a.Scope!="ALL" && (!actualDept.HasValue || actualDept!=a.DepartmentId))throw BusinessException.Scope();
  }
+ private IQueryable<KpiTemplateView> TemplateViews(IQueryable<KpiTemplate> templates) =>
+  from template in templates
+  join department in db.Set<Department>().AsNoTracking() on template.DepartmentId equals (int?)department.Id into departments
+  from department in departments.DefaultIfEmpty()
+  join position in db.Set<Position>().AsNoTracking() on template.PositionId equals (long?)position.ID into positions
+  from position in positions.DefaultIfEmpty()
+  join team in db.Set<Team>().AsNoTracking() on template.TeamId equals (int?)team.Id into teams
+  from team in teams.DefaultIfEmpty()
+  select new KpiTemplateView(template.ID,template.Code,template.Name,template.PeriodType,template.Status,
+   template.DepartmentId,department==null?null:department.DepartmentName,template.PositionId,position==null?null:position.Name,
+   template.TeamId,team==null?null:team.TeamName,template.Version);
  public async Task<object> Templates(string actor,PageQuery q,CancellationToken ct) {
   var a=await Configuration(actor,"VIEW",ct);var rows=VisibleTemplates(a).AsNoTracking();if(!string.IsNullOrWhiteSpace(q.Search))rows=rows.Where(x=>x.Code.Contains(q.Search)||x.Name.Contains(q.Search));
-  return new PageResult<KpiTemplate>(true,await rows.CountAsync(ct),q.Page,q.PageSize,await rows.OrderBy(x=>x.Code).Skip(Paging.Offset(q)).Take(q.PageSize).ToListAsync(ct));
+  return new PageResult<KpiTemplateView>(true,await rows.CountAsync(ct),q.Page,q.PageSize,await TemplateViews(rows.OrderBy(x=>x.Code).Skip(Paging.Offset(q)).Take(q.PageSize)).ToListAsync(ct));
  }
  public async Task<object> Template(string actor,long id,CancellationToken ct) {
-  var a=await Configuration(actor,"VIEW",ct);var row=await VisibleTemplates(a).AsNoTracking().SingleOrDefaultAsync(x=>x.ID==id,ct)??throw BusinessException.Missing();
+  var a=await Configuration(actor,"VIEW",ct);var row=await TemplateViews(VisibleTemplates(a).AsNoTracking().Where(x=>x.ID==id)).SingleOrDefaultAsync(ct)??throw BusinessException.Missing();
   return new {template=row,criteria=await db.Set<KpiCriterion>().AsNoTracking().Where(x=>x.TemplateID==id).OrderBy(x=>x.ID).ToListAsync(ct)};
  }
  public Task<KpiTemplate> SaveTemplate(string actor,long? id,TemplateRequest r,CancellationToken ct)=>Transaction(async()=> {

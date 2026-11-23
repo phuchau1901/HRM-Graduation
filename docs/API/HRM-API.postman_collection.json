@@ -3478,7 +3478,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/kpi/configuration/templates?page=1&pageSize=20",
-            "description": "WEB_KPI_CONFIGURATION VIEW; lookup nhân viên và org chỉ trong scope. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+            "description": "WEB_KPI_CONFIGURATION VIEW; lookup nhân viên và org chỉ trong scope. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration. Response template có departmentId/departmentName, positionId/positionName, teamId/teamName; quan hệ không cấu hình trả null. List paging/scope và detail criteria giữ như cũ; tên lấy LEFT JOIN, không N+1."
           },
           "response": []
         },
@@ -3628,7 +3628,7 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/api/kpi/configuration/templates/{{kpiTemplateId}}",
-            "description": "WEB_KPI_CONFIGURATION VIEW, criteria snapshot. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration."
+            "description": "WEB_KPI_CONFIGURATION VIEW, criteria snapshot. JWT; scope theo action. Xem docs/modules/Performance/API.md. Chỉ chạy mutation trên môi trường được phép, không tự chạy migration. Response template có departmentId/departmentName, positionId/positionName, teamId/teamName; quan hệ không cấu hình trả null. List paging/scope và detail criteria giữ như cũ; tên lấy LEFT JOIN, không N+1."
           },
           "response": []
         },

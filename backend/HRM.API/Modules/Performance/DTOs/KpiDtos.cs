@@ -65,3 +65,6 @@ public class KpiUnitRequest {
  [Range(0,100000)] public int SortOrder {get;set;}
  public long Version {get;set;}
 }
+public sealed record KpiTemplateView(long Id, string Code, string Name, string PeriodType, string Status,
+ int? DepartmentId, string? DepartmentName, long? PositionId, string? PositionName,
+ int? TeamId, string? TeamName, long Version);
