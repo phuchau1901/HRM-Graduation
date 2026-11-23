@@ -60,6 +60,7 @@ export function apiReadNotification(id){return request(`/api/notifications/${enc
 export function apiReadAllNotifications(){return request('/api/notifications/read-all',{method:'PATCH'});}
 
 export function apiRoles(page=1,search=''){return request('/api/roles?'+new URLSearchParams({page,pageSize:30,search}));}
+export function apiCreateRole(payload){return request('/api/roles',{method:'POST',body:JSON.stringify(payload)});}
 export function apiRoleDetail(roleId){return request(`/api/roles/${encodeURIComponent(roleId)}`);}
 export function apiUpdateRole(roleId,version,payload){
  if(!version)throw Error('Thiếu version của role. Vui lòng tải lại.');

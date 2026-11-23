@@ -241,3 +241,17 @@ test('My Attendance has no scope controls or scope payload, including legacy mat
  const scopes=roleScopeDraft([{code:'WEB_MY_ATTENDANCE'}],[{screenCode:'WEB_MY_ATTENDANCE',dataScopes:{VIEW:'ALL',UPDATE:'SELF'}}]);assert.equal(scopes.has('WEB_MY_ATTENDANCE'),false);
  assert.equal(roleUsesEmployeeScope('WEB_ATTENDANCE'),true);assert.equal(roleHasScopeAction('WEB_ATTENDANCE','VIEW'),true);
 });
+
+test('role creation validates real API fields and requires WEB_ROLES NEW',async()=>{
+ const {roleCreatePayload,roleCanCreate}=await import('../assets/js/pages/administration/roles.js');
+ assert.deepEqual(roleCreatePayload({code:' team_admin ',name:' Quản lý team ',permissions:['ignored']}),{code:'TEAM_ADMIN',name:'Quản lý team'});
+ for(const values of [{code:'1ADMIN',name:'Name'},{code:'ADMIN-NEW',name:'Name'},{code:'A'.repeat(31),name:'Name'},{code:'ADMIN',name:' '},{code:'ADMIN',name:'N'.repeat(101)}])assert.throws(()=>roleCreatePayload(values));
+ const grant={platform:'WEB',code:'WEB_ROLES',canView:'Y',canNew:'Y'};assert.equal(roleCanCreate({permissions:[grant]}),true);assert.equal(roleCanCreate({permissions:[{...grant,canNew:'N'}]}),false);assert.equal(roleCanCreate({permissions:[{...grant,code:'WEB_PERMISSIONS'}]}),false);
+});
+test('create role POST sends code/name only and preserves API errors without automatically retrying',async()=>{
+ const {apiCreateRole}=await import('../assets/js/api/client.js');const previous=globalThis.fetch,calls=[];
+ try{globalThis.fetch=async(url,options)=>{calls.push({url,options});return {ok:true,status:201,json:async()=>({id:90,code:'TEAM_ADMIN',name:'Quản lý team',version:'v1'})};};
+ const saved=await apiCreateRole({code:'TEAM_ADMIN',name:'Quản lý team'});assert.equal(saved.id,90);assert.ok(calls[0].url.endsWith('/api/roles'));assert.equal(calls[0].options.method,'POST');assert.equal(calls[0].options.headers.has('If-Match'),false);assert.deepEqual(JSON.parse(calls[0].options.body),{code:'TEAM_ADMIN',name:'Quản lý team'});assert.equal(calls.length,1);
+ let attempts=0;globalThis.fetch=async()=>{attempts++;return {ok:false,status:409,json:async()=>({message:'Mã role đã tồn tại'})};};await assert.rejects(apiCreateRole({code:'TEAM_ADMIN',name:'Name'}),/đã tồn tại/);assert.equal(attempts,1);
+ }finally{globalThis.fetch=previous;}
+});

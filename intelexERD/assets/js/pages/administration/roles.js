@@ -1,9 +1,10 @@
 import {navigationForScreens} from '../../screen-navigation.js';
-import {apiCreateScreen,apiRoles,apiUpdateRole,apiAllScreens,apiRolePermissions,apiSaveRolePermissions,apiSession} from '../../api/client.js';
+import {apiCreateRole,apiCreateScreen,apiRoles,apiUpdateRole,apiAllScreens,apiRolePermissions,apiSaveRolePermissions,apiSession} from '../../api/client.js';
 import {nav} from '../../router.js';
 import {roleScreenRoutes} from '../../permissions.js';
 import {e} from '../../utils.js';
-import {icon} from '../../components/ui.js';
+import {icon,field} from '../../components/ui.js';
+import {openDialog,closeDialog,toast} from '../../components/dialog.js';
 
 const requestScopeScreens=['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'];
 export const roleUsesEmployeeScope=code=>['WEB_ATTENDANCE','WEB_WORK_SCHEDULES','WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS','WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT',...requestScopeScreens].includes(code);
@@ -79,6 +80,13 @@ export function roleSessionIdentity(session=apiSession()){
  const account=session?.user;
  return {id:account?.userId||'',name:account?.fullName||account?.userId||'Tài khoản',role:(session?.roles||[]).map(role=>role.name||role.code||'').filter(Boolean).join(', ')};
 }
+export function roleCreatePayload(values){
+ const code=String(values.code||'').trim().toUpperCase(),name=String(values.name||'').trim();
+ if(code.length>30||!/^[A-Z][A-Z0-9_]*$/.test(code))throw Error('Mã role phải bắt đầu bằng chữ, chỉ gồm chữ in hoa, số, dấu gạch dưới và tối đa 30 ký tự.');
+ if(!name||name.length>100)throw Error('Tên role bắt buộc, tối đa 100 ký tự.');
+ return {code,name};
+}
+export function roleCanCreate(session=apiSession()){return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_ROLES'&&p.canView==='Y'&&p.canNew==='Y');}
 export async function mountRoles(root,filters={}){
  if(!root)return;
  if(!apiSession()){root.innerHTML='<p>Vui lòng đăng nhập để xem vai trò và phân quyền.</p>';return;}
@@ -88,11 +96,26 @@ export async function mountRoles(root,filters={}){
  root.innerHTML='<p role="status">Đang tải danh sách role…</p>';
  try{const result=await apiRoles(rolePage,roleSearch);if(!root.isConnected)return;
  if(!Array.isArray(result?.data))throw Error('Danh sách role không hợp lệ.');
- root.innerHTML=`<form id="role-search" class="toolbar"><input name="search" value="${e(roleSearch)}" placeholder="Tìm mã hoặc tên role" aria-label="Tìm role"><button class="btn">Tìm kiếm</button></form><div class="table-wrap"><table><thead><tr><th>Mã role</th><th>Tên role</th><th>Hành động</th></tr></thead><tbody>${result.data.map(role=>`<tr><td>${e(role.code)}</td><td>${e(role.name)}</td><td><button class="btn" data-edit-role="${e(role.id)}" ${roleGrant('WEB_PERMISSIONS','canView')?'':'disabled'}>Chỉnh sửa</button></td></tr>`).join('')}</tbody></table></div>${!result.data.length?'<p>Không có role phù hợp.</p>':''}<div class="toolbar"><button class="btn" id="role-prev" ${rolePage<=1?'disabled':''}>Trang trước</button><span>Trang ${rolePage} · ${e(result.total)} role</span><button class="btn" id="role-next" ${rolePage*30>=result.total?'disabled':''}>Trang sau</button></div><p class="muted">Chỉnh sửa quyền cần quyền xem WEB_PERMISSIONS. Lưu cần quyền cập nhật và phê duyệt.</p>`;
+ root.innerHTML=`<form id="role-search" class="toolbar"><input name="search" value="${e(roleSearch)}" placeholder="Tìm mã hoặc tên role" aria-label="Tìm role"><button class="btn">Tìm kiếm</button>${roleCanCreate()?`<button type="button" class="btn primary" id="role-create">${icon('plus',16)} Thêm role</button>`:''}</form><div class="table-wrap"><table><thead><tr><th>Mã role</th><th>Tên role</th><th>Hành động</th></tr></thead><tbody>${result.data.map(role=>`<tr><td>${e(role.code)}</td><td>${e(role.name)}</td><td><button class="btn" data-edit-role="${e(role.id)}" ${roleGrant('WEB_PERMISSIONS','canView')?'':'disabled'}>Chỉnh sửa</button></td></tr>`).join('')}</tbody></table></div>${!result.data.length?'<p>Không có role phù hợp.</p>':''}<div class="toolbar"><button class="btn" id="role-prev" ${rolePage<=1?'disabled':''}>Trang trước</button><span>Trang ${rolePage} · ${e(result.total)} role</span><button class="btn" id="role-next" ${rolePage*30>=result.total?'disabled':''}>Trang sau</button></div>`;
  root.querySelector('#role-search').onsubmit=ev=>{ev.preventDefault();ev.stopPropagation();roleSearch=ev.currentTarget.elements.search.value.trim();rolePage=1;list();};
+ root.querySelector('#role-create')?.addEventListener('click',createRole);
  root.querySelector('#role-prev').onclick=()=>{rolePage--;list();};root.querySelector('#role-next').onclick=()=>{rolePage++;list();};
  root.querySelectorAll('[data-edit-role]').forEach(el=>el.onclick=()=>edit(result.data.find(r=>String(r.id)===el.dataset.editRole)));
  }catch(err){showError(err,list);}
+ }
+ function createRole(){
+ if(!roleCanCreate())return;
+ openDialog('Thêm role',`<form id="role-create-form" class="user-registration"><fieldset class="user-edit-fieldset"><div class="form-grid">${field('Mã role','code','text','','required maxlength="30" pattern="[A-Za-z][A-Za-z0-9_]*" autocomplete="off"')}${field('Tên role','name','text','','required maxlength="100"')}</div><div class="form-actions"><button type="button" class="btn" data-cancel-role>Hủy</button><button class="btn primary" type="submit">Tạo role</button></div></fieldset><p role="alert" data-create-role-error></p></form>`);
+ const form=document.querySelector('#role-create-form'),fieldset=form.querySelector('fieldset'),feedback=form.querySelector('[data-create-role-error]');let busy=false;
+ form.querySelector('[data-cancel-role]').onclick=()=>{if(!busy)closeDialog();};
+ form.onsubmit=async event=>{
+ event.preventDefault();event.stopPropagation();if(busy||!roleCanCreate())return;let payload;
+ try{payload=roleCreatePayload(Object.fromEntries(new FormData(form)));}catch(err){feedback.textContent=err.message;return;}
+ busy=true;fieldset.disabled=true;feedback.textContent='Đang tạo role…';
+ try{const saved=await apiCreateRole(payload);if(!form.isConnected)return;closeDialog();toast('Đã tạo role thành công.');if(root.isConnected){rolePage=1;roleSearch=saved?.code||payload.code;await list();}}
+ catch(err){if(form.isConnected)feedback.textContent=err.message;}
+ finally{busy=false;if(form.isConnected)fieldset.disabled=false;}
+ };
  }
  async function edit(role){
  root.innerHTML='<p role="status">Đang tải màn hình và quyền của role…</p>';
