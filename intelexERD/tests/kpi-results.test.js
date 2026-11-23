@@ -67,3 +67,29 @@ test('KPI Excel export keeps filters, excludes pagination and downloads original
  const original=globalThis.fetch;try{let url;const blob=new Blob(['PK-Excel']);globalThis.fetch=async value=>{url=new URL(value);return {ok:true,blob:async()=>blob,json:async()=>{throw Error('binary');}};};assert.equal(await apiKpiExport({periodId:3,departmentId:4,status:'APPROVED',page:4,pageSize:20}),blob);assert.equal(url.pathname,'/api/kpi/evaluations/export');assert.equal(url.searchParams.get('periodId'),'3');assert.equal(url.searchParams.get('page'),null);
  }finally{globalThis.fetch=original;}
 });
+
+test('KPI deep links parse the evaluation ID only on the results route',async()=>{
+ const {kpiRequestedEvaluationId}=await import('../assets/js/pages/performance/kpi-results.js');
+ assert.equal(kpiRequestedEvaluationId('#/performance/kpi-results?evaluationId=11'),11);assert.equal(kpiRequestedEvaluationId('#/performance/kpi-results?status=REVIEWED&evaluationId=12'),12);
+ for(const hash of ['#/performance/kpi-results?evaluationId=0','#/performance/kpi-results?evaluationId=-1','#/performance/kpi-results?evaluationId=1.5','#/performance/kpi-results?evaluationId=9007199254740992','#/performance/kpi-results?evaluationId=bad','#/performance/kpi-templates?evaluationId=11','#/performance/kpi-results'])assert.equal(kpiRequestedEvaluationId(hash),null);
+});
+test('approval KPI link uses referenceId instead of approval ID and requires evaluation VIEW',async()=>{
+ const {workflowKpiDetailLink,workflowRows}=await import('../assets/js/pages/approval-center/approvals.js');
+ const session=account(),item={id:99,referenceId:11,requestType:'KPI_EVALUATION'};assert.match(workflowKpiDetailLink(item,session),/kpi-results\?evaluationId=11/);assert.ok(!workflowKpiDetailLink(item,session).includes('evaluationId=99'));assert.equal(workflowKpiDetailLink({...item,referenceId:null},session),'');assert.equal(workflowKpiDetailLink({...item,referenceId:'bad'},session),'');assert.equal(workflowKpiDetailLink({...item,requestType:'LEAVE'},session),'');assert.equal(workflowKpiDetailLink(item,account(12,{canView:'N'})),'');assert.equal(workflowKpiDetailLink(item,{permissions:[]}),'');assert.match(workflowRows('all',[item],session),/KPI/);
+});
+
+test('KPI workflow decision requires both grants, assigned pending step, correct reference and prevents self approval',async()=>{
+ const {kpiApprovalCanDecide}=await import('../assets/js/pages/performance/kpi-results.js');
+ const session={user:{userId:'approver',employeeId:32},permissions:[{platform:'WEB',code:'WEB_APPROVALS',canView:'Y',canApprove:'Y'},{platform:'WEB',code:'WEB_KPI_EVALUATION',canView:'Y',canApprove:'Y'}]},data={...detail(),target:{...target(),status:'REVIEWED',approvalId:99}},approval={request:{id:99,referenceId:7,requestType:'KPI_EVALUATION',status:'PENDING',currentStepNo:2,version:4},steps:[{stepNo:1,approverUserId:'previous',decision:'APPROVED'},{stepNo:2,approverUserId:'approver',decision:'PENDING'}]};
+ assert.equal(kpiApprovalCanDecide(data,approval,session),true);
+ for(const request of [{...approval.request,id:7},{...approval.request,referenceId:99},{...approval.request,requestType:'LEAVE'},{...approval.request,status:'APPROVED'},{...approval.request,currentStepNo:1},{...approval.request,version:0}])assert.equal(kpiApprovalCanDecide(data,{...approval,request},session),false);
+ assert.equal(kpiApprovalCanDecide({...data,isClosed:true},approval,session),false);assert.equal(kpiApprovalCanDecide({...data,target:{...data.target,status:'SUBMITTED'}},approval,session),false);assert.equal(kpiApprovalCanDecide(data,approval,{...session,user:{...session.user,employeeId:12}}),false);assert.equal(kpiApprovalCanDecide(data,approval,{...session,user:{userId:'other',employeeId:33}}),false);
+ for(const code of ['WEB_APPROVALS','WEB_KPI_EVALUATION'])assert.equal(kpiApprovalCanDecide(data,approval,{...session,permissions:session.permissions.map(p=>p.code===code?{...p,canApprove:'N'}:p)}),false);
+});
+
+test('KPI approval has one Detail link that goes straight to KPI; other requests keep workflow detail',async()=>{
+ const {workflowRows}=await import('../assets/js/pages/approval-center/approvals.js');
+ const session=account(),item={id:99,referenceId:11,requestType:'KPI_EVALUATION'};const html=workflowRows('all',[item],session);
+ assert.match(html,/href="#\/performance\/kpi-results\?evaluationId=11">Chi tiết<\/a>/);assert.ok(!html.includes('data-workflow-detail='));assert.ok(!html.includes('Xem chi tiết KPI'));assert.equal((html.match(/>Chi tiết</g)||[]).length,1);
+ assert.match(workflowRows('all',[{id:1,requestType:'LEAVE'}],session),/data-workflow-detail="0"/);assert.ok(!workflowRows('all',[item],{permissions:[]}).includes('href='));
+});

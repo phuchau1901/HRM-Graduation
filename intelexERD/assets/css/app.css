@@ -149,3 +149,4 @@ dialog:has(#balance-grant-form){width:min(820px,calc(100vw - 32px));max-width:ca
 #kpi-config-dialog .kpi-assignment-picker{flex-wrap:wrap}#kpi-config-dialog .kpi-assignment-picker>label{flex-basis:220px}@media(max-width:480px){#kpi-config-dialog .kpi-assignment-picker>label{flex-basis:auto}}
 
 .kpi-assignment-list-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 24px}.kpi-assignment-list-heading h2{font-size:20px;margin-bottom:6px}.kpi-assignment-list-heading .btn{flex-shrink:0}
+.kpi-approval-panel:not(:empty){margin:24px 0;padding:20px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}.kpi-approval-panel h3{margin:0 0 12px}.kpi-approval-panel>p{margin:8px 0}.kpi-approval-panel form{margin-top:18px}.kpi-approval-panel textarea{width:100%;min-height:88px}

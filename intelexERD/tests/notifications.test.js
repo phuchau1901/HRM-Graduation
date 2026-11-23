@@ -159,3 +159,9 @@ test('KPI_PERIOD notifications belong to KPI regardless of source and preserve u
  const items=[{id:1,source:'SYSTEM',referenceType:'KPI_PERIOD',readAt:null},{id:2,source:'WORKFLOW',referenceType:'kpi_period',readAt:'2026-11-23T01:00:00Z'},{id:3,source:'SYSTEM',referenceType:'ATTENDANCE'}];
  assert.equal(notificationCategory(items[0]),'kpi');assert.deepEqual(filterNotificationItems(items,'kpi').map(item=>item.id),[1,2]);assert.deepEqual(filterNotificationItems(items,'system'),[]);assert.deepEqual(filterNotificationItems(items,'leave'),[]);assert.equal(filterNotificationItems(items,'all'),items);assert.ok(filterNotificationItems(items,'unread').some(item=>item.id===1));assert.ok(!filterNotificationItems(items,'unread').some(item=>item.id===2));assert.match(notificationDetailMarkup({...items[0],title:'KPI đã giao',content:'Nội dung'}),/notification-detail-category">KPI</);
 });
+
+test('all reference types starting with KPI use the KPI tab, case-insensitively',async()=>{
+ const {notificationCategory}=await import('../assets/js/pages/notifications/notifications.js');
+ for(const referenceType of ['KPI','KPI_PERIOD','KPI_EVALUATION','KPI_TARGET','kpi_result','KPITest'])for(const source of ['SYSTEM','WORKFLOW',null])assert.equal(notificationCategory({source,referenceType}),'kpi');
+ for(const referenceType of ['NOT_KPI','KP','OTHER_KPI_PERIOD',null])assert.equal(notificationCategory({source:'SYSTEM',referenceType}),'system');
+});

@@ -6,7 +6,7 @@ import {icon} from '../../components/ui.js';
 export const notificationTabs=[['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['kpi','KPI'],['system','Hệ thống']];
 export function notificationCategory(item){
  const source=String(item.source||'').toUpperCase(),reference=String(item.referenceType||'').toUpperCase();
- if(reference==='KPI_PERIOD')return 'kpi';
+ if(reference.startsWith('KPI'))return 'kpi';
  const attendance=['ATTENDANCE','WORK_SCHEDULE','SHIFT'];
  if(source==='SYSTEM')return attendance.includes(reference)?'attendance':'system';
  if(source==='WORKFLOW')return 'leave';
