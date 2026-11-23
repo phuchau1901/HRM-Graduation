@@ -26,6 +26,20 @@ public sealed class TerminalLoggingTests
         Assert.False(options.Allows("admin", "another-module"));
     }
     [Fact]
+    public void PerUserModulesAreIndependentAndDoNotInheritOtherEnabledModules()
+    {
+        var settings = new TerminalLoggingOptions {
+            Enabled = "Y", DefaultModule = "Y", Users = new() { ["admin"] = "Y", ["bob"] = "Y" },
+            Modules = new() { ["Employees"] = "Y", ["Attendance"] = "Y" },
+            UserModules = new() { ["admin"] = new() { ["Employees"] = "Y" }, ["bob"] = new() { ["Attendance"] = "Y" } }
+        };
+        Assert.True(settings.Allows("admin", "Employees")); Assert.False(settings.Allows("admin", "Attendance"));
+        Assert.True(settings.Allows("bob", "Attendance")); Assert.False(settings.Allows("bob", "Employees"));
+        Assert.False(settings.Allows("admin", "Leave"));
+        settings.UserModules["bob"].Clear(); Assert.False(settings.Allows("bob", "Attendance"));
+        settings.Enabled = "N"; Assert.False(settings.Allows("admin", "Employees"));
+    }
+    [Fact]
     public void DefaultsAreOffAndExplicitNOverridesYDefault()
     {
         Assert.False(new TerminalLoggingOptions().Allows("admin", "Employees"));

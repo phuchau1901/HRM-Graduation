@@ -25,4 +25,8 @@ public sealed class SystemSettingsController(SystemSettingsService service, Term
     public async Task<IActionResult> TerminalLogging(HRM.API.Logging.TerminalLoggingRequest request, CancellationToken ct) => Result(await terminal.Put(Actor, request, Request.Headers.IfMatch, ct));
     [HttpGet("terminal-logging/modules"), ScreenPermission(SystemSettingsService.Screen, "VIEW")]
     public async Task<IActionResult> TerminalLoggingModules(CancellationToken ct) => Ok(await terminal.Catalog(Actor, ct));
+    [HttpGet("terminal-logging/me")]
+    public async Task<IActionResult> TerminalLoggingMe(CancellationToken ct) => Result(await terminal.GetMe(Actor, ct));
+    [HttpPut("terminal-logging/me")]
+    public async Task<IActionResult> TerminalLoggingMe(HRM.API.Logging.TerminalUserLoggingRequest request, CancellationToken ct) => Result(await terminal.PutMe(Actor, request, Request.Headers.IfMatch, ct));
 }

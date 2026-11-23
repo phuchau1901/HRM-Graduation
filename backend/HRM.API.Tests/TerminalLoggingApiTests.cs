@@ -91,4 +91,43 @@ public sealed class TerminalLoggingApiTests
         // State owns a copy: callers cannot mutate a published policy through their DTO.
         second.Enabled = "Y"; Assert.False(state.Current.Allows("api-user", "Employees"));
     }
+    [Fact]
+    public async Task EachUserCanChangeOnlyOwnModulesWithoutSystemPermissionOrScope()
+    {
+        using var f = new AdministrationApiTests.Fixture(); await f.Start(); await Grant(f);
+        var request = Request(); request.Users["target"] = "Y";
+        request.UserModules = new() { ["api-user"] = new() { ["Employees"] = "Y" }, ["target"] = new() { ["Attendance"] = "Y" } };
+        (await f.Send(HttpMethod.Put, Url, request, "0")).EnsureSuccessStatusCode();
+        using var client = f.App.CreateClient(new() { BaseAddress = new("https://localhost") });
+        var login = await client.PostAsJsonAsync("/api/auth/login", new { userId = "target", password = f.App.Password }); login.EnsureSuccessStatusCode();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<HRM.API.Modules.Auth.DTOs.LoginResponse>())!.AccessToken);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync(Url)).StatusCode);
+        var mine = await client.GetAsync(Url + "/me"); mine.EnsureSuccessStatusCode();
+        Assert.DoesNotContain("api-user", await mine.Content.ReadAsStringAsync());
+        using var update = new HttpRequestMessage(HttpMethod.Put, Url + "/me") {
+            Content = JsonContent.Create(new { enabled = "Y", modules = new { Leave = "Y" }, userId = "api-user", users = new { system = "Y" }, includeSql = "Y", globalEnabled = "N" }) };
+        update.Headers.IfMatch.Add(mine.Headers.ETag!);
+        (await client.SendAsync(update)).EnsureSuccessStatusCode();
+        var state = f.App.Services.GetRequiredService<TerminalLoggingState>();
+        Assert.True(state.Current.Allows("api-user", "Employees")); Assert.False(state.Current.Allows("api-user", "Leave"));
+        Assert.True(state.Current.Allows("target", "Leave")); Assert.False(state.Current.Allows("target", "Attendance"));
+        Assert.Equal("N", state.Current.IncludeSql); Assert.Equal("N", state.Current.Users["system"]); Assert.Equal("Y", state.Current.Enabled);
+        using var stale = new HttpRequestMessage(HttpMethod.Put, Url + "/me") { Content = JsonContent.Create(new { enabled = "N", modules = new { Leave = "N" } }) };
+        stale.Headers.IfMatch.Add(mine.Headers.ETag!);
+        Assert.Equal(HttpStatusCode.PreconditionFailed, (await client.SendAsync(stale)).StatusCode);
+        Assert.True(state.Current.Allows("target", "Leave"));
+        using var anonymous = f.App.CreateClient(new() { BaseAddress = new("https://localhost") });
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync(Url + "/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PutAsJsonAsync(Url + "/me", new { enabled = "Y", modules = new { Leave = "Y" } })).StatusCode);
+    }
+    [Fact]
+    public async Task PersonalPreferencesCannotEnableGlobalLogging()
+    {
+        using var f = new AdministrationApiTests.Fixture(); await f.Start();
+        var response = await f.Send(HttpMethod.Put, Url + "/me", new { enabled = "Y", modules = new { Employees = "Y" } }, "0");
+        response.EnsureSuccessStatusCode();
+        var mine = (await response.Content.ReadFromJsonAsync<SettingsView<TerminalUserLoggingView>>())!;
+        Assert.Equal("N", mine.Settings.GlobalEnabled);
+        Assert.False(f.App.Services.GetRequiredService<TerminalLoggingState>().Current.Allows("api-user", "Employees"));
+    }
 }

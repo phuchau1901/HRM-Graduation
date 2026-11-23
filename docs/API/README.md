@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **158 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **160 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Có **158 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | Employees / Contracts / Contract Types / History | 19 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
 | Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow qua module Leave |
-| System Settings | 10 | IMPLEMENTED |
+| System Settings | 12 | IMPLEMENTED |
 | Leave / Overtime / Adjustments / Balances | 20 | IMPLEMENTED |
 | Approvals / Workflow Settings | 7 | IMPLEMENTED; module cha với các module con |
 | Payroll / Timesheets | 0 | Model có, API MISSING |
@@ -26,6 +26,8 @@ Có **158 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | --- | --- | --- | --- |
 | GET | `/api/audit-logs` | [System](../modules/System/API.md#auditlog) | WEB_AUDIT_LOGS/VIEW |
 | GET | `/api/audit-logs/{id}` | [System](../modules/System/API.md#auditlog) | WEB_AUDIT_LOGS/VIEW |
+| GET | `/api/system-settings/terminal-logging/me` | [Terminal Logging](../guides/TERMINAL_LOGGING.md) | JWT ACTIVE; chỉ chính mình, không ScreenPermission/Scope |
+| PUT | `/api/system-settings/terminal-logging/me` | [Terminal Logging](../guides/TERMINAL_LOGGING.md) | JWT ACTIVE; If-Match, chỉ chính mình, không ScreenPermission/Scope |
 | GET | `/api/system-settings/terminal-logging` | [Terminal Logging](../guides/TERMINAL_LOGGING.md) | WEB_SYSTEM_SETTINGS/VIEW; không Scope |
 | PUT | `/api/system-settings/terminal-logging` | [Terminal Logging](../guides/TERMINAL_LOGGING.md) | WEB_SYSTEM_SETTINGS/UPDATE; If-Match; không Scope |
 | GET | `/api/system-settings/terminal-logging/modules` | [Terminal Logging](../guides/TERMINAL_LOGGING.md) | WEB_SYSTEM_SETTINGS/VIEW; không Scope |

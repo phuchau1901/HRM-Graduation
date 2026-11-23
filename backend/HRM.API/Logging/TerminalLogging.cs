@@ -11,8 +11,11 @@ public class TerminalLoggingOptions
     public string IncludeSql { get; set; } = "N";
     public Dictionary<string, string> Users { get; set; } = new();
     public Dictionary<string, string> Modules { get; set; } = new();
+    public Dictionary<string, Dictionary<string, string>> UserModules { get; set; } = new();
+    public string UserFlag(string user) => Value(Users, user, DefaultUser);
+    public Dictionary<string, string>? ModulesFor(string user) => UserModules?.FirstOrDefault(p => string.Equals(p.Key, user, StringComparison.OrdinalIgnoreCase)).Value;
     public bool Allows(string user, string module, bool sql = false) => Yes(Enabled)
-        && (!sql || Yes(IncludeSql)) && Yes(Value(Users, user, DefaultUser)) && Yes(Value(Modules, module, DefaultModule));
+        && (!sql || Yes(IncludeSql)) && Yes(UserFlag(user)) && Yes(ModulesFor(user) is { } own ? Value(own, module, "N") : Value(Modules, module, DefaultModule));
     private static bool Yes(string? value) => string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
     private static string Value(Dictionary<string, string>? values, string key, string fallback) =>
         values?.FirstOrDefault(p => string.Equals(p.Key, key, StringComparison.OrdinalIgnoreCase)).Value ?? fallback;

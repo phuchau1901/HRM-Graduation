@@ -326,6 +326,10 @@
     {
       "key": "terminalLoggingVersion",
       "value": "0"
+    },
+    {
+      "key": "terminalLoggingMeVersion",
+      "value": "0"
     }
   ],
   "item": [
@@ -2098,10 +2102,10 @@
               }
             ],
             "url": "{{baseUrl}}/api/system-settings/terminal-logging",
-            "description": "JWT; WEB_SYSTEM_SETTINGS UPDATE. Không Scope. Lưu system_settings TERMINAL_LOGGING; cache ngay instance sau commit, replica refresh30s. Xem docs/guides/TERMINAL_LOGGING.md.",
+            "description": "JWT; WEB_SYSTEM_SETTINGS UPDATE. Không Scope. Lưu system_settings TERMINAL_LOGGING; cache ngay instance sau commit, replica refresh30s. Xem docs/guides/TERMINAL_LOGGING.md. userModules[userId] cho mỗi user danh sách module riêng; module thiếu N. PUT thay toàn bộ cấu hình, giữ các userModules hiện có khi cần.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": \"Y\",\n  \"defaultUser\": \"N\",\n  \"defaultModule\": \"N\",\n  \"includeSql\": \"N\",\n  \"users\": {\n    \"admin\": \"Y\",\n    \"system\": \"N\"\n  },\n  \"modules\": {\n    \"Employees\": \"Y\",\n    \"Authorization\": \"Y\"\n  }\n}",
+              "raw": "{\n  \"enabled\": \"Y\",\n  \"defaultUser\": \"N\",\n  \"defaultModule\": \"N\",\n  \"includeSql\": \"N\",\n  \"users\": {\n    \"admin\": \"Y\",\n    \"system\": \"N\"\n  },\n  \"modules\": {\n    \"Employees\": \"Y\",\n    \"Authorization\": \"Y\"\n  },\n  \"userModules\": {\n    \"admin\": {\n      \"Employees\": \"Y\",\n      \"Authorization\": \"Y\"\n    }\n  }\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2131,6 +2135,66 @@
             "description": "JWT; WEB_SYSTEM_SETTINGS VIEW. Không Scope. Lưu system_settings TERMINAL_LOGGING; cache ngay instance sau commit, replica refresh30s. Xem docs/guides/TERMINAL_LOGGING.md."
           },
           "response": []
+        },
+        {
+          "name": "GET /api/system-settings/terminal-logging/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/system-settings/terminal-logging/me",
+            "description": "JWT user ACTIVE; không WEB_SYSTEM_SETTINGS/Scope/EmployeeId. Chỉ chính mình, không sửa user khác/global/SQL. Module thiếu mặc định N. Master globalEnabled vẫn phải Y để in log."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"terminalLoggingMeVersion\", String(pm.response.json().version));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /api/system-settings/terminal-logging/me",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "\"{{terminalLoggingMeVersion}}\""
+              }
+            ],
+            "url": "{{baseUrl}}/api/system-settings/terminal-logging/me",
+            "description": "JWT user ACTIVE; không WEB_SYSTEM_SETTINGS/Scope/EmployeeId. Chỉ chính mình, không sửa user khác/global/SQL. Module thiếu mặc định N. Master globalEnabled vẫn phải Y để in log.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": \"Y\",\n  \"modules\": {\n    \"Employees\": \"Y\",\n    \"Attendance\": \"N\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) pm.collectionVariables.set(\"terminalLoggingMeVersion\", String(pm.response.json().version));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

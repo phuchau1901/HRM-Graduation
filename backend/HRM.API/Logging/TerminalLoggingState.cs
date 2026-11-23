@@ -14,12 +14,32 @@ public sealed class TerminalLoggingRequest : TerminalLoggingOptions, IValidatabl
     {
         if (new[] { Enabled, DefaultUser, DefaultModule, IncludeSql }.Any(x => x is not ("Y" or "N")))
             yield return new("Terminal logging flags must be Y or N.");
-        foreach (var map in new[] { Users, Modules })
-            if (map is null || map.Count > 500 || map.Any(p => string.IsNullOrWhiteSpace(p.Key) || p.Key.Length > 100 || p.Key != p.Key.Trim() || p.Value is not ("Y" or "N"))
-                || map.Keys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != map.Count)
-                yield return new("Invalid or duplicate terminal logging user/module rules (maximum 500 per map).");
+        foreach (var error in ValidateMap(Users).Concat(ValidateMap(Modules))) yield return error;
+        if (UserModules is null || UserModules.Count > 500 || UserModules.Keys.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 100 || x != x.Trim())
+            || UserModules.Keys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != UserModules.Count)
+            yield return new("Invalid or duplicate userModules user keys (maximum 500 users).");
+        if (UserModules != null) foreach (var map in UserModules.Values) foreach (var error in ValidateMap(map)) yield return error;
+    }
+    internal static IEnumerable<ValidationResult> ValidateMap(Dictionary<string, string>? map)
+    {
+        if (map is null || map.Count > 500 || map.Any(p => string.IsNullOrWhiteSpace(p.Key) || p.Key.Length > 100 || p.Key != p.Key.Trim() || p.Value is not ("Y" or "N"))
+            || map.Keys.Distinct(StringComparer.OrdinalIgnoreCase).Count() != map.Count)
+            yield return new("Invalid or duplicate terminal logging rules (maximum 500 per map).");
+    }
+
+}
+
+public sealed class TerminalUserLoggingRequest : IValidatableObject
+{
+    public string Enabled { get; set; } = "N";
+    public Dictionary<string, string> Modules { get; set; } = new();
+    public IEnumerable<ValidationResult> Validate(ValidationContext context)
+    {
+        if (Enabled is not ("Y" or "N")) yield return new("Enabled must be Y or N.");
+        foreach (var error in TerminalLoggingRequest.ValidateMap(Modules)) yield return error;
     }
 }
+public sealed record TerminalUserLoggingView(string Enabled, Dictionary<string, string> Modules, string GlobalEnabled, string IncludeSql, string[] AvailableModules);
 
 // The provider only reads memory; database access never happens from ILogger.Log.
 public sealed class TerminalLoggingState(IOptionsMonitor<TerminalLoggingOptions> fallback)

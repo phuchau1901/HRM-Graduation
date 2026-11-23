@@ -12,7 +12,7 @@ Mặc định tất cả tắt (`N`). Chỉ in khi **Enabled=Y, user=Y và modul
 | PUT | `/api/system-settings/terminal-logging` | JWT + WEB_SYSTEM_SETTINGS UPDATE |
 | GET | `/api/system-settings/terminal-logging/modules` | JWT + WEB_SYSTEM_SETTINGS VIEW |
 
-Không áp dụng Data Scope SELF/DEPARTMENT/ALL. API catalog trả `{modules:[...],specialUsers:["system","anonymous"]}`; module lấy từ Controller thực tế, không cần cố định ở frontend.
+Hai API toàn hệ thống và catalog không áp dụng Data Scope SELF/DEPARTMENT/ALL. API catalog trả `{modules:[...],specialUsers:["system","anonymous"]}`; module lấy từ Controller thực tế, không cần cố định ở frontend.
 
 GET trả `{settings:{enabled,defaultUser,defaultModule,includeSql,users,modules},version,updatedAtUtc}` và header ETag. Khi chưa lưu, version=0, ETag=`"0"`, updatedAtUtc=Unix epoch; GET không tự tạo dữ liệu. Lần đầu PUT khởi tạo key trong transaction.
 
@@ -39,6 +39,49 @@ If-Match: "0"
 PUT thay toàn bộ cấu hình; muốn giữ rule khác phải gửi lại rule đó. Response giống GET, version tăng1. API chỉ nhận Y/N viết hoa, userId phải tồn tại (trừ system/anonymous), module thuộc catalog, mỗi map tối đa500 rule, không có key trùng không phân biệt hoa/thường. Lỗi400 validation,401 chưa đăng nhập,403 thiếu screen permission,428 thiếu If-Match,412 stale version; concurrent insert/deadlock409 yêu cầu GET lại. Dữ liệu và Audit Log commit cùng transaction; chỉ cập nhật cache sau commit. Background sync bỏ qua version cũ hơn để không ghi đè lần PUT mới.
 
 Settings lưu bền qua restart. Không tự apply Migration, không deploy. Chưa bổ sung UI riêng cho setting này.
+
+## Mỗi user tự chọn module riêng
+
+- `GET /api/system-settings/terminal-logging/me`
+- `PUT /api/system-settings/terminal-logging/me`
+
+Chỉ cần JWT của user ACTIVE, không cần quyền WEB_SYSTEM_SETTINGS hoặc Data Scope, không cần EmployeeId. Chỉ sửa user đăng nhập; không nhận userId để sửa thay người khác. `system` và `anonymous` là danh tính log đặc biệt, chỉ quản trị qua API toàn hệ thống.
+
+GET trả `{settings:{enabled,modules,globalEnabled,includeSql,availableModules},version,updatedAtUtc}` + ETag. Không trả userId/rule của tài khoản khác. `modules` là lựa chọn module hiện tại của chính mình; `availableModules` dùng để dựng form. PUT dùng If-Match của GET và body:
+
+```json
+{
+  "enabled": "Y",
+  "modules": { "Employees": "Y", "Attendance": "N" }
+}
+```
+
+PUT thay toàn bộ danh sách module **của chính mình**. Module không gửi mặc định N, không kế thừa các module bật chung. Các user khác giữ nguyên cấu hình. Không thay master Enabled, DefaultUser, DefaultModule, IncludeSql hoặc rule system/anonymous. User có thể lưu lựa chọn khi master tắt, nhưng chỉ in log khi `globalEnabled=Y` do admin bật. Quyền tự chọn module không cấp quyền gọi API nghiệp vụ hoặc xem terminal/Audit Logs.
+
+API lưu trong cùng key TERMINAL_LOGGING, Audit ghi riêng TERMINAL_LOGGING_SELF_UPDATED và chỉ snapshot phần cá nhân. Nếu user khác vừa sửa setting chung, ETag có thể cũ: GET lại rồi PUT; không tự ghi đè phần của họ.
+
+### Admin cấu hình nhiều user cùng lúc
+
+API PUT toàn hệ thống hỗ trợ thêm `userModules`:
+
+```json
+{
+  "enabled": "Y",
+  "defaultUser": "N",
+  "defaultModule": "N",
+  "includeSql": "N",
+  "users": { "admin": "Y", "bob": "Y", "system": "N" },
+  "modules": {},
+  "userModules": {
+    "admin": { "Employees": "Y" },
+    "bob": { "Attendance": "Y" }
+  }
+}
+```
+
+Hai user phải tồn tại. Admin chỉ in Employees; bob chỉ in Attendance. Một khi có entry userModules[user], chỉ dùng map đó và các module thiếu là N, kể cả DefaultModule=Y. User chưa có map riêng vẫn dùng Modules/DefaultModule như phiên bản cũ. Cả hai trường hợp vẫn cần Enabled=Y, user flag=Y và IncludeSql=Y nếu là SQL. PUT admin là thay toàn bộ settings: gửi lại userModules hiện hành để giữ lựa chọn cá nhân đã lưu.
+
+Không đổi schema, không cần Migration. Cache tức thì/cross-instance refresh vẫn như trước.
 
 ## Chỉ theo dõi API của admin
 
@@ -123,3 +166,5 @@ TerminalLoggingTests kiểm tra Y/N, default/override, identity đã xác thực
 Kết quả xác nhận: 80/80 tests liên quan terminal logging, authorization, Notifications, Leave Accrual và Work Schedules đạt; Backend build thành công. Không thay database hoặc deploy.
 
 API settings bổ sung: 60/60 tests liên quan API terminal settings, System Settings, Authorization, API inventory và model/Approval đạt. Bao gồm nạp policy DB bởi worker vào cache mới, quyền không Scope, audit, version cũ và validation không làm đổi runtime policy.
+
+Cấu hình module riêng theo user: 63/63 tests liên quan đạt, bao gồm cách ly module giữa hai user, API me không đọc/sửa user khác, không bật master/SQL, bảo vệ ETag và tương thích cấu hình cũ. Backend build đạt, không cần Migration.
