@@ -1,7 +1,7 @@
 import {apiApprovalWorkflowSettings,apiEmployees,apiSession} from '../../../api/client.js';
 import {e} from '../../../utils.js';
 
-export const workflowRouteTypes={LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công',KPI_EVALUATION:'Đánh giá KPI'};
+export const workflowRouteTypes={LEAVE:'Nghỉ phép',LEAVE_CANCELLATION:'Hủy nghỉ phép',OVERTIME:'Tăng ca',ATTENDANCE_ADJUSTMENT:'Điều chỉnh công',KPI_EVALUATION:'Đánh giá KPI',PAYROLL_PERIOD:'Kỳ lương'};
 const workflowApprovers={TEAM_LEAD:'Trưởng team',DEPARTMENT_MANAGER:'Quản lý phòng ban',USER:'Nhân viên được chỉ định',HR:'HR (tương thích cũ)'};
 export function approvalSettingsGrant(flag,session=apiSession()){return !!session?.permissions?.some(p=>p.platform==='WEB'&&p.code==='WEB_APPROVAL_SETTINGS'&&p.canView==='Y'&&p[flag]==='Y');}
 export function approvalSettingsPayload(version,routes){
@@ -12,6 +12,7 @@ export function approvalSettingsPayload(version,routes){
   if(!Object.hasOwn(workflowRouteTypes,route.requestType)||used.has(route.requestType))throw Error('Loại yêu cầu không hợp lệ hoặc bị trùng.');used.add(route.requestType);
   if(typeof route.allowSelfApproval!=='boolean')throw Error('Cho phép tự duyệt phải là giá trị bật/tắt.');
   if(!Array.isArray(route.steps)||route.steps.length<1||route.steps.length>10)throw Error('Mỗi quy trình cần từ 1 đến 10 bước duyệt.');
+  if(route.requestType==='PAYROLL_PERIOD'&&(route.allowSelfApproval||route.steps.some(step=>step.approverType==='TEAM_LEAD')))throw Error('Quy trình kỳ lương không được tự duyệt hoặc dùng Trưởng team; chọn HR, nhân viên chỉ định hoặc Quản lý phòng ban phù hợp.');
   return {requestType:route.requestType,allowSelfApproval:route.allowSelfApproval,steps:route.steps.map(step=>{
    if(!Object.hasOwn(workflowApprovers,step.approverType))throw Error('Loại người duyệt không hợp lệ.');
    if(step.approverType==='USER'){
@@ -102,7 +103,7 @@ export async function mountApprovalWorkflowSettings(root,{onDirty=()=>{},onSavin
     }catch(err){if(form.isConnected){feedback.innerHTML=`${e(err.message)}. Bạn có thể nhập ID nhân viên. <button type="button" class="btn">Thử lại</button>`;feedback.querySelector('button').onclick=loadEmployees;}}
    }
    loadEmployees();
-   root.querySelector('#approval-settings-add').onclick=()=>{if(saving||routes.length>=Object.keys(workflowRouteTypes).length)return;const requestType=Object.keys(workflowRouteTypes).find(type=>!routes.some(route=>route.requestType===type));if(requestType){routes.push({requestType,allowSelfApproval:false,steps:[{approverType:'TEAM_LEAD'}]});changed();drawRoutes();}};
+   root.querySelector('#approval-settings-add').onclick=()=>{if(saving||routes.length>=Object.keys(workflowRouteTypes).length)return;const requestType=Object.keys(workflowRouteTypes).find(type=>!routes.some(route=>route.requestType===type));if(requestType){routes.push({requestType,allowSelfApproval:false,steps:[{approverType:requestType==='PAYROLL_PERIOD'?'USER':'TEAM_LEAD'}]});changed();drawRoutes();}};
    form.onsubmit=async event=>{
     event.preventDefault();event.stopPropagation();if(saving||!editable)return;
     try{

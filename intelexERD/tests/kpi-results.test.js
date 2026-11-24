@@ -51,7 +51,7 @@ test('KPI Results has a conventional route, canonical evaluation permission and 
  const previous=globalThis.location,calls=[];try{globalThis.location={hash:'#/screens/WEB_KPI_RESULTS',replace:value=>calls.push(value)};assert.equal(getPath(),'/performance/kpi-results');assert.deepEqual(calls,['#/performance/kpi-results']);}finally{globalThis.location=previous;}
 });
 test('approval settings preserve KPI_EVALUATION alongside all existing routes',()=>{
- assert.equal(workflowRouteTypes.KPI_EVALUATION,'Đánh giá KPI');const routes=Object.keys(workflowRouteTypes).map(requestType=>({requestType,allowSelfApproval:false,steps:[{approverType:'USER',employeeId:32}]}));const payload=approvalSettingsPayload(3,routes);assert.equal(payload.routes.length,5);assert.equal(payload.routes[4].requestType,'KPI_EVALUATION');
+ assert.equal(workflowRouteTypes.KPI_EVALUATION,'Đánh giá KPI');const routes=Object.keys(workflowRouteTypes).map(requestType=>({requestType,allowSelfApproval:false,steps:[{approverType:'USER',employeeId:32}]}));const payload=approvalSettingsPayload(3,routes);assert.equal(payload.routes.length,Object.keys(workflowRouteTypes).length);assert.equal(payload.routes[4].requestType,'KPI_EVALUATION');
 });
 test('KPI API uses evaluation-scoped lookups/list and body version, never automatically retries decisions',async()=>{
  const original=globalThis.fetch,calls=[];

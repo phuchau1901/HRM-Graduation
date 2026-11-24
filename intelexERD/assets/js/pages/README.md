@@ -22,3 +22,9 @@ Các trang dùng chung tiếp tục được nhập từ `shared/`; không sao c
 - `administration/system-settings/terminal-logging.js`: cấu hình log terminal theo user và module tại System Settings; quyền `WEB_SYSTEM_SETTINGS`, lưu bare settings với ETag/If-Match.
 
 - `performance/kpi-templates.js`: `/performance/kpi-templates`, quyền `WEB_KPI_CONFIGURATION` với scope VIEW/NEW/UPDATE; mẫu KPI, chỉ tiêu, danh mục đơn vị, kỳ đánh giá và giao/copy KPI. Đơn vị chỉ tiêu tải từ `/api/kpi/configuration/units?isActive=true` qua tất cả trang; giữ mã đơn vị cũ khi sửa. Link cũ `WEB_KPI_TEMPLATES` chuyển sang đường dẫn mới.
+
+- `payroll/salary-configuration.js`: `/payroll/configuration`, quyền `WEB_SALARY_CONFIGURATION`, hồ sơ có hiệu lực, thay lương bằng supersede, khoản thu nhập/khấu trừ và chính sách có phiên bản.
+- `payroll/payroll-management.js`: `/payroll/management` và `/payroll/timesheets`, cùng quyền `WEB_PAYROLL`; phiếu lương, thống kê/Excel, kỳ công, tổng hợp/tính, điều chỉnh/hủy, gửi duyệt PAYROLL_PERIOD, chốt và ghi nhận thanh toán.
+- `payroll/payroll-common.js`: kiểm tra dữ liệu tiền/ngày, quyền/action/scope, phân trang, picker nhân viên theo endpoint riêng của Payroll và xử lý xung đột. Các đường dẫn `/screens/WEB_PAYROLL`, `/screens/WEB_SALARY_PROFILES`, `/screens/WEB_TIMESHEETS` chuyển sang route tương ứng.
+
+- `my-workspace/my-payslips.js`: `/workspace/payslips`, quyền `WEB_MY_PAYSLIPS` VIEW/EXPORT không scope; danh sách và chi tiết chỉ LOCKED/PAID của nhân viên đăng nhập, tải PDF từ `/api/payslips/me/{id}/pdf`, không đọc snapshot HR. Link `/screens/WEB_MY_PAYSLIPS` chuyển sang đường dẫn mới.

@@ -7,8 +7,8 @@ import {icon,field} from '../../components/ui.js';
 import {openDialog,closeDialog,toast} from '../../components/dialog.js';
 
 const requestScopeScreens=['WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'];
-export const roleUsesEmployeeScope=code=>['WEB_KPI_CONFIGURATION','WEB_KPI_EVALUATION','WEB_ATTENDANCE','WEB_WORK_SCHEDULES','WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS','WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT',...requestScopeScreens].includes(code);
-export const roleHasScopeAction=(code,flag)=>code==='WEB_KPI_CONFIGURATION'?['VIEW','NEW','UPDATE'].includes(flag):code==='WEB_KPI_EVALUATION'?['VIEW','UPDATE','APPROVE','EXPORT'].includes(flag):code==='WEB_ATTENDANCE'?['VIEW','NEW','UPDATE','APPROVE','EXPORT'].includes(flag):code==='WEB_WORK_SCHEDULES'?['VIEW','NEW','UPDATE','DELETE','EXPORT'].includes(flag):requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):['WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT'].includes(code)?['VIEW','UPDATE'].includes(flag):roleUsesEmployeeScope(code);
+export const roleUsesEmployeeScope=code=>['WEB_SALARY_CONFIGURATION','WEB_PAYROLL','WEB_KPI_CONFIGURATION','WEB_KPI_EVALUATION','WEB_ATTENDANCE','WEB_WORK_SCHEDULES','WEB_EMPLOYEES','WEB_CONTRACTS','WEB_APPROVALS','WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT',...requestScopeScreens].includes(code);
+export const roleHasScopeAction=(code,flag)=>code==='WEB_SALARY_CONFIGURATION'?['VIEW','NEW','UPDATE'].includes(flag):code==='WEB_PAYROLL'?['VIEW','NEW','UPDATE','APPROVE','EXPORT'].includes(flag):code==='WEB_KPI_CONFIGURATION'?['VIEW','NEW','UPDATE'].includes(flag):code==='WEB_KPI_EVALUATION'?['VIEW','UPDATE','APPROVE','EXPORT'].includes(flag):code==='WEB_ATTENDANCE'?['VIEW','NEW','UPDATE','APPROVE','EXPORT'].includes(flag):code==='WEB_WORK_SCHEDULES'?['VIEW','NEW','UPDATE','DELETE','EXPORT'].includes(flag):requestScopeScreens.includes(code)?flag==='VIEW':code==='WEB_APPROVALS'?['VIEW','APPROVE'].includes(flag):['WEB_LEAVE_BALANCES','WEB_LEAVE_MANAGEMENT'].includes(code)?['VIEW','UPDATE'].includes(flag):roleUsesEmployeeScope(code);
 
 export function roleScopeSelect(code,flag,label,value='SELF',disabled=false){
  if(!roleHasScopeAction(code,flag))return '';
@@ -29,12 +29,12 @@ export function roleScopeDraft(screens,matrixScreens){
 }
 
 export function roleScreenCatalog(catalog){
- const names={WEB_KPI_CONFIGURATION:'Thiết lập KPI',WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_LEAVE_BALANCES:'Số dư phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công',WEB_LEAVE_MANAGEMENT:'Leave Management',WEB_WORK_SCHEDULES:'Lịch phân ca',WEB_ATTENDANCE:'Chấm công',WEB_MY_ATTENDANCE:'My Attendance',WEB_KPI_EVALUATION:'Đánh giá KPI'};
+ const names={WEB_MY_PAYSLIPS:'Phiếu lương của tôi',WEB_SALARY_CONFIGURATION:'Cấu hình lương',WEB_PAYROLL:'Bảng lương và bảng công',WEB_KPI_CONFIGURATION:'Thiết lập KPI',WEB_CONTRACT_TYPES:'Loại hợp đồng',WEB_LEAVE_TYPES:'Loại nghỉ phép',WEB_LEAVE_BALANCES:'Số dư phép',WEB_APPROVAL_SETTINGS:'Quy trình phê duyệt',WEB_LEAVE_REQUESTS:'Nghỉ phép',WEB_OVERTIME_REQUESTS:'Tăng ca',WEB_ATTENDANCE_ADJUSTMENTS:'Điều chỉnh công',WEB_LEAVE_MANAGEMENT:'Leave Management',WEB_WORK_SCHEDULES:'Lịch phân ca',WEB_ATTENDANCE:'Chấm công',WEB_MY_ATTENDANCE:'My Attendance',WEB_KPI_EVALUATION:'Đánh giá KPI'};
  const screens=catalog.map(screen=>names[screen.code]?{...screen,name:names[screen.code]}:{...screen});
  for(const [code,name] of Object.entries(names))if(!screens.some(screen=>screen.code===code))screens.push({id:'pending-'+code,code,name,platform:'WEB',isActive:true,registrationRequired:true});
  return screens;
 }
-export function roleMenuScreenVisible(screen){return !['WEB_KPI_TEMPLATES','WEB_KPI_RESULTS','WEB_LEAVE','WEB_MY_LEAVE'].includes(screen.code);}
+export function roleMenuScreenVisible(screen){return !['WEB_SALARY_PROFILES','WEB_TIMESHEETS','WEB_KPI_TEMPLATES','WEB_KPI_RESULTS','WEB_LEAVE','WEB_MY_LEAVE'].includes(screen.code);}
 export function roleMenuEntrySelected(entry,selected,menuKey=null){return entry.id===selected?.id&&(entry.menuKey?entry.menuKey===menuKey:!menuKey);}
 export function roleMenuGroups(catalog,platform='WEB'){
  catalog=catalog.filter(screen=>roleMenuScreenVisible(screen)&&(!screen.platform||screen.platform===platform)).map(screen=>['WEB_LEAVE_MANAGEMENT','WEB_LEAVE_BALANCES'].includes(screen.code)?{...screen,name:screen.code==='WEB_LEAVE_MANAGEMENT'?'Leave Management':'Số dư phép'}:screen);
@@ -42,7 +42,7 @@ export function roleMenuGroups(catalog,platform='WEB'){
  const entries=(group.children||[[group.name,group.route]]).flatMap(([label,path])=>{
  const dynamic=/^\/screens\/([A-Z0-9_]+)$/.exec(path);
  const codes=dynamic?[dynamic[1]]:(roleScreenRoutes[path]||['WEB_'+path.slice(1).replaceAll('/','_').replaceAll('-','_').toUpperCase()]).map(code=>platform==='MOBILE'?code.replace(/^WEB_/,'MOBILE_'):code);
- return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:path==='/admin/roles'?(screen.code==='WEB_PERMISSIONS'?'Phân quyền role':'Roles'):screen.code==='WEB_LEAVE_BALANCES'?'Số dư phép':screen.code==='WEB_LEAVE_MANAGEMENT'?'Leave Management':path==='/workspace/leave'?screen.name:group.route==='/approvals'?(screen.code==='WEB_APPROVALS'?'Phê duyệt':screen.name):codes.length>1?label+' · '+screen.name:label,...(path==='/workspace/leave'?{parentMenu:'My Leave'}:path==='/admin/master-data'?{parentMenu:'Master Data'}:path==='/admin/settings'?{parentMenu:'System Settings'}:{})};}));
+ return codes.flatMap(code=>catalog.filter(screen=>screen.code===code&&!used.has(screen.id)).map(screen=>{used.add(screen.id);return {...screen,label:screen.code==='WEB_PAYROLL'?'Payroll / Timesheets':path==='/admin/roles'?(screen.code==='WEB_PERMISSIONS'?'Phân quyền role':'Roles'):screen.code==='WEB_LEAVE_BALANCES'?'Số dư phép':screen.code==='WEB_LEAVE_MANAGEMENT'?'Leave Management':path==='/workspace/leave'?screen.name:group.route==='/approvals'?(screen.code==='WEB_APPROVALS'?'Phê duyệt':screen.name):codes.length>1?label+' · '+screen.name:label,...(path==='/workspace/leave'?{parentMenu:'My Leave'}:path==='/admin/master-data'?{parentMenu:'Master Data'}:path==='/admin/settings'?{parentMenu:'System Settings'}:{})};}));
  });return {name:group.name,icon:group.icon,section:group.section,nested:!!group.children||group.route==='/approvals',entries};
  }).filter(group=>group.entries.length);
  for(const group of groups){
