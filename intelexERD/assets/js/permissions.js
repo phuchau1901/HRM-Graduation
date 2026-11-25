@@ -20,7 +20,7 @@ export const screenRoutes={
  '/workspace/projects':['WEB_MY_PROJECTS'],
  '/workspace/attendance':['WEB_MY_ATTENDANCE'],
  '/workspace/payslips':['WEB_MY_PAYSLIPS'],
- '/workspace/leave':['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
+ '/workspace/leave':['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS'],
  '/workspace/leave-requests':['WEB_LEAVE_REQUESTS'],
  '/workspace/overtime':['WEB_OVERTIME_REQUESTS'],
  '/workspace/attendance-adjustments':['WEB_ATTENDANCE_ADJUSTMENTS'],
@@ -53,7 +53,7 @@ export const screenRoutes={
 export const roleScreenRoutes={...screenRoutes,
  '/admin/roles':['WEB_ROLES','WEB_PERMISSIONS'],
  '/workspace/attendance':['WEB_MY_ATTENDANCE'],
- '/workspace/leave':['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'],
+ '/workspace/leave':['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS'],
  '/hr/leave':['WEB_LEAVE_MANAGEMENT'],
  '/hr/organization':['WEB_ORGANIZATION'],
  '/admin/master-data':['WEB_MASTER_DATA','WEB_DEPARTMENTS','WEB_POSITIONS','WEB_TEAMS','WEB_CONTRACT_TYPES','WEB_LEAVE_TYPES','WEB_SHIFTS']

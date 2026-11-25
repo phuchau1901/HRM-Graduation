@@ -24,7 +24,32 @@ export function payrollBadge(status){return `<span class="badge ${['APPROVED','L
 export function payrollSelect(name,label,items,selected='',{empty='Chọn…',required=false,disabled=false}={}){return `<label>${label}<select name="${name}" ${required?'required':''} ${disabled?'disabled':''}><option value="">${e(empty)}</option>${items.map(item=>`<option value="${e(item.id)}" ${String(item.id)===String(selected)?'selected':''}>${e(item.label??item.name??item.code)}</option>`).join('')}</select></label>`;}
 export function payrollSwitch(name,label,on=false){return `<label class="role-toggle-row payroll-switch"><span>${label}</span><span class="role-switch"><input role="switch" type="checkbox" name="${name}" ${on?'checked':''}><span class="role-switch-track" aria-hidden="true"></span></span></label>`;}
 export function payrollFooter(editable,label='Lưu'){return `<div class="form-actions">${editable?`<button class="btn primary" type="submit">${label}</button>`:''}<button class="btn" type="button" data-payroll-reload>Tải lại</button></div><p class="form-error" role="alert" data-payroll-feedback></p>`;}
-export function payrollIssues(value){const issues=payrollJson(value,[]);if(!Array.isArray(issues))throw Error('Danh sách lỗi không hợp lệ.');return issues.length?`<section class="payroll-issues"><h3>Cần đối soát (${issues.length})</h3>${issues.map(issue=>`<p>${issue.employeeId?'Nhân viên #'+e(issue.employeeId)+' · ':''}${e(issue.message??issue)}</p>`).join('')}</section>`:'';}
+export function payrollIssueMessage(value){
+ let message=String(value??''),prefix='';const date=/^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4}):\s*/.exec(message);
+ if(date){const parts=date[1].split(/[\/-]/);prefix=(date[1].includes('-')?[parts[2],parts[1],parts[0]]:(Number(parts[0])>12?[parts[0].padStart(2,'0'),parts[1].padStart(2,'0'),parts[2]]:[parts[1].padStart(2,'0'),parts[0].padStart(2,'0'),parts[2]])).join('/')+': ';message=message.slice(date[0].length);}
+ const translations={
+ 'incomplete attendance; request an adjustment before locking.':'Chấm công chưa đầy đủ: thiếu giờ vào hoặc giờ ra. Nếu ca chưa kết thúc, chờ chấm công ra rồi tổng hợp lại. Nếu ca đã kết thúc, tạo và duyệt yêu cầu điều chỉnh công trước khi chốt.',
+ 'duplicate work schedules.':'Có nhiều lịch làm việc trùng ngày. Kiểm tra và xử lý lịch phân ca bị trùng trước khi tổng hợp lại.',
+ 'overlapping approved leave.':'Các đơn nghỉ phép đã duyệt bị trùng thời gian. Đối soát đơn nghỉ phép trước khi tổng hợp lại.',
+ 'duplicate attendance rows.':'Có nhiều bản ghi chấm công cho cùng lịch làm việc. Kiểm tra và xử lý bản ghi bị trùng.',
+ 'schedule has no verified rule snapshot.':'Lịch làm việc chưa có quy tắc ca được xác nhận. Kiểm tra lại lịch phân ca.',
+ 'invalid attendance interval.':'Khoảng giờ chấm công không hợp lệ: giờ ra phải sau giờ vào. Cần điều chỉnh công trước khi chốt.',
+ 'overlapping attendance intervals.':'Các khoảng chấm công bị trùng thời gian. Đối soát và điều chỉnh công trước khi chốt.',
+ 'overlapping approved overtime.':'Các khoảng tăng ca đã duyệt bị trùng thời gian. Kiểm tra và xử lý đơn tăng ca.',
+ 'work and approved leave exceed one day; reconcile leave/attendance.':'Tổng công làm và phép đã duyệt vượt quá một ngày. Đối soát dữ liệu chấm công và nghỉ phép.',
+ 'scheduled absence, no attendance recorded.':'Có lịch làm việc nhưng chưa ghi nhận chấm công. Kiểm tra tình trạng vắng mặt hoặc thiếu chấm công.'
+ };
+ const overtime=/^Overtime (\d+): approved quantity is missing\.$/i.exec(message);
+ return prefix+(translations[message.toLowerCase()]||(overtime?'Yêu cầu tăng ca #'+overtime[1]+' chưa có số giờ được duyệt. Kiểm tra lại phê duyệt tăng ca.':message));
+}
+export function payrollIssues(value,employees=[]){
+ const issues=payrollJson(value,[]);if(!Array.isArray(issues))throw Error('Danh sách lỗi không hợp lệ.');if(!issues.length)return '';
+ const byId=new Map(employees.map(employee=>[String(employee.id),employee])),groups=new Map();
+ for(const issue of issues){const translated=payrollIssueMessage(issue.message??issue),date=/^(\d{2}\/\d{2}\/\d{4}):\s*/.exec(translated),message=date?translated.slice(date[0].length):translated,employee=byId.get(String(issue.employeeId)),code=issue.employeeCode||employee?.employeeCode,name=issue.employeeName||employee?.fullName||employee?.employeeName,label=code?'Mã nhân viên: '+code+(name?' · '+name:''):issue.employeeId?'Nhân viên (chưa tải được mã)':'';
+ if(!groups.has(message))groups.set(message,[]);if(label||date)groups.get(message).push({label,date:date?.[1]});}
+ return `<section class="payroll-issues"><h3>Cần đối soát (${issues.length})</h3>${[...groups].map(([message,rows])=>`<div class="payroll-issue-group"><p class="payroll-issue-guidance">${e(message)}</p>${rows.length?`<ul>${rows.map(row=>`<li>${row.label?`<strong>${e(row.label)}</strong>`:''}${row.date?`<span>${row.label?' · ':''}Ngày ${e(row.date)}</span>`:''}</li>`).join('')}</ul>`:''}</div>`).join('')}</section>`;
+}
+
 export async function payrollAllRows(area,resource,{filters={},alive=()=>true}={}){const rows=[];for(let page=1;alive();page++){const response=payrollPageData(await apiCompensationList(area,resource,{...filters,page,pageSize:100}));if(!alive())return [];rows.push(...response.data);if(rows.length>=response.total)return rows;if(!response.data.length)throw Error('Chưa tải đủ danh mục. Vui lòng thử lại.');}return [];}
 export function payrollPagination(host,{page,total,pageSize=20,onPage}){host.innerHTML=`<span>${total} mục · Trang ${page}/${Math.max(1,Math.ceil(total/pageSize))}</span><div><button class="btn" type="button" data-prev ${page<=1?'disabled':''}>Trang trước</button><button class="btn" type="button" data-next ${page*pageSize>=total?'disabled':''}>Trang sau</button></div>`;host.querySelector('[data-prev]').onclick=()=>onPage(page-1);host.querySelector('[data-next]').onclick=()=>onPage(page+1);}
 export function payrollController(root){let disposed=false,dialogGeneration=0,host=null;const active=()=>!disposed&&root.isConnected;

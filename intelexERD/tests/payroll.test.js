@@ -59,3 +59,23 @@ test('Payroll API uses scoped endpoints and correct verbs, body versions, stable
 test('financial dropdown lists load every scoped page without using unrelated Employees permissions',async()=>{
  const previous=globalThis.fetch,calls=[];try{globalThis.fetch=async(url)=>{const query=new URL(url,'https://example.invalid');calls.push(query);return {ok:true,json:async()=>({success:true,total:2,data:[{id:Number(query.searchParams.get('page'))}]})};};assert.deepEqual((await payrollAllRows('salary-configuration','components')).map(item=>item.id),[1,2]);assert.equal(calls.length,2);assert.equal(calls[0].pathname,'/api/salary-configuration/components');assert.equal(calls[0].searchParams.get('pageSize'),'100');}finally{globalThis.fetch=previous;}
 });
+
+test('open timesheet explains missing UPDATE separately from APPROVE without granting access',async()=>{
+ const {payrollTimesheetCalculateNotice}=await import('../assets/js/pages/payroll/payroll-management.js');
+ const approvalOnly=account('WEB_PAYROLL',{canUpdate:'N',canApprove:'Y'});assert.match(payrollTimesheetCalculateNotice({status:'OPEN'},approvalOnly),/UPDATE/);assert.equal(payrollPeriodCapabilities({status:'OPEN'},{timesheets:true,session:approvalOnly}).calculate,false);assert.equal(payrollPeriodCapabilities({status:'OPEN'},{timesheets:true,session:approvalOnly}).lock,true);
+ assert.match(payrollTimesheetCalculateNotice({status:'OPEN'},account('WEB_PAYROLL',{dataScopes:{UPDATE:'DEPARTMENT'}})),/ALL/);assert.equal(payrollTimesheetCalculateNotice({status:'OPEN'},account()),'');assert.equal(payrollTimesheetCalculateNotice({status:'LOCKED'},approvalOnly),'');
+});
+
+test('reconciliation uses employee codes from scoped lookup and translates attendance issues with Vietnamese dates',async()=>{
+ const {payrollIssues,payrollIssueMessage}=await import('../assets/js/pages/payroll/payroll-common.js');
+ const html=payrollIssues(JSON.stringify([{employeeId:33,message:'11/25/2026: incomplete attendance; request an adjustment before locking.'}]),[{id:33,employeeCode:'TX00033',fullName:'Nguyễn Văn A'}]);assert.ok(html.includes('Mã nhân viên: TX00033'));assert.ok(html.includes('Nguyễn Văn A'));assert.ok(html.includes('25/11/2026'));assert.ok(html.includes('thiếu giờ vào hoặc giờ ra'));assert.ok(html.includes('tạo và duyệt yêu cầu điều chỉnh công'));assert.ok(!html.includes('Nhân viên #33'));assert.ok(!html.includes('incomplete attendance'));
+ assert.match(payrollIssueMessage('2026-11-25: duplicate work schedules.'),/^25\/11\/2026: Có nhiều lịch làm việc/);assert.match(payrollIssueMessage('2026-11-25: scheduled absence, no attendance recorded.'),/chưa ghi nhận chấm công/);assert.match(payrollIssueMessage('Overtime 8: approved quantity is missing.'),/tăng ca #8/);
+ const direct=payrollIssues([{employeeId:33,employeeCode:'ITX025',message:'Thông báo tiếng Việt'}]);assert.ok(direct.includes('ITX025'));assert.ok(direct.includes('Thông báo tiếng Việt'));const missing=payrollIssues([{employeeId:33,message:'Dữ liệu cần kiểm tra'}]);assert.ok(missing.includes('chưa tải được mã'));assert.ok(!missing.includes('TX00033'));assert.ok(!missing.includes('#33'));
+ assert.ok(payrollIssues([{employeeId:33,message:'<script>'}],[{id:33,employeeCode:'<img>',fullName:'<script>'}]).includes('&lt;img&gt;'));
+});
+
+test('repeated reconciliation guidance appears once above affected employees and dates',async()=>{
+ const {payrollIssues}=await import('../assets/js/pages/payroll/payroll-common.js');
+ const message='11/25/2026: incomplete attendance; request an adjustment before locking.';const html=payrollIssues([{employeeId:33,message},{employeeId:34,message},{employeeId:33,message:'11/24/2026: incomplete attendance; request an adjustment before locking.'}],[{id:33,employeeCode:'TX00033',fullName:'Nhân viên A'},{id:34,employeeCode:'TX00034',fullName:'Nhân viên B'}]);
+ assert.equal((html.match(/Chấm công chưa đầy đủ:/g)||[]).length,1);assert.equal((html.match(/<li>/g)||[]).length,3);assert.ok(html.includes('TX00033'));assert.ok(html.includes('TX00034'));assert.ok(html.includes('Ngày 25/11/2026'));assert.ok(html.includes('Ngày 24/11/2026'));assert.ok(html.indexOf('Chấm công chưa đầy đủ:')<html.indexOf('TX00033'));assert.ok(html.includes('Cần đối soát (3)'));
+});

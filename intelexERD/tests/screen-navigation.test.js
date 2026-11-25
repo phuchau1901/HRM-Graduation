@@ -52,5 +52,5 @@ test('My Workspace has one My Leave entry, with permissions for its child tabs',
  const children=nav.find(group=>group.name==='My Workspace').children;
  assert.ok(children.some(([label,path])=>label==='My Leave'&&path==='/workspace/leave'));
  assert.ok(!children.some(([,path])=>['/workspace/leave-requests','/workspace/overtime','/workspace/attendance-adjustments'].includes(path)));
- assert.deepEqual(screenRoutes['/workspace/leave'],['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS']);
+ assert.deepEqual(screenRoutes['/workspace/leave'],['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS']);
 });

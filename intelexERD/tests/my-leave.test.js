@@ -6,7 +6,7 @@ import {screenRoutes} from '../assets/js/permissions.js';
 const response=()=>({success:true,data:{employeeId:12,year:2027,asOfDate:'2027-06-15',totalDays:13,usedDays:3,remainingDays:10,reservedDays:2,availableDays:8,balances:[{id:10,employeeId:12,leaveTypeId:1,leaveTypeName:'Phép năm',year:2027,entitledDays:12,carriedOverDays:2,adjustmentDays:-1,usedDays:3,reservedDays:2,remainingDays:10,availableDays:8,version:4}]}});
 
 test('My Leave uses WEB_LEAVE_BALANCES independently of Leave Management',async()=>{
- assert.deepEqual(screenRoutes['/workspace/leave'],['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS']);
+ assert.deepEqual(screenRoutes['/workspace/leave'],['WEB_LEAVE_BALANCES','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS']);
  assert.deepEqual(screenRoutes['/hr/leave'],['WEB_LEAVE_MANAGEMENT']);
  assert.equal(myLeaveGrant('WEB_LEAVE_MANAGEMENT',{permissions:[{platform:'WEB',code:'WEB_LEAVE_MANAGEMENT',canView:'Y'}]}),true);
  assert.equal(myLeaveGrant('WEB_LEAVE_BALANCES',{permissions:[{platform:'WEB',code:'WEB_LEAVE_MANAGEMENT',canView:'Y'}]}),false);
@@ -45,9 +45,9 @@ test('leave creation requires leave request NEW, not the balance or management N
  assert.doesNotThrow(()=>openWorkflowCreate('leave'));
 });
 
-test('My Leave owns four independently permitted child tabs',async()=>{
+test('My Leave owns three independently permitted child tabs',async()=>{
  const {myLeaveTabs,visibleMyLeaveTabs}=await import('../assets/js/pages/my-workspace/my-leave.js');
- assert.deepEqual(Object.values(myLeaveTabs).map(tab=>tab.label),['Số dư phép','Nghỉ phép','Tăng ca','Điều chỉnh công']);
+ assert.deepEqual(Object.values(myLeaveTabs).map(tab=>tab.label),['Số dư phép','Nghỉ phép','Tăng ca']);
  for(const [key,tab] of Object.entries(myLeaveTabs))assert.deepEqual(visibleMyLeaveTabs({permissions:[{platform:'WEB',code:tab.screen,canView:'Y'}]}),[key]);
  assert.deepEqual(visibleMyLeaveTabs({permissions:[]}),[]);
 });
