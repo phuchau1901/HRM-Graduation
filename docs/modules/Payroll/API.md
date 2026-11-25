@@ -104,3 +104,5 @@ Danh sách, thống kê và export chỉ lấy kết quả có policy/input hash
 ### Tổng hợp lượt chấm công
 
 Calculate timesheet tính đủ phần công theo ca sau phép khi có ít nhất một lượt chấm; đi trễ/về sớm hoặc thiếu một lượt chỉ cảnh báo. Thiếu cả hai lượt tính 0 công làm việc và không chặn lock. Snapshot trả `workedMinutes` thực tế, `payableWorkedMinutes` quy đổi và `earlyMinutes`; giờ chấm thực tế không bị sửa. OT vẫn cần phê duyệt và chứng cứ thực tế. Kỳ OPEN phải calculate với requestKey mới, version hiện tại trước khi lock; kỳ LOCKED giữ nguyên. Không thay đổi quyền API.
+
+Khi calculate payroll, thiếu KPI được duyệt đúng kỳ không chặn lương: `result.kpiBonus = 0`, dòng `KPI` trong `result.lines` ghi lý do tại `formula`. Các khoản lương khác tính bình thường. KPI đã duyệt vẫn tính theo điểm và policy; không tự thêm ngưỡng đạt.

@@ -53,10 +53,24 @@ public sealed class PayrollTests {
   Assert.Equal(10,PayrollEngine.Round(12.5m,new(){RoundingStep=5,RoundingMode="TO_EVEN"}));Assert.Equal(15,PayrollEngine.Round(12.5m,new(){RoundingStep=5,RoundingMode="AWAY_FROM_ZERO"}));
   Assert.Equal(result,PayrollEngine.Calculate(Input(profiles:[Profile() with{InsuranceBase=20000}],rules:rules)) with{Lines=result.Lines});
  }
- [Fact] public void AdjustmentsAndKpiRequireApprovedInputs() {
-  var input=Input(profiles:[Profile() with{KpiBonusAmount=1000}]);Assert.Throws<BusinessException>(()=>PayrollEngine.Calculate(input));
+ [Fact] public void AdjustmentsAndApprovedKpiDetermineBonus() {
+  var input=Input(profiles:[Profile() with{KpiBonusAmount=1000}]);Assert.Equal(0,PayrollEngine.Calculate(input).KpiBonus);
   var component=new CompensationItem(1,"BONUS","Bonus","EARNING",500,false,true,false,false);
   var result=PayrollEngine.Calculate(input with{Kpi=new(1,"2026-10","APPROVED",80,1),Adjustments=[component]});Assert.Equal(800,result.KpiBonus);Assert.Equal(21300,result.Gross);
+ }
+ [Theory]
+ [InlineData(null,null,null)]
+ [InlineData("DRAFT",100,"2026-10")]
+ [InlineData("SUBMITTED",100,"2026-10")]
+ [InlineData("REJECTED",100,"2026-10")]
+ [InlineData("APPROVED",null,"2026-10")]
+ [InlineData("APPROVED",100,"2026-09")]
+ [InlineData("APPROVED",0,"2026-10")]
+ public void MissingOrUnapprovedKpiDoesNotBlockSalary(string? status,int? score,string? period) {
+  var input=Input(profiles:[Profile() with{KpiBonusAmount=1000}]) with{Kpi=status==null?null:new(1,period!,status,score,1)};
+  var result=PayrollEngine.Calculate(input);
+  Assert.Equal(20000,result.BaseSalary);Assert.Equal(0,result.KpiBonus);Assert.Equal(20000,result.Net);
+  if(status!="APPROVED"||score==null||period!="2026-10")Assert.Contains("thưởng KPI bằng 0",Assert.Single(result.Lines,x=>x.Code=="KPI").Formula);
  }
  [Fact] public void InvalidSourcesAndPolicyGapsFailClosed() {
   Assert.Throws<BusinessException>(()=>PayrollEngine.Calculate(Input(Sheet() with{Errors=["missing checkout"]})));

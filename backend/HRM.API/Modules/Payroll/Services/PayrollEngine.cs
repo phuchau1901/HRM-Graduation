@@ -113,9 +113,11 @@ public static class PayrollEngine
         }
         decimal kpi=0;
         var expectedKpi=KpiPeriod(input.PeriodKey,r.KpiPeriodType);
+        var kpiFormula="Configured eligible KPI bonus × approved score / 100";
         if(expectedKpi.Due && kpiPotential>0) {
-            if(input.Kpi is null || input.Kpi.Status!="APPROVED" || input.Kpi.Score is null || input.Kpi.PeriodKey!=expectedKpi.Key)throw BusinessException.Invalid("Approved KPI is required before calculating the configured KPI bonus.");
-            kpi=kpiPotential*Math.Clamp(input.Kpi.Score.Value,0,r.KpiScoreCap)/100;
+            if(input.Kpi is {Status:"APPROVED",Score:not null} approved && approved.PeriodKey==expectedKpi.Key)
+                kpi=kpiPotential*Math.Clamp(approved.Score.Value,0,r.KpiScoreCap)/100;
+            else kpiFormula="Chưa có kết quả KPI được duyệt đúng kỳ: thưởng KPI bằng 0; vẫn tính các khoản lương khác.";
         }
         var lines=new List<PayslipLine>();
         void Add(string code,string name,string kind,decimal amount,decimal taxable,bool deductible,string formula) {
@@ -125,7 +127,7 @@ public static class PayrollEngine
         Add("ALLOWANCE","Phụ cấp","EARNING",legacyAllowance,legacyAllowance,false,"Monthly allowance / standard days × payable days");
         Add("NIGHT","Phụ cấp làm đêm","EARNING",nightPay,nightPay,false,"Eligible night worked hours × hourly base × configured premium");
         Add("OVERTIME","Tiền tăng ca","EARNING",ot,r.OvertimeTaxMode=="FULL"?ot:r.OvertimeTaxMode=="BASE_ONLY"?otBase:0,false,"Actual approved overtime × configured day/night/rest/holiday multipliers");
-        Add("KPI","Thưởng KPI","EARNING",kpi,kpi,false,"Configured eligible KPI bonus × approved score / 100");
+        Add("KPI","Thưởng KPI","EARNING",kpi,kpi,false,kpiFormula);
         foreach(var item in componentAmounts)Add(item.Key.Code,item.Key.Name,item.Key.Kind,item.Value,item.Key.Taxable && item.Key.Kind=="EARNING"?item.Value:0,item.Key.TaxDeductible,"Effective profile component snapshot; prorated or calendar weighted");
         foreach(var item in input.Adjustments)Add(item.Code,item.Name,item.Kind,item.Amount,item.Taxable && item.Kind=="EARNING"?item.Amount:0,item.TaxDeductible,"Period adjustment snapshot");
         var insuranceBase=r.InsuranceBaseMode=="MONTH_END"?Profile(last)?.InsuranceBase??0:insuranceWeighted;
