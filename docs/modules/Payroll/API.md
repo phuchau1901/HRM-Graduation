@@ -95,7 +95,7 @@ POST `{employeeId:1,componentId:1,amount:500000,reason:"Thưởng theo quyết �
 
 ### Approval
 
-Cấu hình qua API hiện có `/api/approval-workflow-settings`, giữ các route khác và thêm `{requestType:"PAYROLL_PERIOD",allowSelfApproval:false,steps:[{approverType:"HR",userId:"hr-payroll",roleCode:"HR"}]}` hoặc USER employeeId. Bộ phận/phạm vi phải phù hợp toàn batch. Quyết định và history dùng các API `/api/approvals` hiện có; không tạo workflow thứ hai.
+Cấu hình qua API hiện có `/api/approval-workflow-settings`, giữ các route khác và thêm `{requestType:"PAYROLL_PERIOD",allowSelfApproval:false,steps:[{approverType:"HR",userId:"hr-payroll",roleCode:"HR"}]}` hoặc USER employeeId. TEAM_LEAD/DEPARTMENT_MANAGER lấy quản lý của nhân viên ACTIVE liên kết user gửi duyệt, kể cả kỳ toàn công ty; không lấy quản lý của nhân viên đầu tiên được trả lương. Người gửi phải có liên kết nhân viên ACTIVE. Quyền và Data Scope người quyết định vẫn phải bao phủ toàn batch. Quyết định và history dùng các API `/api/approvals` hiện có; không tạo workflow thứ hai.
 
 Tiền tệ giữ theo policy từng phiếu, có trong danh sách và Excel. Statistics không cộng lẫn nhiều currency; trả 400 yêu cầu thu hẹp bộ lọc khi phạm vi gồm nhiều loại tiền. Không tự đổi tỷ giá.
 

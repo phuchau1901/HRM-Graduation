@@ -99,9 +99,12 @@ public sealed partial class PayrollService
         var configuration=await db.Set<SystemSetting>().Where(x=>x.Key==ApprovalWorkflowService.SettingsKey).Select(x=>x.JsonValue).SingleOrDefaultAsync(ct);
         var routes=configuration==null?null:Read<WorkflowRoute[]>(configuration);
         var route=routes?.SingleOrDefault(x=>x.RequestType=="PAYROLL_PERIOD");
-        if(route==null||route.AllowSelfApproval||route.Steps.Any(s=>s.ApproverType=="TEAM_LEAD"||!p.DepartmentId.HasValue&&s.ApproverType=="DEPARTMENT_MANAGER"))throw BusinessException.Conflict("Configure a PAYROLL_PERIOD route without self approval; global payroll requires USER/HR approvers.");
-        var first=await db.Set<PayrollDetail>().Where(x=>x.PayrollPeriodID==id).OrderBy(x=>x.EmployeeID).Select(x=>x.EmployeeID).FirstAsync(ct);
-        var approval=await workflows.StartAsync(actor,await db.Employees.SingleAsync(x=>x.Id==first,ct),"PAYROLL_PERIOD",id,ct);p.ApprovalId=approval.ID;p.Version++;
+        if(route==null||route.AllowSelfApproval)throw BusinessException.Conflict("Configure a PAYROLL_PERIOD route without self approval.");
+        // Organizational approvers belong to the submitter, not a sampled payroll employee.
+        var requester=await (from u in db.Set<User>() join e in db.Employees on u.EmployeeId equals (int?)e.Id
+            where u.UserId==actor&&u.Status=="ACTIVE"&&e.EmploymentStatus=="ACTIVE" select e).SingleOrDefaultAsync(ct);
+        if(requester==null)throw BusinessException.Invalid("Payroll submitter must be linked to an active employee to resolve the approval workflow.");
+        var approval=await workflows.StartAsync(actor,requester,"PAYROLL_PERIOD",id,ct);p.ApprovalId=approval.ID;p.Version++;
         Audit(actor,"PayrollPeriod",id,"PAYROLL_SUBMITTED",new{p.ApprovalId,p.Version});return p;
     },ct);
     public Task<PayrollPeriod> Lock(string actor,long id,PayrollVersion r,CancellationToken ct)=>Transaction(async()=> {

@@ -99,6 +99,36 @@ public sealed class PayrollTests {
  private static async Task<JsonElement> Post(LeaveWorkflowTests.Fixture f,string path,object body,bool wrapped=true) {
   var r=await f.H.Client.PostAsJsonAsync(path,body);Assert.True(r.IsSuccessStatusCode,f.H.App.LastException?.ToString()??await r.Content.ReadAsStringAsync());var result=await r.Content.ReadFromJsonAsync<JsonElement>();return wrapped?result.GetProperty("data"):result;
  }
+ [Theory]
+ [InlineData("DEPARTMENT_MANAGER","manager")]
+ [InlineData("TEAM_LEAD","lead")]
+ public async Task GlobalPayrollResolvesOrganizationalApproverFromSubmitter(string approverType,string expectedUser) {
+  await using var f=await Setup();
+  using(var scope=f.H.App.Services.CreateScope()) {
+   var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
+   var role=await db.Set<Role>().SingleAsync(x=>x.Code==(expectedUser=="manager"?"MANAGER":"LEAD"));
+   var screen=await db.Screens.SingleAsync(x=>x.Code==PayrollScreens.Payroll);
+   db.Add(new RoleDetail{RoleID=role.ID,ScreenID=screen.ID,CanView="Y",CanApprove="Y"});
+   foreach(var action in new[]{"VIEW","APPROVE"})db.Add(new RoleScreenAction{RoleID=role.ID,ScreenID=screen.ID,ActionCode=action,DataScope="DEPARTMENT"});
+   await db.SaveChangesAsync();
+   // Only the other department is being paid. Approval must still follow the sender.
+   await db.Set<TimesheetDetail>().Where(x=>x.EmployeeID==f.H.Self).ExecuteDeleteAsync();
+  }
+  var config=await f.H.Client.GetFromJsonAsync<WorkflowSettingsView>("/api/approval-workflow-settings");
+  (await f.H.Client.PutAsJsonAsync("/api/approval-workflow-settings",new WorkflowSettingsRequest{Version=config!.Version,Routes=[new(){RequestType="PAYROLL_PERIOD",AllowSelfApproval=false,Steps=[new(){ApproverType=approverType}]}]})).EnsureSuccessStatusCode();
+  var p=await Post(f,"/api/payroll/periods",new{periodKey="2026-10"});var id=p.GetProperty("id").GetInt64();var url=$"/api/payroll/periods/{id}";
+  await Post(f,url+"/calculate",new{version=1,requestKey="org-approver"},false);
+  p=await Post(f,url+"/submit",new{version=2});var approvalId=p.GetProperty("approvalId").GetInt64();
+  using(var scope=f.H.App.Services.CreateScope()) {
+   var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
+   var request=await db.Set<HRM.API.Modules.Approvals.Entities.ApprovalRequest>().SingleAsync(x=>x.ID==approvalId);
+   Assert.Equal(f.H.Self,request.EmployeeId);
+   Assert.Equal(expectedUser,(await db.Set<HRM.API.Modules.Approvals.Entities.ApprovalStep>().SingleAsync(x=>x.ApprovalRequestID==approvalId)).ApproverUserID);
+  }
+  // Assignment does not bypass the manager's department data scope for a global batch.
+  using var approver=await f.As(expectedUser);
+  Assert.Equal(HttpStatusCode.NotFound,(await approver.PostAsJsonAsync($"/api/approvals/{approvalId}/approve",new{version=1,reason="Scope remains enforced"})).StatusCode);
+ }
  [Fact] public async Task LifecycleIdempotencySnapshotsPdfAndPaymentConfirmation() {
   await using var f=await Setup();var c=f.H.Client;
   var p=await Post(f,"/api/payroll/periods",new{periodKey="2026-10"});var id=p.GetProperty("id").GetInt64();var root=$"/api/payroll/periods/{id}";
