@@ -150,6 +150,7 @@ builder.Services.AddScoped<HRM.API.Modules.Approvals.Services.IApprovalModule, H
 builder.Services.AddScoped<HRM.API.Modules.Leave.Services.LeaveWorkflowService>();
 builder.Services.AddScoped<HRM.API.Modules.Performance.Services.KpiService>();
 builder.Services.AddScoped<HRM.API.Modules.Payroll.Services.PayrollService>();
+builder.Services.AddScoped<HRM.API.Modules.Dashboard.Services.DashboardService>();
 builder.Services.AddScoped<HRM.API.Modules.Approvals.Services.IApprovalModule, HRM.API.Modules.Payroll.Services.PayrollApprovalModule>();
 builder.Services.AddScoped<HRM.API.Modules.Approvals.Services.IApprovalModule, HRM.API.Modules.Performance.Services.KpiApprovalModule>();
 builder.Services.AddOptions<HRM.API.Modules.Leave.Services.LeaveAccrualWorkerOptions>()

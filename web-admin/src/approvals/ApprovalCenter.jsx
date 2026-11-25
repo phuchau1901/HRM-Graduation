@@ -25,6 +25,15 @@ export function ApprovalCenter({ api, permissions, userId, module = '', onModule
       const rows = await api(`/approvals/${id}/history?page=1&pageSize=20`); if (request === sequence.current) setHistory(rows);
     } catch (e) { if (request === sequence.current) setError(e.message); } finally { setBusy(false); }
   }
+  useEffect(() => {
+    if (!allowed) return;
+    const followLink = () => {
+      const id = new URLSearchParams(window.location.hash.split('?')[1] || '').get('approvalId');
+      if (id && /^[1-9]\d*$/.test(id)) open(Number(id));
+    };
+    followLink(); window.addEventListener('hashchange', followLink);
+    return () => window.removeEventListener('hashchange', followLink);
+  }, [api, allowed, module]);
   async function decide(event) {
     event.preventDefault(); setBusy(true); setError('');
     try { await api(`/approvals/${detail.request.id}/${event.nativeEvent.submitter.value}`, { method: 'POST', body: JSON.stringify({ version: detail.request.version, reason }) }); setDetail(null); setHistory(null); setRevision(n => n + 1); }

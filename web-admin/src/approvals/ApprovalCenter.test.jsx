@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ApprovalCenter } from './ApprovalCenter';
 import { ApprovalsNavigation } from './ApprovalsNavigation';
-afterEach(cleanup);
+afterEach(()=>{cleanup();window.location.hash='';});
 const permissions = [{ code: 'WEB_APPROVALS', canView: 'Y', canApprove: 'Y' }];
 const request = { id: 4, referenceId: 9, requestType: 'LEAVE', employeeName: 'Alice', status: 'PENDING', currentStepNo: 1, version: 3 };
 describe('Approvals parent module', () => {
@@ -27,6 +27,13 @@ describe('Approvals parent module', () => {
     fireEvent.change(screen.getByLabelText('Lý do'), { target: { value: 'Approved by assigned employee' } });
     fireEvent.click(screen.getByRole('button', { name: 'Duyệt' }));
     await waitFor(() => expect(api).toHaveBeenCalledWith('/approvals/4/approve', { method: 'POST', body: JSON.stringify({ version: 3, reason: 'Approved by assigned employee' }) }));
+  });
+  it('opens an approval selected from a dashboard link', async () => {
+    window.location.hash='#/approvals?approvalId=4';
+    const api=vi.fn(async path=>path==='/approvals/4'?{request,steps:[],details:{reason:'Dashboard linked detail'}}:path.includes('/history')?{total:0,data:[]}:{total:0,data:[]});
+    render(<ApprovalCenter api={api} permissions={permissions} userId="lead"/>);
+    await screen.findByText('Dashboard linked detail');
+    expect(api.mock.calls.some(([path])=>path==='/approvals/4')).toBe(true);
   });
   it('has an independent settings menu without requiring approval VIEW', () => {
     const navigate = vi.fn(); render(<ApprovalsNavigation permissions={[{ code: 'WEB_APPROVAL_SETTINGS', canView: 'Y' }]} page="approvalSettings" navigate={navigate} />);

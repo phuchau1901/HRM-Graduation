@@ -288,3 +288,19 @@ KPI Units: GET/POST `/api/kpi/configuration/units`, GET/PUT `/api/kpi/configurat
 ## Ghi nhận ngoài lịch
 
 Thêm 5 endpoint context/list riêng và gửi lại/hủy bằng chứng. Check-in/check-out hiện có hỗ trợ tự nhận ca và raw ngoài lịch; tái sử dụng OVERTIME Workflow. [API, quyền và migration](../modules/Attendance/API.md#ghi-nhận-ngoài-lịch-và-xác-nhận-tăng-ca).
+
+## Dashboard
+
+[Đặc tả Dashboard, DTO, quyền và định nghĩa chỉ tiêu](../modules/Dashboard/README.md). Bảy GET endpoint mới, không thêm bảng/Migration.
+
+| Route | Quyền |
+|---|---|
+| `/api/dashboard/summary` | JWT + từng nguồn VIEW/scope; phần không được phép trả null |
+| `/api/dashboard/attendance-trend` | WEB_ATTENDANCE VIEW + scope |
+| `/api/dashboard/department-distribution` | WEB_EMPLOYEES VIEW + scope |
+| `/api/dashboard/pending-tasks` | WEB_APPROVALS VIEW/APPROVE + scope, đúng bước được giao, quyền domain |
+| `/api/dashboard/kpi-overview` | WEB_KPI_EVALUATION VIEW + scope |
+| `/api/dashboard/payroll-overview` | WEB_PAYROLL VIEW + scope |
+| `/api/dashboard/my-overview` | JWT + ownership + VIEW nguồn cá nhân; không scope ở personal attendance/leave balance/payslips |
+
+Query chung: year, month, departmentId; response `{success:true,data:...}`. Pending là backlog hiện tại, contracts sắp hết hạn neo hôm nay; headcount hiện tại, departures null khi schema chưa có căn cứ. Không trả số liệu thay thế khi lỗi hoặc thiếu quyền.

@@ -369,6 +369,14 @@
       "key": "unscheduledAttendanceId",
       "value": "1",
       "type": "string"
+    },
+    {
+      "key": "dashboardYear",
+      "value": "2026"
+    },
+    {
+      "key": "dashboardMonth",
+      "value": "10"
     }
   ],
   "item": [
@@ -4682,6 +4690,74 @@
               }
             },
             "description": "Reuse requestKey when retrying. QR/GPS fields must be added when required by punch-context. No schedule => raw clock evidence; checkout submits existing OVERTIME workflow or retains RECORDED with confirmationMessage."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "GET /api/dashboard/summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/summary?year={{dashboardYear}}&month={{dashboardMonth}}",
+            "description": "JWT; live source VIEW scopes per section, unavailable sections null. Optional departmentId only within permitted scope (my-overview always own employee). Response: {success:true,data:...}. See docs/modules/Dashboard/README.md. No writes/migrations."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/dashboard/attendance-trend",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/attendance-trend?year={{dashboardYear}}&month={{dashboardMonth}}",
+            "description": "WEB_ATTENDANCE VIEW + Data Scope. Optional departmentId only within permitted scope (my-overview always own employee). Response: {success:true,data:...}. See docs/modules/Dashboard/README.md. No writes/migrations."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/dashboard/department-distribution",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/department-distribution?year={{dashboardYear}}&month={{dashboardMonth}}",
+            "description": "WEB_EMPLOYEES VIEW + Data Scope. Optional departmentId only within permitted scope (my-overview always own employee). Response: {success:true,data:...}. See docs/modules/Dashboard/README.md. No writes/migrations."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/dashboard/pending-tasks",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/pending-tasks?year={{dashboardYear}}&month={{dashboardMonth}}",
+            "description": "WEB_APPROVALS VIEW/APPROVE + scopes, current assigned step; domain Payroll/KPI grants. Backlog across periods. Optional departmentId only within permitted scope (my-overview always own employee). Response: {success:true,data:...}. See docs/modules/Dashboard/README.md. No writes/migrations."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/dashboard/kpi-overview",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/kpi-overview?year={{dashboardYear}}&month={{dashboardMonth}}",
+            "description": "WEB_KPI_EVALUATION VIEW + Data Scope. Optional departmentId only within permitted scope (my-overview always own employee). Response: {success:true,data:...}. See docs/modules/Dashboard/README.md. No writes/migrations."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/dashboard/payroll-overview",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/payroll-overview?year={{dashboardYear}}&month={{dashboardMonth}}",
+            "description": "WEB_PAYROLL VIEW + Data Scope; computed payroll_details only. Optional departmentId only within permitted scope (my-overview always own employee). Response: {success:true,data:...}. See docs/modules/Dashboard/README.md. No writes/migrations."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/dashboard/my-overview",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/dashboard/my-overview?year={{dashboardYear}}&month={{dashboardMonth}}",
+            "description": "JWT ownership; per-personal-screen VIEW, no scope for attendance/balances/payslips; own published payslips only. Optional departmentId only within permitted scope (my-overview always own employee). Response: {success:true,data:...}. See docs/modules/Dashboard/README.md. No writes/migrations."
           },
           "response": []
         }

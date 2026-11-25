@@ -32,3 +32,5 @@ Route `/#/hr/contracts` dùng WEB_CONTRACTS/VIEW; thống kê từ `/api/contrac
 Checkout ban đầu chưa có trang Contracts; đây là trang được thêm vào workspace hiện có. Tests `Contracts.test.jsx` kiểm tra loading/error/zero/RBAC/refetch; chưa QA với database production và không deploy.
 
 Contract creation no longer accepts a manually typed ContractNo. The backend allocates the number using the configured ContractType prefix and Vietnam creation year. Existing numbers are displayed read-only in edit. See docs/modules/Employees/CONTRACT_NUMBERING.md.
+
+Dashboard: `/#/dashboard`, mặc định sau login. Tài liệu nguồn/quyền/chỉ tiêu tại `docs/modules/Dashboard/README.md`. Recharts tải riêng khi có biểu đồ, dữ liệu chỉ từ Dashboard API; không cần cấp screen mới.

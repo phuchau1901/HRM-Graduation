@@ -4,7 +4,7 @@ Tài liệu được tổ chức theo module, đối chiếu source tại `backe
 
 ## Bắt đầu
 
-- [API Inventory — 204 REST endpoint và SignalR](API/README.md)
+- [API Inventory — 211 REST endpoint và SignalR](API/README.md)
 - [Cấu hình và chạy local](guides/DEVELOPMENT.md)
 - [Quy ước HTTP, lỗi, phân quyền và CORS](guides/CONVENTIONS.md)
 - [Database và migrations](guides/DATABASE.md)
@@ -66,3 +66,5 @@ dotnet run --project HRM.API.csproj \
   --urls http://localhost:5000
 
 Log terminal theo user/module: [Terminal Logging](guides/TERMINAL_LOGGING.md). Mặc định N, hỗ trợ riêng SQL và job nền.
+
+- [Dashboard — nguồn dữ liệu, quyền, API và kiểm thử DEV](modules/Dashboard/README.md)
