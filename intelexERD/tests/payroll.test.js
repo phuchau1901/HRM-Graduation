@@ -68,8 +68,8 @@ test('open timesheet explains missing UPDATE separately from APPROVE without gra
 
 test('reconciliation uses employee codes from scoped lookup and translates attendance issues with Vietnamese dates',async()=>{
  const {payrollIssues,payrollIssueMessage}=await import('../assets/js/pages/payroll/payroll-common.js');
- const html=payrollIssues(JSON.stringify([{employeeId:33,message:'11/25/2026: incomplete attendance; request an adjustment before locking.'}]),[{id:33,employeeCode:'TX00033',fullName:'Nguyễn Văn A'}]);assert.ok(html.includes('Mã nhân viên: TX00033'));assert.ok(html.includes('Nguyễn Văn A'));assert.ok(html.includes('25/11/2026'));assert.ok(html.includes('thiếu giờ vào hoặc giờ ra'));assert.ok(html.includes('tạo và duyệt yêu cầu điều chỉnh công'));assert.ok(!html.includes('Nhân viên #33'));assert.ok(!html.includes('incomplete attendance'));
- assert.match(payrollIssueMessage('2026-11-25: duplicate work schedules.'),/^25\/11\/2026: Có nhiều lịch làm việc/);assert.match(payrollIssueMessage('2026-11-25: scheduled absence, no attendance recorded.'),/chưa ghi nhận chấm công/);assert.match(payrollIssueMessage('Overtime 8: approved quantity is missing.'),/tăng ca #8/);
+ const html=payrollIssues(JSON.stringify([{employeeId:33,message:'11/25/2026: incomplete attendance; request an adjustment before locking.'}]),[{id:33,employeeCode:'TX00033',fullName:'Nguyễn Văn A'}]);assert.ok(html.includes('Mã nhân viên: TX00033'));assert.ok(html.includes('Nguyễn Văn A'));assert.ok(html.includes('25/11/2026'));assert.ok(html.includes('Quên điểm danh'));assert.ok(!html.includes('Nhân viên #33'));assert.ok(!html.includes('incomplete attendance'));
+ assert.match(payrollIssueMessage('2026-11-25: duplicate work schedules.'),/^25\/11\/2026: Có nhiều lịch làm việc/);assert.equal(payrollIssueMessage('2026-11-25: scheduled absence, no attendance recorded.'),'25/11/2026: scheduled absence, no attendance recorded.');assert.match(payrollIssueMessage('Overtime 8: approved quantity is missing.'),/tăng ca #8/);
  const direct=payrollIssues([{employeeId:33,employeeCode:'ITX025',message:'Thông báo tiếng Việt'}]);assert.ok(direct.includes('ITX025'));assert.ok(direct.includes('Thông báo tiếng Việt'));const missing=payrollIssues([{employeeId:33,message:'Dữ liệu cần kiểm tra'}]);assert.ok(missing.includes('chưa tải được mã'));assert.ok(!missing.includes('TX00033'));assert.ok(!missing.includes('#33'));
  assert.ok(payrollIssues([{employeeId:33,message:'<script>'}],[{id:33,employeeCode:'<img>',fullName:'<script>'}]).includes('&lt;img&gt;'));
 });
@@ -77,5 +77,35 @@ test('reconciliation uses employee codes from scoped lookup and translates atten
 test('repeated reconciliation guidance appears once above affected employees and dates',async()=>{
  const {payrollIssues}=await import('../assets/js/pages/payroll/payroll-common.js');
  const message='11/25/2026: incomplete attendance; request an adjustment before locking.';const html=payrollIssues([{employeeId:33,message},{employeeId:34,message},{employeeId:33,message:'11/24/2026: incomplete attendance; request an adjustment before locking.'}],[{id:33,employeeCode:'TX00033',fullName:'Nhân viên A'},{id:34,employeeCode:'TX00034',fullName:'Nhân viên B'}]);
- assert.equal((html.match(/Chấm công chưa đầy đủ:/g)||[]).length,1);assert.equal((html.match(/<li>/g)||[]).length,3);assert.ok(html.includes('TX00033'));assert.ok(html.includes('TX00034'));assert.ok(html.includes('Ngày 25/11/2026'));assert.ok(html.includes('Ngày 24/11/2026'));assert.ok(html.indexOf('Chấm công chưa đầy đủ:')<html.indexOf('TX00033'));assert.ok(html.includes('Cần đối soát (3)'));
+ assert.equal((html.match(/Quên điểm danh/g)||[]).length,1);assert.equal((html.match(/<li>/g)||[]).length,3);assert.ok(html.includes('TX00033'));assert.ok(html.includes('TX00034'));assert.ok(html.includes('Ngày 25/11/2026'));assert.ok(html.includes('Ngày 24/11/2026'));assert.ok(html.indexOf('Quên điểm danh')<html.indexOf('TX00033'));assert.ok(html.includes('Cần đối soát (3)'));
+});
+
+test('no-attendance warnings use the exact day condition and show all affected codes/dates outside day detail',async()=>{
+ const {payrollNoAttendanceWarnings,payrollNoAttendanceMarkup}=await import('../assets/js/pages/payroll/payroll-management.js');
+ const day={date:'2026-11-25',scheduleId:1,workedMinutes:0,paidLeave:0,unpaidLeave:0};const row={employeeCode:'TX00033',fullName:'Nhân viên A',snapshotJson:JSON.stringify({employeeId:33,days:[day,{...day,date:'2026-11-24',payableWorkedMinutes:0},{...day,scheduleId:2}]})};
+ const warnings=payrollNoAttendanceWarnings([row]);assert.equal(warnings.length,2);assert.equal(warnings[0].employeeCode,'TX00033');assert.equal(warnings[0].date,'2026-11-25');
+ for(const patch of [{scheduleId:null},{scheduleId:undefined},{workedMinutes:1},{workedMinutes:undefined},{payableWorkedMinutes:1},{paidLeave:1},{paidLeave:undefined},{unpaidLeave:1}])assert.equal(payrollNoAttendanceWarnings([{...row,snapshotJson:JSON.stringify({days:[{...day,...patch}]})}]).length,0);
+ const html=payrollNoAttendanceMarkup([row]);assert.ok(html.includes('Không chấm công (2)'));assert.ok(html.includes('TX00033'));assert.ok(html.includes('25/11/2026'));assert.ok(html.includes('24/11/2026'));assert.equal(payrollNoAttendanceMarkup([{...row,snapshotJson:null}]),'');assert.ok(payrollNoAttendanceMarkup([{...row,employeeCode:'<img>',fullName:'<script>'}]).includes('&lt;img&gt;'));
+});
+
+test('timesheet Excel exports scoped attendance rows rather than payroll payslips',async()=>{
+ const {payrollTimesheetWorkbook}=await import('../assets/js/pages/payroll/payroll-management.js');
+ const workbook=payrollTimesheetWorkbook('2026-11',[{employeeCode:'00033',fullName:'Nguyễn A & B',workedDays:12.5,paidLeaveDays:1,overtimeHours:2,lateMinutes:0},{employeeCode:'=1+1',fullName:'<Test>',workedDays:0}]);
+ const xml=new TextDecoder().decode(workbook);assert.deepEqual([...workbook.slice(0,4)],[80,75,3,4]);
+ assert.ok(xml.includes('Bảng công'));assert.ok(xml.includes('Nguyễn A &amp; B'));assert.ok(xml.includes('&lt;Test&gt;'));
+ assert.ok(xml.includes('t xml:space="preserve">00033'));assert.ok(xml.includes('t xml:space="preserve">=1+1'));assert.ok(xml.includes('<v>12.5</v>'));assert.ok(xml.includes('<v>0</v>'));
+ assert.throws(()=>payrollTimesheetWorkbook('2026-11',[]),/chưa có dữ liệu/);
+});
+
+test('payroll detail approval requires both grants, matching period and assigned pending step',async()=>{
+ const {payrollApprovalCanDecide}=await import('../assets/js/pages/payroll/payroll-management.js');
+ const session={...account(),user:{userId:'hr-reviewer'},permissions:[...account().permissions,{platform:'WEB',code:'WEB_APPROVALS',canView:'Y',canApprove:'Y'}]};
+ const period={id:7,status:'REVIEW',approvalId:99},approval={request:{id:99,referenceId:7,requestType:'PAYROLL_PERIOD',requestedByUserId:'requester',status:'PENDING',currentStepNo:2,version:4},steps:[{stepNo:2,approverUserId:'hr-reviewer',decision:'PENDING'}]};
+ assert.equal(payrollApprovalCanDecide(period,approval,session),true);
+ assert.equal(payrollApprovalCanDecide({...period,status:'LOCKED'},approval,session),false);
+ assert.equal(payrollApprovalCanDecide(period,{...approval,request:{...approval.request,referenceId:8}},session),false);
+ assert.equal(payrollApprovalCanDecide(period,{...approval,request:{...approval.request,requestedByUserId:'hr-reviewer'}},session),false);
+ assert.equal(payrollApprovalCanDecide(period,approval,{...session,user:{userId:'other'}}),false);
+ assert.equal(payrollApprovalCanDecide(period,approval,{...session,permissions:session.permissions.filter(p=>p.code!=='WEB_APPROVALS')}),false);
+ assert.equal(payrollApprovalCanDecide(period,{...approval,steps:[{...approval.steps[0],decision:'APPROVED'}]},session),false);
 });

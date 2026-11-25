@@ -28,7 +28,7 @@ export function payrollIssueMessage(value){
  let message=String(value??''),prefix='';const date=/^(\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4}):\s*/.exec(message);
  if(date){const parts=date[1].split(/[\/-]/);prefix=(date[1].includes('-')?[parts[2],parts[1],parts[0]]:(Number(parts[0])>12?[parts[0].padStart(2,'0'),parts[1].padStart(2,'0'),parts[2]]:[parts[1].padStart(2,'0'),parts[0].padStart(2,'0'),parts[2]])).join('/')+': ';message=message.slice(date[0].length);}
  const translations={
- 'incomplete attendance; request an adjustment before locking.':'Chấm công chưa đầy đủ: thiếu giờ vào hoặc giờ ra. Nếu ca chưa kết thúc, chờ chấm công ra rồi tổng hợp lại. Nếu ca đã kết thúc, tạo và duyệt yêu cầu điều chỉnh công trước khi chốt.',
+ 'incomplete attendance; request an adjustment before locking.':'Quên điểm danh',
  'duplicate work schedules.':'Có nhiều lịch làm việc trùng ngày. Kiểm tra và xử lý lịch phân ca bị trùng trước khi tổng hợp lại.',
  'overlapping approved leave.':'Các đơn nghỉ phép đã duyệt bị trùng thời gian. Đối soát đơn nghỉ phép trước khi tổng hợp lại.',
  'duplicate attendance rows.':'Có nhiều bản ghi chấm công cho cùng lịch làm việc. Kiểm tra và xử lý bản ghi bị trùng.',
@@ -36,8 +36,7 @@ export function payrollIssueMessage(value){
  'invalid attendance interval.':'Khoảng giờ chấm công không hợp lệ: giờ ra phải sau giờ vào. Cần điều chỉnh công trước khi chốt.',
  'overlapping attendance intervals.':'Các khoảng chấm công bị trùng thời gian. Đối soát và điều chỉnh công trước khi chốt.',
  'overlapping approved overtime.':'Các khoảng tăng ca đã duyệt bị trùng thời gian. Kiểm tra và xử lý đơn tăng ca.',
- 'work and approved leave exceed one day; reconcile leave/attendance.':'Tổng công làm và phép đã duyệt vượt quá một ngày. Đối soát dữ liệu chấm công và nghỉ phép.',
- 'scheduled absence, no attendance recorded.':'Có lịch làm việc nhưng chưa ghi nhận chấm công. Kiểm tra tình trạng vắng mặt hoặc thiếu chấm công.'
+ 'work and approved leave exceed one day; reconcile leave/attendance.':'Tổng công làm và phép đã duyệt vượt quá một ngày. Đối soát dữ liệu chấm công và nghỉ phép.'
  };
  const overtime=/^Overtime (\d+): approved quantity is missing\.$/i.exec(message);
  return prefix+(translations[message.toLowerCase()]||(overtime?'Yêu cầu tăng ca #'+overtime[1]+' chưa có số giờ được duyệt. Kiểm tra lại phê duyệt tăng ca.':message));

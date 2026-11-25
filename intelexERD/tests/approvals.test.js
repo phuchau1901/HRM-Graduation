@@ -93,3 +93,39 @@ test('KPI approval tab requires approval and KPI VIEW grants and has no independ
  for(const code of ['WEB_APPROVALS','WEB_KPI_EVALUATION']){const denied={permissions:current.permissions.map(p=>p.code===code?{...p,canView:'N'}:p)};assert.ok(!visibleApprovalTabs(denied).includes('kpi'));}
  const noApprove={permissions:current.permissions.map(p=>p.code==='WEB_KPI_EVALUATION'?{...p,canApprove:'N'}:p)};assert.equal(workflowGrant('kpi','canApprove',noApprove),false);
 });
+
+test('approval category tabs filter the shared approval queue and open approval IDs',async()=>{
+ const previous=globalThis.fetch,calls=[];
+ try{
+  globalThis.fetch=async(url)=>{calls.push(url);return {ok:true,json:async()=>url.endsWith('/api/auth/login')?{accessToken:'test',user:{userId:'self'},permissions:['WEB_APPROVALS','WEB_LEAVE_REQUESTS','WEB_OVERTIME_REQUESTS','WEB_ATTENDANCE_ADJUSTMENTS'].map(code=>({platform:'WEB',code,canView:'Y'}))}:{success:true,total:1,data:[{id:91,referenceId:7,requestType:'LEAVE',employeeName:'Test',status:'PENDING',createdAt:'2026-11-25T00:00:00Z'}]}};};
+  await login('self','test');
+  for(const [kind,requestType] of [['leave','LEAVE'],['overtime','OVERTIME'],['adjustment','ATTENDANCE_ADJUSTMENT']]){
+   const control={elements:{status:{value:''}},addEventListener(){}},root={innerHTML:'',isConnected:true,querySelector:()=>control,querySelectorAll:()=>[]};
+   await mountApprovals(root,{tab:kind});
+   const url=new URL(calls.at(-1));assert.equal(url.pathname,'/api/approvals');assert.equal(url.searchParams.get('requestType'),requestType);assert.equal(url.searchParams.get('view'),'ALL');
+   assert.ok(root.innerHTML.includes('Test'));assert.ok(root.innerHTML.includes('Nghỉ phép'));
+  }
+ }finally{apiLogout();globalThis.fetch=previous;}
+});
+
+test('payroll approval detail links use the referenced payroll period, not the approval ID',async()=>{
+ const {workflowPayrollDetailHref}=await import('../assets/js/pages/approval-center/approvals.js');
+ const current=session('WEB_PAYROLL'),item={id:99,requestType:'PAYROLL_PERIOD',referenceId:7};
+ assert.equal(workflowPayrollDetailHref(item,current),'#/payroll/management?periodId=7');
+ assert.equal(workflowPayrollDetailHref({...item,referenceId:null},current),'');
+ assert.equal(workflowPayrollDetailHref(item,session('WEB_APPROVALS')),'');
+ const html=workflowRows('all',[item],current);assert.ok(html.includes('data-workflow-payroll-detail'));assert.ok(html.includes('periodId=7'));assert.ok(!html.includes('data-workflow-detail='));
+});
+
+test('tracking links select the matching approval tab and find the exact ID beyond list pagination',async()=>{
+ const previousFetch=globalThis.fetch,previousLocation=globalThis.location,calls=[];
+ try{
+ globalThis.location={hash:'#/approvals?module=PAYROLL&approvalId=99'};
+ globalThis.fetch=async(url)=>{calls.push(url);return {ok:true,json:async()=>url.endsWith('/api/auth/login')?{accessToken:'test',user:{userId:'self'},permissions:['WEB_APPROVALS','WEB_PAYROLL'].map(code=>({platform:'WEB',code,canView:'Y'}))}:{request:{id:99,referenceId:7,requestType:'PAYROLL_PERIOD',employeeName:'Kỳ tháng 11',status:'PENDING'},steps:[]}};};
+ await login('self','test');
+ const control={elements:{},addEventListener(){}},root={innerHTML:'',isConnected:true,querySelector:()=>control,querySelectorAll:()=>[]};
+ await mountApprovals(root);
+ assert.ok(calls.at(-1).endsWith('/api/approvals/99'));
+ assert.ok(root.innerHTML.includes('value="99"'));assert.ok(root.innerHTML.includes('class="tab active" data-workflow-tab="payroll"'));assert.ok(root.innerHTML.includes('#99'));assert.ok(root.innerHTML.includes('periodId=7'));
+ }finally{apiLogout();globalThis.fetch=previousFetch;if(previousLocation===undefined)delete globalThis.location;else globalThis.location=previousLocation;}
+});

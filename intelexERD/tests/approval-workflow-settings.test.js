@@ -18,11 +18,11 @@ test('System Settings owns attendance and workflow tabs with independent permiss
 });
 test('workflow payload preserves route and step order with version zero and explicit users',()=>{
  const payload=approvalSettingsPayload(0,[route()]);
- assert.equal(payload.version,0);assert.deepEqual(payload.routes[0].steps,[{approverType:'TEAM_LEAD'},{approverType:'DEPARTMENT_MANAGER'},{approverType:'HR',userId:'hr-user',roleCode:'HR'}]);
+ assert.equal(payload.version,0);assert.deepEqual(payload.routes[0].steps,[{approverType:'TEAM_LEAD'},{approverType:'DEPARTMENT_MANAGER'},{approverType:'HR',employeeId:null,roleCode:'HR'}]);
  const second={...route(),requestType:'OVERTIME',steps:[{approverType:'HR',userId:'overtime-hr'}]};
  assert.deepEqual(approvalSettingsPayload(3,[second,route()]).routes.map(item=>item.requestType),['OVERTIME','LEAVE']);
  assert.throws(()=>approvalSettingsPayload(-1,[route()]));assert.throws(()=>approvalSettingsPayload(0,[]));assert.throws(()=>approvalSettingsPayload(1,[route(),route()]),/trùng/);
- for(const invalid of [{...route(),requestType:'UNKNOWN'},{...route(),steps:[]},{...route(),steps:Array.from({length:11},()=>({approverType:'HR'}))},{...route(),allowSelfApproval:'true'},{...route(),steps:[{approverType:'ADMIN'}]},{...route(),steps:[{approverType:'HR',userId:'A'.repeat(101)}]}])assert.throws(()=>approvalSettingsPayload(1,[invalid]));
+ for(const invalid of [{...route(),requestType:'UNKNOWN'},{...route(),steps:[]},{...route(),steps:Array.from({length:11},()=>({approverType:'HR'}))},{...route(),allowSelfApproval:'true'},{...route(),steps:[{approverType:'ADMIN'}]},{...route(),steps:[{approverType:'HR',employeeId:-1}]}])assert.throws(()=>approvalSettingsPayload(1,[invalid]));
 });
 test('workflow settings require their own view and update grants and denied mount does not fetch',async()=>{
  const permission={platform:'WEB',code:'WEB_APPROVAL_SETTINGS',canView:'Y',canUpdate:'N'};
@@ -50,8 +50,8 @@ test('USER approver is chosen by employeeId and never by supplied userId',()=>{
 });
 test('manager steps discard account configuration and HR legacy keeps explicit account and role',()=>{
  const configured={...route(),steps:[{approverType:'TEAM_LEAD',employeeId:42,userId:'wrong-user',roleCode:'ADMIN'},{approverType:'DEPARTMENT_MANAGER',employeeId:43,userId:'wrong-manager'},{approverType:'HR',userId:' legacy-hr ',roleCode:' HR '} ]};
- assert.deepEqual(approvalSettingsPayload(2,[configured]).routes[0].steps,[{approverType:'TEAM_LEAD'},{approverType:'DEPARTMENT_MANAGER'},{approverType:'HR',userId:'legacy-hr',roleCode:'HR'}]);
- assert.throws(()=>approvalSettingsPayload(2,[{...route(),steps:[{approverType:'HR',roleCode:'HR'}]}]),/tài khoản/);
+ assert.deepEqual(approvalSettingsPayload(2,[configured]).routes[0].steps,[{approverType:'TEAM_LEAD'},{approverType:'DEPARTMENT_MANAGER'},{approverType:'HR',employeeId:null,roleCode:'HR'}]);
+ assert.deepEqual(approvalSettingsPayload(2,[{...route(),steps:[{approverType:'HR',roleCode:'HR'}]}]).routes[0].steps,[{approverType:'HR',employeeId:null,roleCode:'HR'}]);
 });
 test('step fields show employee selection only for USER and legacy account fields only for HR',async()=>{
  const {approvalStepFields,approvalStepForType}=await import('../assets/js/pages/administration/system-settings/approval-workflow-settings.js');
@@ -60,7 +60,7 @@ test('step fields show employee selection only for USER and legacy account field
  assert.ok(selected.includes('data-step-field="employeeId"'));assert.ok(selected.includes('Nguyễn A'));assert.ok(selected.includes('value="12" selected'));assert.ok(!selected.includes('data-step-field="userId"'));assert.ok(!selected.includes('ignored-user'));
  const manual=approvalStepFields({approverType:'USER'},0,0,null);assert.ok(manual.includes('type="number"'));assert.ok(manual.includes('ID nhân viên duyệt'));
  for(const approverType of ['TEAM_LEAD','DEPARTMENT_MANAGER']){const fields=approvalStepFields({approverType},0,0,employees);assert.ok(!fields.includes('data-step-field="employeeId"'));assert.ok(!fields.includes('data-step-field="userId"'));assert.ok(fields.includes('Tự lấy'));}
- const legacy=approvalStepFields({approverType:'HR',userId:'legacy'},0,0,employees);assert.ok(legacy.includes('data-step-field="userId"'));assert.ok(legacy.includes('data-step-field="roleCode"'));
+ const legacy=approvalStepFields({approverType:'HR',userId:'legacy'},0,0,employees);assert.ok(!legacy.includes('data-step-field="userId"'));assert.ok(legacy.includes('data-step-field="employeeId"'));assert.ok(legacy.includes('data-step-field="roleCode"'));
  assert.deepEqual(approvalStepForType({userId:'old',roleCode:'HR'},'USER'),{approverType:'USER',employeeId:null});
  assert.deepEqual(approvalStepForType({employeeId:12,userId:'old'},'TEAM_LEAD'),{approverType:'TEAM_LEAD'});
 });
@@ -74,4 +74,19 @@ test('designated employee search matches names and codes without accents and ret
  assert.ok(approvalEmployeeOptions(employees,null,'khong co').includes('Không tìm thấy nhân viên phù hợp'));
  assert.ok(approvalEmployeeOptions(employees,99,'khong co').includes('value="99" selected'));
  const fields=approvalStepFields({approverType:'USER',employeeId:12},0,1,employees,'nguyen');assert.ok(fields.includes('data-approval-employee-search'));assert.ok(fields.includes('value="nguyen"'));assert.ok(!fields.includes('Trần Bình'));
+});
+
+test('HR approver accepts an omitted or blank User ID and sends null',()=>{
+ for(const userId of [undefined,null,'','  ']){
+ const payload=approvalSettingsPayload(1,[{requestType:'LEAVE',allowSelfApproval:false,steps:[{approverType:'HR',userId,roleCode:'HR'}]}]);
+ assert.deepEqual(payload.routes[0].steps[0],{approverType:'HR',employeeId:null,roleCode:'HR'});
+ }
+});
+
+test('HR uses optional employee IDs and a role dropdown loaded from roles',async()=>{
+ const {approvalStepFields}=await import('../assets/js/pages/administration/system-settings/approval-workflow-settings.js');
+ const payload=approvalSettingsPayload(1,[{requestType:'PAYROLL_PERIOD',allowSelfApproval:false,steps:[{approverType:'HR',employeeId:'32',userId:'ignored',roleCode:'HRADMIN'}]}]);
+ assert.deepEqual(payload.routes[0].steps,[{approverType:'HR',employeeId:32,roleCode:'HRADMIN'}]);
+ const html=approvalStepFields(payload.routes[0].steps[0],0,0,[{id:32,employeeCode:'NV032',fullName:'Nguyễn A'}],'',[{code:'HRADMIN',name:'HR Admin'}]);
+ assert.ok(html.includes('NV032'));assert.ok(html.includes('<option value="HRADMIN" selected>HR Admin'));assert.ok(!html.includes('data-step-field="userId"'));assert.ok(!html.includes('data-step-field="employeeId" required'));
 });
