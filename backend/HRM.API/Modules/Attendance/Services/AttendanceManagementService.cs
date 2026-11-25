@@ -39,7 +39,17 @@ public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataSco
             access=await scopes.GetAsync(actor, AttendanceScreens.Attendance, action, ct);
         }
         var config = await settings.Read<AttendanceSettingsRequest>(SettingsDefaults.AttendanceKey, ct);
-        var sqlite = db.Database.ProviderName == "Microsoft.EntityFrameworkCore.Sqlite";
+        var (sql,args) = BuildReadSql(from,to,now,access,config.Settings,q,me,db.Database.ProviderName=="Microsoft.EntityFrameworkCore.Sqlite");
+        var query = db.Database.SqlQueryRaw<DailyAttendanceRow>(sql, args);
+        if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(r => r.EmployeeCode.Contains(q.Search) || r.EmployeeName.Contains(q.Search));
+        if (q.Status == "LATE") query = query.Where(r => r.IsLate);
+        else if (q.Status == "EARLY") query = query.Where(r => r.IsEarly);
+        else if (q.Status != null) query = query.Where(r => r.Status == q.Status);
+        return query;
+    }
+    internal static (string Sql,object[] Args) BuildReadSql(DateOnly from,DateOnly to,DateTime now,EmployeeAccess access,
+        AttendanceSettingsRequest config,DailyAttendanceQuery q,bool me,bool sqlite)
+    {
         var args = new List<object> { from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), now,
             access.Scope, access.EmployeeId ?? 0, access.DepartmentId ?? 0, q.DepartmentId ?? 0, q.TeamId ?? 0, me ? access.EmployeeId!.Value : q.EmployeeId ?? 0 };
         string DatesIn(IEnumerable<DateOnly> dates)
@@ -49,14 +59,19 @@ public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataSco
             return parameters.Count == 0 ? "NULL" : string.Join(',', parameters);
         }
         var days = Enumerable.Range(0, to.DayNumber - from.DayNumber + 1).Select(from.AddDays).ToArray();
-        var holidays = DatesIn(days.Where(config.Settings.HolidayDates.Contains));
-        var rest = DatesIn(days.Where(d => !config.Settings.WorkingDays.Contains(((int)d.DayOfWeek + 6) % 7 + 1)));
+        var holidays = DatesIn(days.Where(config.HolidayDates.Contains));
+        var rest = DatesIn(days.Where(d => !config.WorkingDays.Contains(((int)d.DayOfWeek + 6) % 7 + 1)));
         string Json(string field) => sqlite ? $"CASE WHEN json_valid(s.rules_snapshot_json) THEN json_extract(s.rules_snapshot_json, '$.{field}') END"
             : $"CASE WHEN JSON_VALID(s.rules_snapshot_json) THEN JSON_UNQUOTE(JSON_EXTRACT(s.rules_snapshot_json, '$.{field}')) END";
         string Time(string field) => sqlite ? $"datetime({Json(field)})" : $"CAST(REPLACE(REPLACE({Json(field)}, 'T', ' '), 'Z', '') AS DATETIME(6))";
         var next = sqlite ? "date(work_date, '+1 day')" : "DATE_ADD(work_date, INTERVAL 1 DAY)";
         var elapsed = sqlite ? "CAST(ROUND((julianday(CheckOutAtUtc) - julianday(CheckInAtUtc)) * 1440, 6) AS INTEGER)" : "TIMESTAMPDIFF(MINUTE, CheckInAtUtc, CheckOutAtUtc)";
         var max = sqlite ? "MAX" : "GREATEST";
+        var integer = sqlite ? "INTEGER" : "SIGNED";
+        // JSON_UNQUOTE returns text on MySQL. Without these casts the subtraction becomes
+        // DOUBLE and MySqlConnector.GetInt32 cannot materialize DailyAttendanceRow.WorkedMinutes.
+        var breakMinutes = $"CAST(COALESCE(NULLIF({Json("breakMinutes")}, 'null'), 0) AS {integer})";
+        var workedMinutes = $"CAST({max}(0, {elapsed}-BreakMinutes) AS {integer})";
         // Parameterized read model: employee x day, LEFT JOIN schedules and punches. All paging,
         // filters and statistics remain SQL-side, including derived snapshot/window statuses.
         var sql = $$"""
@@ -73,7 +88,7 @@ public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataSco
                     {{Time("checkOutOpenUtc")}} AS CheckOutOpenUtc, {{Time("checkOutCloseUtc")}} AS CheckOutCloseUtc,
                     a.check_in_at AS CheckInAtUtc, a.check_out_at AS CheckOutAtUtc,
                     COALESCE(a.late_minutes, 0) AS LateMinutes, COALESCE(a.early_minutes, 0) AS EarlyMinutes,
-                    COALESCE({{Json("breakMinutes")}}, 0) AS BreakMinutes,
+                    {{breakMinutes}} AS BreakMinutes,
                     CASE WHEN {{Json("requireQr")}} IN ('true', '1', 1) THEN 1 ELSE 0 END AS RequireQr,
                     CASE WHEN {{Json("requireGps")}} IN ('true', '1', 1) THEN 1 ELSE 0 END AS RequireGps,
                     s.rules_snapshot_json AS RulesJson, {{Json("missingPunchRule")}} AS MissingPunchRule,
@@ -104,7 +119,7 @@ public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataSco
                 CheckOutOpenUtc, CheckOutCloseUtc, CheckInAtUtc, CheckOutAtUtc, LateMinutes, EarlyMinutes,
                 CASE WHEN LateMinutes>0 THEN 1 ELSE 0 END AS IsLate, CASE WHEN EarlyMinutes>0 THEN 1 ELSE 0 END AS IsEarly,
                 IsOnLeave, IsHoliday, IsPeriodLocked, SnapshotMissing, RequireQr, RequireGps, MissingPunchRule, RulesJson,
-                CASE WHEN CheckInAtUtc IS NOT NULL AND CheckOutAtUtc IS NOT NULL AND SnapshotMissing=0 THEN {{max}}(0, {{elapsed}}-BreakMinutes) ELSE NULL END AS WorkedMinutes,
+                CASE WHEN CheckInAtUtc IS NOT NULL AND CheckOutAtUtc IS NOT NULL AND SnapshotMissing=0 THEN {{workedMinutes}} ELSE NULL END AS WorkedMinutes,
                 CASE WHEN CheckInAtUtc IS NOT NULL AND CheckOutAtUtc IS NOT NULL THEN 'COMPLETE'
                     WHEN CheckOutAtUtc IS NOT NULL THEN 'MISSING_CHECK_IN'
                     WHEN CheckInAtUtc IS NOT NULL THEN CASE WHEN SnapshotMissing=1 THEN 'LEGACY_UNVERIFIED' WHEN {2}>CheckOutCloseUtc THEN 'MISSING_CHECK_OUT' ELSE 'WORKING' END
@@ -114,12 +129,7 @@ public sealed class AttendanceManagementService(AppDbContext db, EmployeeDataSco
                     WHEN {2}>CheckOutCloseUtc THEN 'ABSENT' ELSE 'NOT_CHECKED_IN' END AS Status
             FROM shaped
             """;
-        var query = db.Database.SqlQueryRaw<DailyAttendanceRow>(sql, args.ToArray());
-        if (!string.IsNullOrWhiteSpace(q.Search)) query = query.Where(r => r.EmployeeCode.Contains(q.Search) || r.EmployeeName.Contains(q.Search));
-        if (q.Status == "LATE") query = query.Where(r => r.IsLate);
-        else if (q.Status == "EARLY") query = query.Where(r => r.IsEarly);
-        else if (q.Status != null) query = query.Where(r => r.Status == q.Status);
-        return query;
+        return (sql,args.ToArray());
     }
     private static IOrderedQueryable<DailyAttendanceRow> Ordered(IQueryable<DailyAttendanceRow> query) => query.OrderByDescending(r => r.WorkDate).ThenBy(r => r.EmployeeCode).ThenBy(r => r.EmployeeId).ThenBy(r => r.ScheduleId);
     private static void Utc(DailyAttendanceRow row)

@@ -275,4 +275,32 @@ public sealed class AttendanceManagementTests
         Assert.Equal(HttpStatusCode.NotFound,(await f.H.Client.GetAsync($"/api/attendances/daily/detail?employeeId={f.H.Self}&date=2026-11-23&scheduleId={ids.Other}")).StatusCode);
     }
 
+    [Fact]
+    public void MySqlReadModelUsesIntegerTypesAndStillComposesPagingAndScopeOffline()
+    {
+        using var context=new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseMySql("Server=localhost;Database=design;User=design;Password=unused",new MySqlServerVersion(new Version(8,0,36))).Options);
+        var (sql,args)=AttendanceManagementService.BuildReadSql(Day,Day,new DateTime(2026,11,23,10,0,0,DateTimeKind.Utc),new HRM.API.Modules.Employees.Services.EmployeeAccess("DEPARTMENT",11,7),new AttendanceSettingsRequest(),new DailyAttendanceQuery{Date=Day},false,false);
+        var composed=context.Database.SqlQueryRaw<DailyAttendanceRow>(sql,args).Where(x=>x.Status=="COMPLETE").OrderBy(x=>x.EmployeeCode).Skip(20).Take(20).ToQueryString();
+        Assert.Contains("CAST(GREATEST(0, TIMESTAMPDIFF(MINUTE, CheckInAtUtc, CheckOutAtUtc)-BreakMinutes) AS SIGNED)",composed);
+        Assert.Contains("$.breakMinutes",composed);Assert.Contains("AS SIGNED) AS BreakMinutes",composed);
+        Assert.Contains("DEPARTMENT",composed);Assert.Contains("LIMIT",composed);Assert.Contains("COMPLETE",composed);
+        Assert.DoesNotContain("AS DOUBLE",composed);Assert.Equal("DEPARTMENT",args[3]);Assert.Equal(7,args[5]);
+    }
+    [Theory]
+    [InlineData(0,455)] [InlineData(60,395)] [InlineData(600,0)] [InlineData(null,455)]
+    public async Task CompletedPunchesReturnIntegerMinutesAcrossDailyDetailPersonalAndExport(int? breakMinutes,int expected)
+    {
+        await using var f=await Fixture.Create();var ids=await Setup(f);
+        using(var services=f.H.App.Services.CreateScope()) {
+            var db=services.ServiceProvider.GetRequiredService<AppDbContext>();var schedules=await db.Set<WorkSchedule>().ToListAsync();
+            foreach(var schedule in schedules){var json=global::System.Text.Json.Nodes.JsonNode.Parse(schedule.RulesSnapshotJson!)!;if(breakMinutes.HasValue)json["breakMinutes"]=breakMinutes.Value;else json.AsObject().Remove("breakMinutes");schedule.RulesSnapshotJson=json.ToJsonString();}
+            db.Add(new HRM.API.Modules.Attendance.Entities.Attendance{ScheduleID=ids.Self,CheckInAt=new(2026,11,23,1,15,0,DateTimeKind.Utc),CheckOutAt=new(2026,11,23,8,50,0,DateTimeKind.Utc),Status="COMPLETE"});await db.SaveChangesAsync();
+        }
+        var page=await List(f);Assert.Equal(expected,Assert.Single(page.Data,r=>r.EmployeeId==f.H.Other).WorkedMinutes);Assert.Null(Assert.Single(page.Data,r=>r.EmployeeId==f.H.Peer).WorkedMinutes);
+        var detail=await f.H.Client.GetFromJsonAsync<DailyAttendanceDetail>($"/api/attendances/daily/detail?employeeId={f.H.Self}&date=2026-11-23&scheduleId={ids.Self}");Assert.Equal(expected,detail!.Attendance.WorkedMinutes);
+        var personal=await f.H.Client.GetFromJsonAsync<DailyAttendancePage>("/api/attendances/me?date=2026-11-23");Assert.Equal(expected,Assert.Single(personal!.Data).WorkedMinutes);
+        var stats=await f.H.Client.GetFromJsonAsync<DailyAttendanceStatistics>("/api/attendances/statistics?date=2026-11-23");Assert.Equal(3,stats!.CheckedIn);
+        var export=await f.H.Client.GetAsync($"/api/attendances/export?date=2026-11-23&employeeId={f.H.Self}");export.EnsureSuccessStatusCode();using var zip=new ZipArchive(new MemoryStream(await export.Content.ReadAsByteArrayAsync()));using var reader=new StreamReader(zip.GetEntry("xl/worksheets/sheet1.xml")!.Open());var worksheet=global::System.Xml.Linq.XDocument.Parse(await reader.ReadToEndAsync());global::System.Xml.Linq.XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main";var dataRow=Assert.Single(worksheet.Descendants(ns+"row").Skip(1));Assert.Equal(expected.ToString(global::System.Globalization.CultureInfo.InvariantCulture),dataRow.Elements(ns+"c").ElementAt(10).Element(ns+"v")?.Value);
+    }
+
 }
