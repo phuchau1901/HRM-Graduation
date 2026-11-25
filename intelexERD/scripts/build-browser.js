@@ -4,11 +4,12 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import vm from 'node:vm';
+import {build} from 'esbuild';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const modules=[
  'api/client.js','services/notification-service.js','services/approval-count-service.js','utils.js','data/seed.js','data/document-content.js','permissions.js',
- 'screen-navigation.js','store.js','components/ui.js','components/dialog.js','pages/dashboard/dashboard.js',
+ 'screen-navigation.js','store.js','components/ui.js','components/dialog.js','pages/dashboard/dashboard.js','pages/dashboard/dashboard-api.js',
  'pages/payroll/payroll-common.js','pages/payroll/salary-configuration.js','pages/payroll/payroll-management.js','pages/my-workspace/my-payslips.js','pages/performance/kpi-templates.js','pages/performance/kpi-results.js','pages/attendance/attendance-management.js','pages/work/work-schedules.js','pages/human-resources/organization.js','pages/reports/attendance-report.js','pages/notifications/notifications.js','pages/administration/audit-logs.js','pages/administration/system-settings/approval-workflow-settings.js','pages/administration/system-settings/leave-accrual-settings.js','pages/administration/system-settings/terminal-logging.js','pages/administration/system-settings/system-settings.js','password-policy.js','pages/my-workspace/my-leave.js','pages/approval-center/approvals.js','pages/human-resources/contracts.js','pages/human-resources/leave-balances.js','pages/administration/master-data/leave-types.js','pages/administration/master-data/contract-types.js','pages/administration/master-data/master-data.js','pages/human-resources/employees.js','pages/administration/roles.js','pages/administration/users.js','pages/shared/work.js','pages/shared/operations.js','router.js',
  'actions.js','app.js'
 ];
@@ -43,3 +44,6 @@ console.log('Built assets/js/dist/erp-browser.js ('+Buffer.byteLength(bundle)+' 
 
 const signalRSource=await readFile(path.join(root,'node_modules/@microsoft/signalr/dist/browser/signalr.min.js'),'utf8');
 await writeFile(path.join(root,'assets/js/dist/signalr.min.js'),signalRSource.replace(/^\/\/# sourceMappingURL=.*$/gm,''));
+
+await build({entryPoints:[path.join(root,'assets/js/pages/dashboard/dashboard-charts.jsx')],outfile:path.join(root,'assets/js/dist/dashboard-charts.js'),bundle:true,minify:true,format:'iife',globalName:'IntelexDashboardCharts',platform:'browser',target:['es2020'],define:{'process.env.NODE_ENV':'"production"'},legalComments:'eof'});
+console.log('Built lazy Dashboard chart bundle');

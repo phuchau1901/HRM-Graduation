@@ -296,3 +296,9 @@ export function apiPayrollExport(filters={}){const query=new URLSearchParams();f
 export function apiMyPayslips(filters={}){const query=new URLSearchParams();for(const key of ['periodKey','status','page','pageSize'])if(filters[key]!==undefined&&filters[key]!==null&&filters[key]!=='')query.set(key,filters[key]);return request('/api/payslips/me?'+query,{cache:'no-store'});}
 export function apiMyPayslipDetail(id){return request('/api/payslips/me/'+encodeURIComponent(id),{cache:'no-store'});}
 export function apiMyPayslipPdf(id){return request('/api/payslips/me/'+encodeURIComponent(id)+'/pdf',{cache:'no-store',responseType:'blob'});}
+
+export function apiDashboard(resource,filters={},signal){
+ if(!['summary','attendance-trend','department-distribution','pending-tasks','kpi-overview','payroll-overview','my-overview'].includes(resource))throw Error('Dashboard không hợp lệ.');
+ const query=new URLSearchParams();for(const key of ['year','month',...(resource==='my-overview'?[]:['departmentId'])])if(filters[key]!=null&&filters[key]!=='')query.set(key,filters[key]);
+ return request('/api/dashboard/'+resource+'?'+query,{cache:'no-store',signal});
+}

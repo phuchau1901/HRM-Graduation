@@ -105,3 +105,14 @@ test('department transfer uses PATCH independently of profile PUT and validates 
   await assert.rejects(apiTransferEmployeeDepartment(42,payload),/gỡ vai trò/);
  }finally{globalThis.fetch=original;}
 });
+
+test('dashboard department links apply server department scope before pagination and retain active filter',async()=>{
+ const {mountEmployees}=await import('../assets/js/pages/human-resources/employees.js');
+ const previousFetch=globalThis.fetch,previousLocation=globalThis.location,calls=[];
+ try{
+ globalThis.location={hash:'#/hr/employees?departmentId=4&departmentName=%3Cscript%3E&employmentStatus=ACTIVE'};
+ globalThis.fetch=async url=>{calls.push(new URL(url,'http://local'));return {ok:true,json:async()=>({success:true,total:0,data:[]})};};
+ const control={},root={isConnected:true,innerHTML:'',querySelector:()=>control};await mountEmployees(root);
+ assert.equal(calls[0].searchParams.get('departmentId'),'4');assert.equal(calls[0].searchParams.get('employmentStatus'),'ACTIVE');assert.ok(root.innerHTML.includes('&lt;script&gt;'));assert.ok(root.innerHTML.includes('Bỏ lọc phòng ban'));
+ }finally{globalThis.fetch=previousFetch;if(previousLocation===undefined)delete globalThis.location;else globalThis.location=previousLocation;}
+});

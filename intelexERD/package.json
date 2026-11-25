@@ -9,6 +9,13 @@
     "build": "node scripts/build-browser.js"
   },
   "dependencies": {
-    "@microsoft/signalr": "^11.0.0"
+    "@microsoft/signalr": "^11.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-is": "^19.2.0",
+    "recharts": "^3.11.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

@@ -36,7 +36,8 @@ export function employeeListRows(items){
 }
 export async function mountEmployees(root,filters={},employeeId=null){
  if(!root)return;
- let page=Number(filters.page)||1,search=filters.search||'',status='',generation=0;
+ const dashboardEmployeeQuery=new URLSearchParams(globalThis.location?.hash?.split('?')[1]||''),requestedDepartment=Number(dashboardEmployeeQuery.get('departmentId')),departmentFilter=Number.isSafeInteger(requestedDepartment)&&requestedDepartment>0?requestedDepartment:null;
+ let page=Number(filters.page)||1,search=filters.search||'',status=dashboardEmployeeQuery.get('employmentStatus')==='ACTIVE'?'ACTIVE':'',generation=0;
  async function load(){
  const current=++generation;root.innerHTML='<p role="status">Đang tải nhân viên…</p>';
  try{
@@ -46,10 +47,10 @@ export async function mountEmployees(root,filters={},employeeId=null){
  root.querySelector('#employee-profile-edit')?.addEventListener('click',()=>editEmployeeProfile(root,employee,load));
  return;
  }
- const query=new URLSearchParams({page,pageSize:30,search});if(status)query.set('employmentStatus',status);
+ const query=new URLSearchParams({page,pageSize:30,search});if(departmentFilter)query.set('departmentId',departmentFilter);if(status)query.set('employmentStatus',status);
  const result=await apiEmployees(query.toString());if(!root.isConnected||current!==generation)return;
  if(!Array.isArray(result?.data))throw Error('Danh sách nhân viên không hợp lệ.');
- root.innerHTML=`<form id="employee-api-search" class="toolbar"><input name="search" maxlength="150" value="${e(search)}" placeholder="Tìm mã, tên hoặc email nhân viên" aria-label="Tìm nhân viên"><select name="status" aria-label="Trạng thái nhân viên"><option value="">Tất cả trạng thái</option>${Object.entries(employeeStatuses).map(([value,label])=>`<option value="${value}" ${value===status?'selected':''}>${label}</option>`).join('')}</select><button class="btn">Tìm kiếm</button></form><div class="table-wrap"><table><thead><tr><th>Nhân viên</th><th>Chức danh</th><th>Phòng ban</th><th>Team</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${employeeListRows(result.data)}</tbody></table></div>${result.data.length?'':'<p>Không có nhân viên phù hợp.</p>'}<div class="toolbar user-pagination"><button class="btn" id="employee-api-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} nhân viên</span><button class="btn" id="employee-api-next" ${page*30>=result.total?'disabled':''}>Trang sau</button></div>`;
+ root.innerHTML=`${departmentFilter?`<div class="toolbar"><span class="tag">Phòng ban: ${e(dashboardEmployeeQuery.get('departmentName')||'#'+departmentFilter)}</span><a class="btn small" href="#/hr/employees">Bỏ lọc phòng ban</a></div>`:''}<form id="employee-api-search" class="toolbar"><input name="search" maxlength="150" value="${e(search)}" placeholder="Tìm mã, tên hoặc email nhân viên" aria-label="Tìm nhân viên"><select name="status" aria-label="Trạng thái nhân viên"><option value="">Tất cả trạng thái</option>${Object.entries(employeeStatuses).map(([value,label])=>`<option value="${value}" ${value===status?'selected':''}>${label}</option>`).join('')}</select><button class="btn">Tìm kiếm</button></form><div class="table-wrap"><table><thead><tr><th>Nhân viên</th><th>Chức danh</th><th>Phòng ban</th><th>Team</th><th>Trạng thái</th><th>Hành động</th></tr></thead><tbody>${employeeListRows(result.data)}</tbody></table></div>${result.data.length?'':'<p>Không có nhân viên phù hợp.</p>'}<div class="toolbar user-pagination"><button class="btn" id="employee-api-prev" ${page<=1?'disabled':''}>Trang trước</button><span>Trang ${page} · ${e(result.total)} nhân viên</span><button class="btn" id="employee-api-next" ${page*30>=result.total?'disabled':''}>Trang sau</button></div>`;
  root.querySelector('#employee-api-search').onsubmit=ev=>{ev.preventDefault();ev.stopPropagation();search=ev.currentTarget.elements.search.value.trim();status=ev.currentTarget.elements.status.value;page=1;load();};
  root.querySelector('#employee-api-prev').onclick=()=>{page--;load();};root.querySelector('#employee-api-next').onclick=()=>{page++;load();};
  }catch(err){if(!root.isConnected||current!==generation)return;root.innerHTML=`<p role="alert">${e(err.message)}</p><button class="btn" id="employee-api-retry">Thử lại</button>`;root.querySelector('#employee-api-retry').onclick=load;}

@@ -182,3 +182,4 @@ dialog:has(#balance-grant-form){width:min(820px,calc(100vw - 32px));max-width:ca
 #workflow-filters input,#workflow-filters select{width:100%;min-width:0;height:42px;margin:0}
 #workflow-filters>.btn{height:42px;margin:0;flex-shrink:0}
 @media(max-width:600px){#workflow-filters>label:has([name]){flex:1 1 100%}#workflow-filters>.btn{flex:1}}
+
