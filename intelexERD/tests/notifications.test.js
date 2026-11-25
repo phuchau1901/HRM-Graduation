@@ -173,3 +173,12 @@ test('PAYROLL notifications appear under Lương instead of system or leave',asy
  assert.ok(notificationTabs.some(([key,label])=>key==='payroll'&&label==='Lương'));
  assert.match(notificationDetailMarkup({...items[0],title:'Bảng lương',content:'Nội dung'}),/notification-detail-category">Lương</);
 });
+
+test('payroll notification links pass the payroll period ID to personal payslips',async()=>{
+ const {notificationPayslipHref,notificationDetailMarkup}=await import('../assets/js/pages/notifications/notifications.js');
+ const item={id:99,referenceType:'PAYROLL',referenceId:'7'};
+ assert.equal(notificationPayslipHref(item),'#/workspace/payslips?periodId=7');
+ assert.match(notificationDetailMarkup(item),/data-notification-payslip/);
+ assert.equal(notificationPayslipHref({...item,referenceId:'invalid'}),'');
+ assert.equal(notificationPayslipHref({...item,referenceType:'KPI'}),'');
+});

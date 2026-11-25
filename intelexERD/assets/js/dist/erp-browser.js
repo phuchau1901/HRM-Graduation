@@ -963,6 +963,7 @@ function myPayslipDetail(response,session=apiSession()){const data=payrollObject
 function mountMyPayslips(root){
  const screen='WEB_MY_PAYSLIPS';if(!root)return ()=>{};if(!payrollGrant(screen)){root.innerHTML='<p>Bạn cần quyền WEB_MY_PAYSLIPS/VIEW để xem phiếu lương của mình.</p>';return ()=>{};}
  if(apiSession()?.user?.employeeId==null){root.innerHTML='<p>Tài khoản chưa liên kết hồ sơ nhân viên. Vui lòng liên hệ quản trị viên để xem phiếu lương.</p>';return ()=>{};}
+ const requestedPeriodId=Number(new URLSearchParams(globalThis.location?.hash?.split('?')[1]||'').get('periodId'));let requestedPeriodOpened=false;
  const controller=payrollController(root),active=controller.active;let page=1,filters={},generation=0;
  root.innerHTML=`<form class="payroll-filters" data-my-payslip-filters>${payrollSelect('periodKey','Chọn kỳ lương',[],'',{empty:'Tất cả kỳ lương'})}${payrollSelect('status','Trạng thái',[{id:'LOCKED',label:'Đã chốt'},{id:'PAID',label:'Đã thanh toán'}],'',{empty:'Tất cả trạng thái'})}<button class="btn" type="submit">Lọc</button><button class="btn" type="button" data-my-payslip-refresh>Làm mới</button></form><p role="status" data-my-payslip-period-feedback></p><div data-my-payslip-content></div><div class="user-pagination" data-my-payslip-pages></div>`;
  const form=root.querySelector('form'),content=root.querySelector('[data-my-payslip-content]'),pagination=root.querySelector('[data-my-payslip-pages]');
@@ -970,12 +971,13 @@ function mountMyPayslips(root){
  async function loadPeriods(){
  const feedback=root.querySelector('[data-my-payslip-period-feedback]');
  try{
- const periods=new Set();for(let currentPage=1;active();currentPage++){
+ const periods=new Set();let requestedPayslip=null;for(let currentPage=1;active();currentPage++){
  const result=myPayslipPage(await apiMyPayslips({page:currentPage,pageSize:100}));if(!active())return;
- for(const row of result.data)if(row.periodKey)periods.add(row.periodKey);
+ for(const row of result.data){if(row.periodKey)periods.add(row.periodKey);if(Number.isSafeInteger(requestedPeriodId)&&requestedPeriodId>0&&Number(row.payrollPeriodId)===requestedPeriodId)requestedPayslip=row;}
  if(currentPage*100>=result.total)break;if(!result.data.length)throw Error('Chưa tải đủ danh sách kỳ lương.');
  }
  if(!active())return;const select=form.elements.periodKey;select.innerHTML='<option value="">Tất cả kỳ lương</option>'+[...periods].sort().reverse().map(key=>`<option value="${e(key)}">${e(key)}</option>`).join('');select.value=filters.periodKey||'';feedback.textContent='';
+ if(Number.isSafeInteger(requestedPeriodId)&&requestedPeriodId>0&&!requestedPeriodOpened){requestedPeriodOpened=true;if(requestedPayslip){filters={periodKey:requestedPayslip.periodKey};page=1;select.value=requestedPayslip.periodKey;void load();await detail(requestedPayslip.id);}else feedback.textContent='Chưa có phiếu lương của bạn trong kỳ được thông báo.';}
  }catch(err){if(active()){feedback.innerHTML=`${e(err.message)} <button class="btn small" type="button">Tải lại kỳ lương</button>`;feedback.querySelector('button').onclick=loadPeriods;}}
  }
  async function load(){if(!active())return;const current=++generation;content.innerHTML='<p role="status">Đang tải phiếu lương của bạn…</p>';pagination.innerHTML='';try{const result=myPayslipPage(await apiMyPayslips({...filters,page,pageSize:20}));if(!active()||current!==generation)return;content.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Kỳ lương</th><th>Nhân viên</th><th>Thu nhập</th><th>Khấu trừ</th><th>Thực lĩnh</th><th>Trạng thái</th><th></th></tr></thead><tbody>${result.data.map((row,index)=>`<tr><td><strong>${e(row.periodKey)}</strong></td><td>${e(row.employeeName)}<small>${e(row.employeeCode)}</small></td><td>${e(payrollAmount(row.gross,row.currencyCode))}</td><td>${e(payrollAmount(row.deductions,row.currencyCode))}</td><td><strong>${e(payrollAmount(row.net,row.currencyCode))}</strong></td><td>${payrollBadge(row.status)}</td><td><div class="payroll-row-actions"><button class="btn small" type="button" data-my-payslip-detail="${index}">Chi tiết</button>${payrollGrant(screen,'canExport')?`<button class="btn small" type="button" data-my-payslip-pdf="${index}">Tải PDF</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>${result.data.length?'':'<div class="empty"><h3>Chưa có phiếu lương</h3><p>Phiếu lương sẽ xuất hiện khi kỳ lương được chốt hoặc đã thanh toán.</p></div>'}`;
@@ -1676,15 +1678,20 @@ function notificationTime(value){
 function notificationRows(items){
  return items.map(item=>`<button type="button" class="notification-row api-notification-row ${item.readAt?'':'unread'}" data-noti-read="${e(item.id)}"><span class="icon-tile blue">${icon('bell',16)}</span><span class="api-notification-content"><strong>${e(item.title)}</strong><span class="api-notification-text">${e(item.content)}</span><small>${e(notificationTime(item.publishedAt||item.createdAt))} · ${item.readAt?'Đã đọc':'Chưa đọc'}</small></span>${item.readAt?'':'<span class="api-notification-dot" aria-label="Chưa đọc"></span>'}</button>`).join('');
 }
+function notificationPayslipHref(item){
+ if(notificationCategory(item)!=='payroll')return '';
+ const id=Number(item.referenceId);return Number.isSafeInteger(id)&&id>0?'#/workspace/payslips?periodId='+id:'';
+}
 function notificationDetailMarkup(item){
  const label=({system:'Thông báo chung',attendance:'Chấm công',leave:'Nghỉ phép',task:'Công việc',kpi:'KPI',payroll:'Lương'})[notificationCategory(item)];
- return `<section id="notification-detail"><div class="notification-detail-meta"><span class="notification-detail-category">${label}</span><time>${e(notificationTime(item.publishedAt||item.createdAt))}</time></div><h3>${e(item.title)}</h3><p class="notification-detail-content">${e(item.content)}</p><p id="notification-detail-error" class="form-error" role="alert"></p></section>`;
+ return `<section id="notification-detail"><div class="notification-detail-meta"><span class="notification-detail-category">${label}</span><time>${e(notificationTime(item.publishedAt||item.createdAt))}</time></div><h3>${e(item.title)}</h3><p class="notification-detail-content">${e(item.content)}</p>${notificationPayslipHref(item)?`<div class="form-actions"><a class="btn primary" data-notification-payslip href="${notificationPayslipHref(item)}">Xem chi tiết</a></div>`:''}<p id="notification-detail-error" class="form-error" role="alert"></p></section>`;
 }
 async function openNotificationDetail(item,service=notificationService,showDialog=openDialog){
  if(!item)return;
  const generation=service.snapshot().generation;
  showDialog('Chi tiết thông báo',notificationDetailMarkup(item));
  const popup=globalThis.document?.getElementById('notification-detail');
+ popup?.querySelector('[data-notification-payslip]')?.addEventListener?.('click',()=>closeDialog());
  if(item.readAt)return;
  try{await service.read(item.id);}
  catch(error){if(popup?.isConnected&&service.snapshot().generation===generation){const feedback=popup.querySelector('#notification-detail-error');if(feedback)feedback.textContent=notificationError(error);}}

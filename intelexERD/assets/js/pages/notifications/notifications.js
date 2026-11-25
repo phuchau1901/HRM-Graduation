@@ -1,4 +1,4 @@
-import {openDialog} from '../../components/dialog.js';
+import {openDialog,closeDialog} from '../../components/dialog.js';
 import {notificationService,notificationError} from '../../services/notification-service.js';
 import {e} from '../../utils.js';
 import {icon} from '../../components/ui.js';
@@ -28,15 +28,20 @@ export function notificationTime(value){
 export function notificationRows(items){
  return items.map(item=>`<button type="button" class="notification-row api-notification-row ${item.readAt?'':'unread'}" data-noti-read="${e(item.id)}"><span class="icon-tile blue">${icon('bell',16)}</span><span class="api-notification-content"><strong>${e(item.title)}</strong><span class="api-notification-text">${e(item.content)}</span><small>${e(notificationTime(item.publishedAt||item.createdAt))} · ${item.readAt?'Đã đọc':'Chưa đọc'}</small></span>${item.readAt?'':'<span class="api-notification-dot" aria-label="Chưa đọc"></span>'}</button>`).join('');
 }
+export function notificationPayslipHref(item){
+ if(notificationCategory(item)!=='payroll')return '';
+ const id=Number(item.referenceId);return Number.isSafeInteger(id)&&id>0?'#/workspace/payslips?periodId='+id:'';
+}
 export function notificationDetailMarkup(item){
  const label=({system:'Thông báo chung',attendance:'Chấm công',leave:'Nghỉ phép',task:'Công việc',kpi:'KPI',payroll:'Lương'})[notificationCategory(item)];
- return `<section id="notification-detail"><div class="notification-detail-meta"><span class="notification-detail-category">${label}</span><time>${e(notificationTime(item.publishedAt||item.createdAt))}</time></div><h3>${e(item.title)}</h3><p class="notification-detail-content">${e(item.content)}</p><p id="notification-detail-error" class="form-error" role="alert"></p></section>`;
+ return `<section id="notification-detail"><div class="notification-detail-meta"><span class="notification-detail-category">${label}</span><time>${e(notificationTime(item.publishedAt||item.createdAt))}</time></div><h3>${e(item.title)}</h3><p class="notification-detail-content">${e(item.content)}</p>${notificationPayslipHref(item)?`<div class="form-actions"><a class="btn primary" data-notification-payslip href="${notificationPayslipHref(item)}">Xem chi tiết</a></div>`:''}<p id="notification-detail-error" class="form-error" role="alert"></p></section>`;
 }
 export async function openNotificationDetail(item,service=notificationService,showDialog=openDialog){
  if(!item)return;
  const generation=service.snapshot().generation;
  showDialog('Chi tiết thông báo',notificationDetailMarkup(item));
  const popup=globalThis.document?.getElementById('notification-detail');
+ popup?.querySelector('[data-notification-payslip]')?.addEventListener?.('click',()=>closeDialog());
  if(item.readAt)return;
  try{await service.read(item.id);}
  catch(error){if(popup?.isConnected&&service.snapshot().generation===generation){const feedback=popup.querySelector('#notification-detail-error');if(feedback)feedback.textContent=notificationError(error);}}
