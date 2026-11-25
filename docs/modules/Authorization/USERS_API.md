@@ -272,7 +272,7 @@ Actor phải khác tài khoản đích. Backend kiểm tra `WEB_USERS/UPDATE` tr
 }
 ```
 
-Không cần mật khẩu cũ của actor hoặc target. Target phải tồn tại và toàn bộ capabilities của các role đích phải nằm trong authority hiện tại của actor theo `Dominates` hiện có, kể cả các quyền dormant/inactive mà chính sách quản trị bảo vệ. Giữ catalog lock, bootstrap và guard còn tài khoản phục hồi quản trị như các admin mutation hiện tại. Không suy quyền từ tên role.
+Không cần mật khẩu cũ của actor hoặc target. Target phải tồn tại. ADMIN_RESET chỉ yêu cầu actor có live WEB_USERS/UPDATE, không so sánh quyền, role hoặc Data Scope của tài khoản đích (không gọi Dominates). Giữ catalog lock, bootstrap và guard còn tài khoản phục hồi quản trị như các admin mutation hiện tại. Không suy quyền từ tên role.
 
 ### Response, transaction và bảo mật
 
@@ -345,4 +345,4 @@ GET `/api/users` phục vụ màn hình `/admin/users`; backend không có route
 
 ## Role mới và quyền ủy quyền
 
-Gắn role qua PUT /api/users/{userId}/roles vẫn cần WEB_USERS APPROVE + If-Match, không được tự gán role cho chính mình. Khi actor có cả WEB_PERMISSIONS UPDATE và APPROVE hiện hành, các quyền nghiệp vụ trong role được phép ủy quyền dù actor không có quyền trực tiếp sử dụng nghiệp vụ đó. Quyền thuộc WEB_USERS / WEB_ROLES / WEB_PERMISSIONS vẫn phải nằm trong quyền cá nhân của actor; không dùng quyền quản lý Permissions để nâng quyền quản trị. Actor không đủ hai quyền Permissions vẫn áp dominance đầy đủ. Áp dụng cho role mới chưa có user và roleIds khi tạo user. Không đổi kiểm tra dominance của reset-password hoặc cập nhật hồ sơ/status user.
+Gắn role qua PUT /api/users/{userId}/roles vẫn cần WEB_USERS APPROVE + If-Match, không được tự gán role cho chính mình. Khi actor có cả WEB_PERMISSIONS UPDATE và APPROVE hiện hành, các quyền nghiệp vụ trong role được phép ủy quyền dù actor không có quyền trực tiếp sử dụng nghiệp vụ đó. Quyền thuộc WEB_USERS / WEB_ROLES / WEB_PERMISSIONS vẫn phải nằm trong quyền cá nhân của actor; không dùng quyền quản lý Permissions để nâng quyền quản trị. Actor không đủ hai quyền Permissions vẫn áp dominance đầy đủ. Áp dụng cho role mới chưa có user và roleIds khi tạo user. Reset-password không áp dominance của target; cập nhật hồ sơ/status user giữ kiểm tra riêng.

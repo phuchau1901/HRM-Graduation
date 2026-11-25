@@ -13,7 +13,7 @@ Trong `backend/HRM.API.Tests/`: PermissionServiceTests, PermissionApiTests, Auth
 - Screens ACTIVE/platform/pagination; code unique; không rename code/platform referenced; chặn dormant grants escalation.
 - Chống tự gán Role, sửa Role đang gán cho mình, takeover target vượt authority; bảo vệ account quản trị cuối cùng.
 - If-Match thiếu428/cũ412; matrix batch lỗi rollback, giữ extended khi chỉ sửa standard; audit trước/sau không chứa secret.
-- Reset SELF_CHANGE/ADMIN_RESET: chính chủ + verify oldPassword hoặc live UPDATE + Dominates; quota rate limit chung; revoke access/refresh, old JWT401; SignalR chỉ gửi group version mới và bỏ qua account khóa.
+- Reset SELF_CHANGE/ADMIN_RESET: chính chủ + verify oldPassword hoặc live UPDATE, không so quyền target; quota rate limit chung; revoke access/refresh, old JWT401; SignalR chỉ gửi group version mới và bỏ qua account khóa.
 - Migration chỉ thêm/bỏ auth_version; production route unique và JWT/ScreenPermission đúng quy ước.
 
 Automated tests dùng SQLite/TestServer, không chứng minh trạng thái grant/DDL của Railway. Các tình huống mới chưa có assertion tương ứng phải bổ sung test trước khi thay nghiệp vụ; đối chiếu tên method test trong source, không xem checklist này là kết quả chạy thực tế.

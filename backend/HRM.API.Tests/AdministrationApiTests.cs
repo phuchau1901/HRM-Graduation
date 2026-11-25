@@ -448,6 +448,30 @@ public sealed class AdministrationApiTests
         Assert.Equal(HttpStatusCode.OK, renewed.StatusCode);
         Assert.Empty((await renewed.Content.ReadFromJsonAsync<HRM.API.Modules.Auth.DTOs.LoginResponse>())!.Permissions);
     }
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AdminResetRequiresActorUpdateRegardlessOfTargetCapabilities(bool canUpdate)
+    {
+        using var f = new Fixture(); await f.Start();
+        using (var scope = f.App.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var root = await db.Set<Role>().SingleAsync(x=>x.Code=="HR");
+            var targetOnly = new Screen {Code="TARGET_ONLY",Name="Target only",IsActive=true};db.Add(targetOnly);await db.SaveChangesAsync();
+            db.Add(new RoleDetail {RoleID=f.TargetRole,ScreenID=targetOnly.ID,CanApprove="Y"});
+            var screen=await db.Screens.SingleAsync(x=>x.Code=="WEB_USERS");
+            var grant=await db.RoleDetails.SingleAsync(x=>x.RoleID==root.ID&&x.ScreenID==screen.ID);grant.CanUpdate=canUpdate?"Y":"N";
+            await db.SaveChangesAsync();
+        }
+        var secret=Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
+        var response=await f.Send(HttpMethod.Post,"/api/users/target/reset-password",new{type=PasswordResetTypes.AdminReset,newPassword=secret});
+        Assert.Equal(canUpdate?HttpStatusCode.NoContent:HttpStatusCode.Forbidden,response.StatusCode);
+        using var check=f.App.Services.CreateScope();var context=check.ServiceProvider.GetRequiredService<AppDbContext>();
+        var user=await context.Set<User>().SingleAsync(x=>x.UserId=="target");
+        var passwords=check.ServiceProvider.GetRequiredService<PasswordService>();
+        Assert.Equal(canUpdate, passwords.VerifyForLogin(secret,user.PasswordHash,user.Salt)!=PasswordCheck.Failed);
+    }
     [Fact]
     public async Task AdminResetRevokesAccessAndRefreshAndDoesNotNotify()
     {
@@ -490,7 +514,7 @@ public sealed class AdministrationApiTests
         var login = await f.Client.PostAsJsonAsync("/api/auth/login", new { userId = "target", password = f.App.Password });
         f.Client.DefaultRequestHeaders.Authorization = new("Bearer", (await login.Content.ReadFromJsonAsync<HRM.API.Modules.Auth.DTOs.LoginResponse>())!.AccessToken);
         Assert.Equal(HttpStatusCode.Forbidden, (await f.Send(HttpMethod.Put, "/api/users/api-user/roles", new { roleIds = new[] { f.TargetRole } }, root.Version)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await f.Send(HttpMethod.Post, "/api/users/api-user/reset-password", new { type = PasswordResetTypes.AdminReset, newPassword = f.App.Password }, root.Version)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await f.Send(HttpMethod.Post, "/api/users/api-user/reset-password", new { type = PasswordResetTypes.AdminReset, newPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)) }, root.Version)).StatusCode);
         var created = await f.Client.PostAsJsonAsync("/api/roles", new RoleRequest { Code = "EMPTY", Name = "Empty" }); Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var roleView = (await created.Content.ReadFromJsonAsync<AdminRoleView>())!;
         Assert.Equal(HttpStatusCode.OK, (await f.Send(HttpMethod.Put, $"/api/roles/{roleView.Id}/permissions", new { screens = new object[] { new { screenCode = "TEST_WEB", standard = new { DELETE = true } } } }, roleView.Version)).StatusCode);

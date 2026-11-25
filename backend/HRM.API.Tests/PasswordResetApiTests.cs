@@ -86,7 +86,7 @@ public sealed class PasswordResetApiTests
         var response = await delegated.PostAsJsonAsync("/api/users/limited-target/reset-password", new { type = PasswordResetTypes.AdminReset, newPassword = NewSecret });
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await delegated.PostAsJsonAsync("/api/users/target/reset-password", new { type = PasswordResetTypes.AdminReset, newPassword = NewSecret })).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await delegated.PostAsJsonAsync("/api/users/api-user/reset-password", new { type = PasswordResetTypes.AdminReset, newPassword = NewSecret })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await delegated.PostAsJsonAsync("/api/users/api-user/reset-password", new { type = PasswordResetTypes.AdminReset, newPassword = NewSecret })).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await delegated.PostAsJsonAsync("/api/users/missing/reset-password", new { type = PasswordResetTypes.AdminReset, newPassword = NewSecret })).StatusCode);
     }
     [Fact]

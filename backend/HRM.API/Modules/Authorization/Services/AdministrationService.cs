@@ -215,8 +215,8 @@ public sealed class AdministrationService(AppDbContext db, IPermissionService pe
             if (user is null) throw BusinessException.Missing();
             // Compare the database identity too: MySQL may resolve a differently cased route ID to the actor.
             if (string.Equals(actor, user.UserId, StringComparison.Ordinal)) throw Denied();
-            var roleIds = await db.Set<UserRole>().Where(x => x.UserID == id).Select(x => x.RoleID).ToArrayAsync(ct);
-            await Dominates(actor, roleIds, ct);
+            // ADMIN_RESET is authorized by the actor's live WEB_USERS/UPDATE grant,
+            // independently of the target account's roles and capabilities.
         }
         await policy.ValidateAsync(user!.UserId, request.NewPassword, ct);
         await policy.RememberAsync(user, ct);
