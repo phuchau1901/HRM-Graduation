@@ -2,7 +2,7 @@
   "info": {
     "name": "HRM.API — Organization, Employees & System Administration",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "199 source-backed REST endpoints. Payroll & Compensation includes 35 APIs for salary configuration, locked timesheets, payroll workflow, adjustments, export and own payslips. Synthetic policy examples must be replaced with approved effective business/legal rules. See docs/API/README.md and docs/modules/Payroll/API.md. All mutations are manual; no migration or deployment is executed by this collection."
+    "description": "204 source-backed REST endpoints. Payroll & Compensation includes 35 APIs for salary configuration, locked timesheets, payroll workflow, adjustments, export and own payslips. Synthetic policy examples must be replaced with approved effective business/legal rules. See docs/API/README.md and docs/modules/Payroll/API.md. All mutations are manual; no migration or deployment is executed by this collection."
   },
   "auth": {
     "type": "bearer",
@@ -17,7 +17,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "https://localhost:5001",
+      "value": "https://hrm-graduation.up.railway.app",
       "type": "string"
     },
     {
@@ -362,6 +362,11 @@
     },
     {
       "key": "payrollAdjustmentId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "unscheduledAttendanceId",
       "value": "1",
       "type": "string"
     }
@@ -1963,7 +1968,8 @@
                 "value": "Bearer {{accessToken}}"
               }
             ],
-            "url": "{{baseUrl}}/api/roles/{{roleId}}/permissions"
+            "url": "{{baseUrl}}/api/roles/{{roleId}}/permissions",
+            "description": ""
           }
         },
         {
@@ -3333,7 +3339,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/attendances/check-in",
-            "description": "WEB_MY_ATTENDANCE / UPDATE only. No SELF/DEPARTMENT/ALL data-scope configuration required; WEB_ATTENDANCE NEW/UPDATE is not used. Backend resolves employeeId from the active signed-in user and requires schedule ownership. Other employee schedules404; invalid employee link403 HRM_AUTH_006. API does not require VIEW (VIEW is needed to load personal history in the UI). Preserve snapshot/window checks, QR/GPS, locked timesheet protection, requestKey idempotency, transaction and audit. Body must not include employeeId/userId or client punch timestamps.",
+            "description": "WEB_MY_ATTENDANCE / UPDATE only. No SELF/DEPARTMENT/ALL data-scope configuration required; WEB_ATTENDANCE NEW/UPDATE is not used. Backend resolves employeeId from the active signed-in user and requires schedule ownership. Other employee schedules404; invalid employee link403 HRM_AUTH_006. API does not require VIEW (VIEW is needed to load personal history in the UI). Preserve snapshot/window checks, QR/GPS, locked timesheet protection, requestKey idempotency, transaction and audit. Body must not include employeeId/userId or client punch timestamps. scheduleId is optional: omit it to auto-detect the logged-in employee shift from server time and snapshot windows. Ambiguous shifts return 409. No shift records unscheduled attendance pending overtime confirmation; it never grants overtime automatically. Reuse requestKey for retries.",
             "body": {
               "mode": "raw",
               "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
@@ -3357,7 +3363,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/attendances/check-out",
-            "description": "WEB_MY_ATTENDANCE / UPDATE only. No SELF/DEPARTMENT/ALL data-scope configuration required; WEB_ATTENDANCE NEW/UPDATE is not used. Backend resolves employeeId from the active signed-in user and requires schedule ownership. Other employee schedules404; invalid employee link403 HRM_AUTH_006. API does not require VIEW (VIEW is needed to load personal history in the UI). Preserve snapshot/window checks, QR/GPS, locked timesheet protection, requestKey idempotency, transaction and audit. Body must not include employeeId/userId or client punch timestamps.",
+            "description": "WEB_MY_ATTENDANCE / UPDATE only. No SELF/DEPARTMENT/ALL data-scope configuration required; WEB_ATTENDANCE NEW/UPDATE is not used. Backend resolves employeeId from the active signed-in user and requires schedule ownership. Other employee schedules404; invalid employee link403 HRM_AUTH_006. API does not require VIEW (VIEW is needed to load personal history in the UI). Preserve snapshot/window checks, QR/GPS, locked timesheet protection, requestKey idempotency, transaction and audit. Body must not include employeeId/userId or client punch timestamps. scheduleId is optional: omit it to auto-detect the logged-in employee shift from server time and snapshot windows. Ambiguous shifts return 409. No shift records unscheduled attendance pending overtime confirmation; it never grants overtime automatically. Reuse requestKey for retries.",
             "body": {
               "mode": "raw",
               "raw": "{\"scheduleId\": {{scheduleId}}, \"requestKey\": \"{{$guid}}\", \"qrSessionId\": null, \"qrToken\": null, \"latitude\": null, \"longitude\": null}",
@@ -4545,6 +4551,137 @@
                 }
               }
             }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Unscheduled Attendance",
+      "item": [
+        {
+          "name": "GET /api/attendances/punch-context?checkIn=true",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/punch-context?checkIn=true",
+            "description": "See docs/modules/Attendance/API.md. Own actions WEB_MY_ATTENDANCE, no Data Scope; management list WEB_ATTENDANCE VIEW with scope. Only approved OT counts toward payroll."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/attendances/unscheduled/me?page=1&pageSize=20",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/unscheduled/me?page=1&pageSize=20",
+            "description": "See docs/modules/Attendance/API.md. Own actions WEB_MY_ATTENDANCE, no Data Scope; management list WEB_ATTENDANCE VIEW with scope. Only approved OT counts toward payroll."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/attendances/unscheduled?page=1&pageSize=20&status=PENDING",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/attendances/unscheduled?page=1&pageSize=20&status=PENDING",
+            "description": "See docs/modules/Attendance/API.md. Own actions WEB_MY_ATTENDANCE, no Data Scope; management list WEB_ATTENDANCE VIEW with scope. Only approved OT counts toward payroll."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/attendances/unscheduled/{{unscheduledAttendanceId}}/submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/attendances/unscheduled/{{unscheduledAttendanceId}}/submit",
+            "description": "See docs/modules/Attendance/API.md. Own actions WEB_MY_ATTENDANCE, no Data Scope; management list WEB_ATTENDANCE VIEW with scope. Only approved OT counts toward payroll.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 2,\n  \"reason\": \"Xác nhận giờ làm thực tế ngoài lịch\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /api/attendances/unscheduled/{{unscheduledAttendanceId}}/cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/attendances/unscheduled/{{unscheduledAttendanceId}}/cancel",
+            "description": "See docs/modules/Attendance/API.md. Own actions WEB_MY_ATTENDANCE, no Data Scope; management list WEB_ATTENDANCE VIEW with scope. Only approved OT counts toward payroll.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 2,\n  \"reason\": \"Hủy phiên ghi nhầm, giữ bằng chứng\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST Auto check-in (schedule optional)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/attendances/check-in",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestKey\": \"{{$guid}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reuse requestKey when retrying. QR/GPS fields must be added when required by punch-context. No schedule => raw clock evidence; checkout submits existing OVERTIME workflow or retains RECORDED with confirmationMessage."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Auto check-out (schedule optional)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/attendances/check-out",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestKey\": \"{{$guid}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Reuse requestKey when retrying. QR/GPS fields must be added when required by punch-context. No schedule => raw clock evidence; checkout submits existing OVERTIME workflow or retains RECORDED with confirmationMessage."
           },
           "response": []
         }

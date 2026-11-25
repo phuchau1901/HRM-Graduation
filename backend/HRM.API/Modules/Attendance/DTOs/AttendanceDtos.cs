@@ -7,7 +7,7 @@ namespace HRM.API.Modules.Attendance.DTOs;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed class PunchRequest
 {
-    [Range(1, long.MaxValue)] public long ScheduleId { get; set; }
+    [Range(1, long.MaxValue)] public long? ScheduleId { get; set; }
     [Required, MaxLength(100)] public string RequestKey { get; set; } = "";
     [Range(1, long.MaxValue)] public long? QrSessionId { get; set; }
     [MaxLength(512)] public string? QrToken { get; set; }
@@ -22,7 +22,26 @@ public sealed class QrCreateRequest
 public sealed record AttendanceRuleSnapshot(DateOnly WorkDate, string Timezone, long ShiftId, string ShiftCode,
     DateTime StartAtUtc, DateTime EndAtUtc, DateTime CheckInOpenUtc, DateTime CheckInCloseUtc, DateTime CheckOutOpenUtc, DateTime CheckOutCloseUtc,
     int BreakMinutes, int LateGraceMinutes, int EarlyLeaveGraceMinutes, bool RequireQr, bool RequireGps, string MissingPunchRule, AttendanceLocation[] Locations, long SettingsVersion);
-public sealed record AttendanceView(long Id, long ScheduleId, int EmployeeId, DateOnly WorkDate, DateTime? CheckInAtUtc, DateTime? CheckOutAtUtc,
-    int LateMinutes, int EarlyMinutes, string Status, int? WorkedMinutes);
+public sealed record AttendanceView(long Id, long? ScheduleId, int EmployeeId, DateOnly WorkDate, DateTime? CheckInAtUtc, DateTime? CheckOutAtUtc,
+    int LateMinutes, int EarlyMinutes, string Status, int? WorkedMinutes) {
+ public string RecordType {get;init;}="SCHEDULED";
+ public long? UnscheduledAttendanceId {get;init;} public long? OvertimeRequestId {get;init;} public long? ApprovalId {get;init;}
+ public long? Version {get;init;}
+ public string? ConfirmationMessage {get;init;}
+}
 public sealed record QrView(long Id, string LocationCode, DateTime ValidFromUtc, DateTime ExpiresAtUtc, string Status);
 public sealed record QrCreated(QrView Session, string Token);
+
+public sealed class UnscheduledActionRequest {
+ [Range(1,long.MaxValue)] public long Version {get;set;}
+ [Required,MaxLength(1000)] public string Reason {get;set;}="";
+}
+
+public sealed class UnscheduledQuery:PageQuery {
+ public DateOnly? From {get;set;} public DateOnly? To {get;set;}
+ [Range(1,int.MaxValue)] public int? EmployeeId {get;set;}
+ [Range(1,int.MaxValue)] public int? DepartmentId {get;set;}
+ [Range(1,int.MaxValue)] public int? TeamId {get;set;}
+ [RegularExpression("^(OPEN|RECORDED|PENDING|APPROVED|REJECTED|CANCELLED)$")] public string? Status {get;set;}
+}
+public sealed record UnscheduledEvidenceView(long Id,DateTime StartAtUtc,DateTime? EndAtUtc,string Status);

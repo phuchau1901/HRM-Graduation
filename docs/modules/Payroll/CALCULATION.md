@@ -41,3 +41,5 @@ Kỳ OPEN/REVIEW chưa gửi được tính lại; không có unlock/recalculate
 Tổng hợp không cộng lẫn các currency. Phiếu/Excel ghi currencyCode; thống kê nhiều loại tiền báo lỗi yêu cầu lọc theo phòng ban/nhân viên/kỳ, không quy đổi tỷ giá ngầm.
 
 Fingerprint so sánh đúng các đoạn hiệu lực trong tháng và nội dung tiền/quy tắc. Đóng ngày kết thúc hồ sơ/chính sách ở tháng sau hoặc tăng concurrency version vì thao tác đó không làm kẹt kỳ tháng trước đã APPROVED; snapshot gốc vẫn giữ phiên bản/ngày đã dùng khi tính. Thay đổi thực sự ảnh hưởng tháng tính vẫn bị chặn hoặc yêu cầu tính lại.
+
+Giờ ngoài lịch lấy từ unscheduled_attendances chỉ sau xác nhận OVERTIME hoàn tất; source chưa xử lý sẽ chặn khóa công. Không tạo WorkSchedule giả, không cộng công thường. Giao raw UTC với tháng/ngày Việt Nam và khoảng OT duyệt, không đếm trùng qua tháng. Xem [Attendance ngoài lịch](../Attendance/API.md#ghi-nhận-ngoài-lịch-và-xác-nhận-tăng-ca).

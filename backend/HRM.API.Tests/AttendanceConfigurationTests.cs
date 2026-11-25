@@ -155,4 +155,41 @@ public sealed class AttendanceConfigurationTests
         Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.GetAsync("/api/work-schedules")).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await f.Client.GetAsync("/api/attendances")).StatusCode);
     }
+    [Fact]
+    public async Task OmittedScheduleAutoDetectsAndRetryKeepsOriginalShiftAfterWindowEnds()
+    {
+        using var f=new Fixture();await f.Start();var (_,schedule)=await f.Schedule();
+        f.Clock.Now=new DateTimeOffset(schedule.Rules!.StartAtUtc);
+        var request=new {requestKey="auto-in"};var response=await f.Client.PostAsJsonAsync("/api/attendances/check-in",request);response.EnsureSuccessStatusCode();
+        var first=(await response.Content.ReadFromJsonAsync<AttendanceView>())!;Assert.Equal(schedule.Id,first.ScheduleId);
+        f.Clock.Now=new DateTimeOffset(schedule.Rules.EndAtUtc);
+        var checkout=await f.Client.PostAsJsonAsync("/api/attendances/check-out",new {requestKey="auto-out"});checkout.EnsureSuccessStatusCode();Assert.Equal(first.Id,(await checkout.Content.ReadFromJsonAsync<AttendanceView>())!.Id);
+        f.Clock.Now=f.Clock.Now.AddDays(3);
+        var retry=await f.Client.PostAsJsonAsync("/api/attendances/check-in",request);retry.EnsureSuccessStatusCode();Assert.Equal(first.Id,(await retry.Content.ReadFromJsonAsync<AttendanceView>())!.Id);
+        using var scope=f.App.Services.CreateScope();Assert.Single(await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<HRM.API.Modules.Attendance.Entities.Attendance>().ToListAsync());
+    }
+    [Fact]
+    public async Task AutoDetectRejectsAmbiguousSchedulesWithoutInventingOvertime()
+    {
+        using var f=new Fixture();await f.Start();
+        var (shift,schedule)=await f.Schedule();f.Clock.Now=new DateTimeOffset(schedule.Rules!.StartAtUtc);
+        using(var scope=f.App.Services.CreateScope()) {
+            var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();db.Add(new WorkSchedule {EmployeeID=f.Employee,ShiftID=shift.Id,WorkDate=schedule.WorkDate.AddDays(1),Status="SCHEDULED",UniqueWorkKey="ambiguous-test",RulesSnapshotJson=JsonSerializer.Serialize(schedule.Rules,SettingsDefaults.Json)});await db.SaveChangesAsync();
+        }
+        Assert.Equal(HttpStatusCode.Conflict,(await f.Client.PostAsJsonAsync("/api/attendances/check-in",new {requestKey="two-shifts"})).StatusCode);
+        using var services=f.App.Services.CreateScope();Assert.Empty(await services.ServiceProvider.GetRequiredService<AppDbContext>().Set<HRM.API.Modules.Attendance.Entities.Attendance>().ToListAsync());
+    }
+
+    [Fact]
+    public async Task AutoDetectFindsPreviousDayOvernightShift()
+    {
+        using var f=new Fixture();await f.Start();
+        var shiftResponse=await f.Client.PostAsJsonAsync("/api/shifts",new ShiftRequest{Code="NIGHT",Name="Night",StartTime=new(22,0),EndTime=new(6,0),BreakMinutes=60});shiftResponse.EnsureSuccessStatusCode();var shift=(await shiftResponse.Content.ReadFromJsonAsync<ShiftView>())!;
+        var scheduleResponse=await f.Client.PostAsJsonAsync("/api/work-schedules",new ScheduleRequest{EmployeeId=f.Employee,ShiftId=shift.Id,WorkDate=new(2026,11,16)});scheduleResponse.EnsureSuccessStatusCode();var schedule=(await scheduleResponse.Content.ReadFromJsonAsync<ScheduleView>())!;
+        f.Clock.Now=new DateTimeOffset(schedule.Rules!.StartAtUtc.AddHours(3));
+        var response=await f.Client.PostAsJsonAsync("/api/attendances/check-in",new{requestKey="overnight-auto"});response.EnsureSuccessStatusCode();Assert.Equal(schedule.Id,(await response.Content.ReadFromJsonAsync<AttendanceView>())!.ScheduleId);
+        f.Clock.Now=new DateTimeOffset(schedule.Rules.EndAtUtc);
+        (await f.Client.PostAsJsonAsync("/api/attendances/check-out",new{requestKey="overnight-auto-out"})).EnsureSuccessStatusCode();
+    }
+
 }

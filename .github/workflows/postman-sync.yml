@@ -1,0 +1,47 @@
+
+name: Sync HRM API to Postman
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/HRM-API.postman_collection.json'
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postman-hrm-sync
+  cancel-in-progress: false
+
+jobs:
+  sync-postman:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync collection to Postman
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+          POSTMAN_COLLECTION_ID: ${{ secrets.POSTMAN_COLLECTION_ID }}
+        run: |
+          echo "Preparing Postman collection..."
+
+          jq '{collection: .}' \
+            docs/HRM-API.postman_collection.json \
+            > /tmp/postman-payload.json
+
+          curl --fail-with-body --silent --show-error \
+            --request PUT \
+            --url "https://api.postman.com/collections/${POSTMAN_COLLECTION_ID}" \
+            --header "X-Api-Key: ${POSTMAN_API_KEY}" \
+            --header "Content-Type: application/json" \
+            --data-binary @/tmp/postman-payload.json
+
+          echo ""
+          echo "Postman collection synced successfully!"

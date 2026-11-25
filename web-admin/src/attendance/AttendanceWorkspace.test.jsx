@@ -43,7 +43,7 @@ describe('AttendanceWorkspace', () => {
     const punch = screen.getByRole('dialog', { name: 'Xác nhận chấm công' }); fireEvent.click(within(punch).getByText('Xác nhận chấm công')); await screen.findByText('Network unavailable');
     fail = false; fireEvent.click(within(punch).getByText('Xác nhận chấm công')); await screen.findByText('Check-in thành công.');
     const writes = api.mock.calls.filter(([, options]) => options?.method); expect(writes).toHaveLength(2); expect(writes[0][1].body).toBe(writes[1][1].body); expect(writes[0][0]).toBe('/attendances/check-in'); expect(JSON.parse(writes[0][1].body)).toEqual({ scheduleId: 7, requestKey: expect.any(String) });
-    expect(api.mock.calls.filter(([, options]) => !options?.method).every(([path]) => path.startsWith('/attendances/me?'))).toBe(true);
+    expect(api.mock.calls.filter(([, options]) => !options?.method).every(([path]) => (path.startsWith('/attendances/me?')||path.startsWith('/attendances/unscheduled/me?')))).toBe(true);
   });
   it('checks out using existing endpoint and disables controls outside server window', async () => {
     const api = vi.fn(async (_path, options) => options?.method ? {} : page);
@@ -76,7 +76,7 @@ describe('AttendanceWorkspace', () => {
   it('opens personal history with only WEB_MY_ATTENDANCE VIEW', async () => {
     const api = vi.fn(async () => page);
     render(<AttendanceWorkspace api={api} permissions={[{ code: 'WEB_MY_ATTENDANCE', canView: 'Y' }]} personal employeeId={1} />);
-    await screen.findByText('Alice'); expect(api.mock.calls.every(([path]) => path.startsWith('/attendances/me?'))).toBe(true);
+    await screen.findByText('Alice'); expect(api.mock.calls.every(([path]) => (path.startsWith('/attendances/me?')||path.startsWith('/attendances/unscheduled/me?')))).toBe(true);
     expect(screen.getByText('Chi tiết')).toBeTruthy(); expect(screen.queryByRole('button', { name: 'Check-out' })).toBeNull(); cleanup(); api.mockClear();
     render(<AttendanceWorkspace api={api} permissions={[{ code: 'WEB_ATTENDANCE', canView: 'Y' }]} personal employeeId={1} />);
     expect(api).not.toHaveBeenCalled();

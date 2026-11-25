@@ -296,6 +296,10 @@ namespace HRM.API.Migrations
                         .HasColumnType("varchar(100)")
                         .HasColumnName("request_key");
 
+                    b.Property<long?>("UnscheduledAttendanceId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("unscheduled_attendance_id");
+
                     b.HasKey("ID");
 
                     b.HasIndex("AttendanceID");
@@ -305,6 +309,8 @@ namespace HRM.API.Migrations
                     b.HasIndex("RequestKey")
                         .IsUnique()
                         .HasDatabaseName("uq_attendance_requests_request_key");
+
+                    b.HasIndex("UnscheduledAttendanceId");
 
                     b.ToTable("attendance_requests", (string)null);
                 });
@@ -414,6 +420,89 @@ namespace HRM.API.Migrations
                         .HasDatabaseName("uq_shifts_code");
 
                     b.ToTable("shifts", (string)null);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Attendance.Entities.UnscheduledAttendance", b =>
+                {
+                    b.Property<long>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("ID"));
+
+                    b.Property<long?>("ApprovalId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("approval_id");
+
+                    b.Property<long?>("CheckInQRId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("check_in_qr_id");
+
+                    b.Property<long?>("CheckOutQRId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("check_out_qr_id");
+
+                    b.Property<int>("EmployeeID")
+                        .HasColumnType("int")
+                        .HasColumnName("employee_id");
+
+                    b.Property<DateTime?>("EndAtUtc")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("end_at_utc");
+
+                    b.Property<int?>("OpenEmployeeKey")
+                        .HasColumnType("int")
+                        .HasColumnName("open_employee_key");
+
+                    b.Property<long?>("OvertimeRequestId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("overtime_request_id");
+
+                    b.Property<string>("RecordedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("recorded_by_user_id");
+
+                    b.Property<string>("SettingsSnapshotJson")
+                        .IsRequired()
+                        .HasColumnType("json")
+                        .HasColumnName("settings_snapshot_json");
+
+                    b.Property<DateTime>("StartAtUtc")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("start_at_utc");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("ApprovalId");
+
+                    b.HasIndex("CheckInQRId");
+
+                    b.HasIndex("CheckOutQRId");
+
+                    b.HasIndex("OpenEmployeeKey")
+                        .IsUnique();
+
+                    b.HasIndex("OvertimeRequestId");
+
+                    b.HasIndex("RecordedByUserId");
+
+                    b.HasIndex("EmployeeID", "StartAtUtc");
+
+                    b.ToTable("unscheduled_attendances", (string)null);
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Attendance.Entities.WorkSchedule", b =>
@@ -3070,6 +3159,46 @@ namespace HRM.API.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired()
                         .HasConstraintName("fk_attendance_requests_employee_id");
+
+                    b.HasOne("HRM.API.Modules.Attendance.Entities.UnscheduledAttendance", null)
+                        .WithMany()
+                        .HasForeignKey("UnscheduledAttendanceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("HRM.API.Modules.Attendance.Entities.UnscheduledAttendance", b =>
+                {
+                    b.HasOne("HRM.API.Modules.Approvals.Entities.ApprovalRequest", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovalId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Attendance.Entities.QRSession", null)
+                        .WithMany()
+                        .HasForeignKey("CheckInQRId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Attendance.Entities.QRSession", null)
+                        .WithMany()
+                        .HasForeignKey("CheckOutQRId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Employees.Entities.Employee", null)
+                        .WithMany()
+                        .HasForeignKey("EmployeeID")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HRM.API.Modules.Leave.Entities.OvertimeRequest", null)
+                        .WithMany()
+                        .HasForeignKey("OvertimeRequestId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("HRM.API.Modules.Authorization.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("RecordedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HRM.API.Modules.Attendance.Entities.WorkSchedule", b =>

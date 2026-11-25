@@ -11,6 +11,8 @@ public class AttendanceRequestConfiguration : IEntityTypeConfiguration<Attendanc
     public void Configure(EntityTypeBuilder<AttendanceRequest> entity)
     {
         entity.ToTable("attendance_requests");
+        entity.Property(x=>x.UnscheduledAttendanceId).HasColumnName("unscheduled_attendance_id");
+        entity.HasOne<UnscheduledAttendance>().WithMany().HasForeignKey(x=>x.UnscheduledAttendanceId).OnDelete(DeleteBehavior.Restrict);
         entity.HasKey(x => x.ID);
         entity.Property(x => x.ID).ValueGeneratedOnAdd().HasColumnName("id").HasColumnType("bigint").IsRequired();
         entity.Property(x => x.EmployeeID).HasColumnName("employee_id").HasColumnType("int").IsRequired();

@@ -2,7 +2,7 @@
 
 [Mục lục](../README.md) · [Quy ước HTTP](../guides/CONVENTIONS.md) · [Postman](../HRM-API.postman_collection.json)
 
-Có **199 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
+Có **204 REST endpoint production** và **1 SignalR hub** trong phạm vi backend hiện tại. IMPLEMENTED là đã có source, không đồng nghĩa đã deploy, đã cấp grant hoặc đã áp dụng migration ở Railway.
 
 | Module | REST endpoint | Trạng thái |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ Có **199 REST endpoint production** và **1 SignalR hub** trong phạm vi backe
 | Organization (Departments / Positions / Teams / Tree) | 18 | IMPLEMENTED |
 | Employees / Contracts / Contract Types / History | 19 | IMPLEMENTED |
 | Notifications | 7 | IMPLEMENTED; FCM MISSING |
-| Attendance / Shifts / Schedules / QR | 15 | IMPLEMENTED qua module System; Adjustment workflow qua module Leave |
+| Attendance / Shifts / Schedules / QR | 20 | IMPLEMENTED qua module System; Adjustment workflow qua module Leave |
 | System Settings | 12 | IMPLEMENTED |
 | Leave / Overtime / Adjustments / Balances | 20 | IMPLEMENTED |
 | Approvals / Workflow Settings | 7 | IMPLEMENTED; module cha với các module con |
@@ -284,3 +284,7 @@ KPI Units: GET/POST `/api/kpi/configuration/units`, GET/PUT `/api/kpi/configurat
 | POST | `/api/salary-configuration/policies/{id:long}/publish` | `WEB_SALARY_CONFIGURATION/UPDATE` |
 | GET | `/api/salary-configuration/profiles` | `WEB_SALARY_CONFIGURATION/VIEW` |
 | POST | `/api/salary-configuration/profiles` | `WEB_SALARY_CONFIGURATION/NEW` |
+
+## Ghi nhận ngoài lịch
+
+Thêm 5 endpoint context/list riêng và gửi lại/hủy bằng chứng. Check-in/check-out hiện có hỗ trợ tự nhận ca và raw ngoài lịch; tái sử dụng OVERTIME Workflow. [API, quyền và migration](../modules/Attendance/API.md#ghi-nhận-ngoài-lịch-và-xác-nhận-tăng-ca).

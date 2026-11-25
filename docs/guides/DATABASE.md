@@ -134,3 +134,7 @@ Khóa nghiệp vụ: UNIQUE period_key/scope_key chống batch trùng, cùng ser
 Migration Up chỉ DROP unique period_key cũ (không phải index chống đỡ FK), thêm cột, ba bảng, indexes, RESTRICT FKs và ba screen nếu thiếu. Không cấp role grants, không sửa salary amount/ContractNo/Attendance hoặc tạo lại bảng cũ. SQL và snapshot kiểm tra offline qua PayrollMigrationTests. MySQL DDL có thể auto-commit; review trên staging trước khi người vận hành apply theo quy trình đã duyệt.
 
 Không tự Down sau khi đã dùng nhiều batch phòng ban cùng tháng: unique period_key cũ không thể khôi phục nếu có nhiều dòng. Down cũng xóa chính sách, adjustment, snapshot và cột mới; cần backup, kế hoạch đối soát và phối hợp version ứng dụng. Legacy chưa có snapshot/IsVerified không được tự dùng làm căn cứ trả lương.
+
+## Ghi nhận chấm công ngoài lịch
+
+Migration `20261125031533_AddUnscheduledAttendanceEvidence` thêm `unscheduled_attendances` (Employee/UTC start-end/status/settings snapshot/version/QR IDs/OvertimeRequest/Approval/actor), unique nullable open_employee_key và index employee/start, overtime ID. Bảng `attendance_requests` thêm unscheduled_attendance_id nullable FK RESTRICT để dùng chung idempotency requestKey. Không tạo ca giả hoặc đổi attendances.ScheduleID thành nullable. Dữ liệu chứng cứ không bị xóa khi từ chối/hủy. [Luồng và quyền](../modules/Attendance/API.md#ghi-nhận-ngoài-lịch-và-xác-nhận-tăng-ca). Chưa apply migration; binary mới cần schema này.

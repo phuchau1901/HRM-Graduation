@@ -29,9 +29,15 @@ public sealed partial class PayrollService
             where (l.Status=="APPROVED"||l.Status=="CANCELLATION_PENDING")&&l.FromDate<=end&&l.ToDate>=start select new{Leave=l,t.Paid}).ToListAsync(ct);
         var begin=PayrollEngine.LocalUtc(start,TimeOnly.MinValue);var finish=PayrollEngine.LocalUtc(end.AddDays(2),TimeOnly.MinValue);
         var ot=await db.Set<OvertimeRequest>().AsNoTracking().Where(x=>x.Status=="APPROVED"&&x.StartAt<finish&&x.EndAt>begin).OrderBy(x=>x.ID).ToListAsync(ct);
+        var monthFinish=PayrollEngine.LocalUtc(end.AddDays(1),TimeOnly.MinValue);
+        var raw=await db.Set<UnscheduledAttendance>().AsNoTracking().Where(x=>x.StartAtUtc<monthFinish&&(x.EndAtUtc==null||x.EndAtUtc>begin)).OrderBy(x=>x.ID).ToListAsync(ct);
+        var rawByEmployee=raw.ToLookup(x=>x.EmployeeID);
         var active=await db.Employees.AsNoTracking().Where(x=>x.EmploymentStatus=="ACTIVE"&&x.HireDate<=end).Select(x=>x.Id).ToListAsync(ct);
-        var ids=active.Concat(schedules.Select(x=>x.EmployeeID)).Concat(leaves.Select(x=>x.Leave.EmployeeID)).Distinct().Order().ToArray();
+        var ids=active.Concat(schedules.Select(x=>x.EmployeeID)).Concat(leaves.Select(x=>x.Leave.EmployeeID)).Concat(raw.Where(x=>x.Status is "OPEN" or "RECORDED" or "PENDING" or "APPROVED").Select(x=>x.EmployeeID)).Distinct().Order().ToArray();
         if(ids.Length>2000)throw BusinessException.Invalid("Timesheet exceeds 2000 employees; partition source preparation before payroll.");
+        var approvedRawEmployees=raw.Where(x=>x.Status=="APPROVED").Select(x=>x.EmployeeID).Distinct().ToArray();
+        var rawOverlapSchedules=approvedRawEmployees.Length==0?new List<WorkSchedule>():await db.Set<WorkSchedule>().AsNoTracking().Where(x=>approvedRawEmployees.Contains(x.EmployeeID)&&x.Status!="CANCELLED"&&x.WorkDate>=start.AddDays(-2)&&x.WorkDate<=end.AddDays(1)).ToListAsync(ct);
+        var rawScheduleWindows=rawOverlapSchedules.ToLookup(x=>x.EmployeeID);
         var people=await db.Employees.AsNoTracking().Where(x=>ids.Contains(x.Id)).ToDictionaryAsync(x=>x.Id,ct);
         var schedulesByEmployee=schedules.ToLookup(x=>x.EmployeeID);var leavesByEmployee=leaves.ToLookup(x=>x.Leave.EmployeeID);var overtimeByEmployee=ot.ToLookup(x=>x.EmployeeID);var punchesBySchedule=punches.ToLookup(x=>x.ScheduleID);
         var days=Enumerable.Range(0,end.Day).Select(i=>start.AddDays(i)).ToArray();
@@ -41,6 +47,9 @@ public sealed partial class PayrollService
             var errors=new List<string>();var warnings=new List<string>();var output=new List<TimesheetDay>();
             var employeeSchedules=schedulesByEmployee[id].ToLookup(x=>x.WorkDate);
             var employeeLeaves=leavesByEmployee[id].ToArray();var employeeOt=overtimeByEmployee[id].ToArray();
+            var employeeRaw=rawByEmployee[id].ToArray();
+            foreach(var evidence in employeeRaw.Where(x=>x.Status is "OPEN" or "RECORDED" or "PENDING"))errors.Add($"Unscheduled attendance {evidence.ID} is {evidence.Status}; finish checkout and overtime confirmation before locking.");
+            foreach(var evidence in employeeRaw.Where(x=>x.Status=="APPROVED"))warnings.Add($"Approved unscheduled evidence {evidence.ID}, overtime {evidence.OvertimeRequestId}.");
             var consumedOt=new Dictionary<long,double>();var occupied=new List<(DateTime Start,DateTime End)>();
             foreach(var date in days) {
                 var eligible=date>=people[id].HireDate;var daily=employeeSchedules[date].ToArray();var holiday=config.Settings.HolidayDates.Contains(date);
@@ -81,6 +90,16 @@ public sealed partial class PayrollService
                             spans.Add(new(piece.A,stop,request.ID));consumedOt[request.ID]=consumedOt.GetValueOrDefault(request.ID)+(stop-piece.A).TotalMinutes;
                         }
                     }
+                }
+                var dayStart=PayrollEngine.LocalUtc(date,TimeOnly.MinValue);var dayEnd=dayStart.AddDays(1);
+                foreach(var evidence in employeeRaw.Where(x=>x.Status=="APPROVED"&&x.EndAtUtc.HasValue&&x.StartAtUtc<dayEnd&&x.EndAtUtc>dayStart)) {
+                    var request=employeeOt.SingleOrDefault(x=>x.ID==evidence.OvertimeRequestId);
+                    if(request?.ApprovedHours is not decimal approvedHours){errors.Add($"Unscheduled attendance {evidence.ID} has no approved overtime quantity.");continue;}
+                    var a=new[]{evidence.StartAtUtc,request.StartAt,dayStart}.Max();var b=new[]{evidence.EndAtUtc!.Value,request.EndAt,request.StartAt.AddHours((double)approvedHours),dayEnd}.Min();
+                    if(b<=a)continue;
+                    if(rawScheduleWindows[id].Any(s=>s.RulesSnapshotJson==null?s.WorkDate>=date.AddDays(-2)&&s.WorkDate<=date.AddDays(1):Read<AttendanceRuleSnapshot>(s.RulesSnapshotJson).StartAtUtc<b&&Read<AttendanceRuleSnapshot>(s.RulesSnapshotJson).EndAtUtc>a)){errors.Add($"Unscheduled attendance {evidence.ID} now overlaps a scheduled shift; reconcile before payroll.");continue;}
+                    if(spans.Any(x=>a<x.EndUtc&&b>x.StartUtc)||occupied.Any(x=>a<x.End&&b>x.Start)){errors.Add($"Unscheduled attendance {evidence.ID} overlaps already recorded attendance/overtime.");continue;}
+                    spans.Add(new(a,b,request.ID));
                 }
                 if(scheduled>0&&(decimal)worked/scheduled+paid+unpaid>1.0001m)errors.Add($"{date}: work and approved leave exceed one day; reconcile leave/attendance.");
                 if(schedule!=null&&attendance==null&&paid+unpaid==0)warnings.Add($"{date}: scheduled absence, no attendance recorded.");

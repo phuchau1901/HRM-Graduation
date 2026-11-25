@@ -80,7 +80,7 @@ public sealed record BalanceView(long Id, int EmployeeId, string EmployeeName, l
 public sealed record LeaveView(long Id, int EmployeeId, string EmployeeName, long LeaveTypeId, string LeaveTypeName, DateOnly FromDate,
     DateOnly ToDate, decimal RequestedDays, string? Reason, string Status, long Version, long? ApprovalId);
 public sealed record OvertimeView(long Id, int EmployeeId, string EmployeeName, DateTime StartAt, DateTime EndAt, decimal RequestedHours,
-    decimal? ApprovedHours, string? Reason, string Status, long Version, long? ApprovalId);
+    decimal? ApprovedHours, string? Reason, string Status, long Version, long? ApprovalId) {public IReadOnlyList<HRM.API.Modules.Attendance.DTOs.UnscheduledEvidenceView> ActualEvidence {get;init;}=[];}
 public sealed record AdjustmentView(long Id, int EmployeeId, long AttendanceId, DateTime? ProposedCheckIn, DateTime? ProposedCheckOut,
     string Reason, string Status, long Version, long? ApprovalId);
 public sealed record WorkflowReceipt(long Id, long ApprovalId, string Status, long Version);

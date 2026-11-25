@@ -33,8 +33,10 @@ public sealed partial class LeaveWorkflowService
         }
         else if (kind == "OVERTIME")
         {
+            await db.Set<OvertimeRequest>().Where(x=>x.ID==id).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Version,x=>x.Version),ct);
             var overtime = await db.Set<OvertimeRequest>().SingleAsync(r => r.ID == id && r.EmployeeID == employee.Id, ct);
             if (overtime.Version != request.Version || overtime.Status != "PENDING") throw BusinessException.Conflict("Only pending overtime can be cancelled; reload.");
+            await db.Set<HRM.API.Modules.Attendance.Entities.UnscheduledAttendance>().Where(x=>x.OvertimeRequestId==id).ExecuteUpdateAsync(s=>s.SetProperty(x=>x.Status,"CANCELLED").SetProperty(x=>x.Version,x=>x.Version+1),ct);
             overtime.Status = "CANCELLED"; overtime.Version++; status = overtime.Status; version = overtime.Version;
         }
         else

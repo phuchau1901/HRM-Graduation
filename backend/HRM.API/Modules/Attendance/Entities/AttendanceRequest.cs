@@ -6,6 +6,7 @@ public class AttendanceRequest
     public long ID { get; set; }
     public int EmployeeID { get; set; }
     public string RequestKey { get; set; } = string.Empty;
+    public long? UnscheduledAttendanceId { get; set; }
     public long? AttendanceID { get; set; }
     public string Operation { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }

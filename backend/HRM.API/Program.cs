@@ -203,6 +203,7 @@ builder.Services.AddScoped<HRM.API.Modules.System.Services.AuditLogService>();
 builder.Services.AddScoped<HRM.API.Modules.System.Services.PasswordPolicyService>();
 builder.Services.AddScoped<HRM.API.Modules.Work.Services.WorkScheduleService>();
 builder.Services.AddScoped<HRM.API.Modules.Attendance.Services.AttendanceOperationsService>();
+builder.Services.AddScoped<HRM.API.Modules.Attendance.Services.UnscheduledAttendanceService>();
 builder.Services.AddScoped<HRM.API.Modules.Attendance.Services.AttendanceManagementService>();
 builder.Services.AddScoped<PasswordResetAuditFilter>();
 builder.Services.AddRateLimiter(options =>
