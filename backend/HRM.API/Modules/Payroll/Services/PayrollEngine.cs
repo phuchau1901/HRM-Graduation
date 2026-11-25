@@ -80,14 +80,16 @@ public static class PayrollEngine
             if(!day.Eligible)continue;
             var profile=Profile(day.Date);
             var holiday=r.PayPublicHolidays && day.IsWorkingDay && day.IsHoliday;
-            var worked=day.ScheduledMinutes>0?(decimal)day.WorkedMinutes/day.ScheduledMinutes:0;
+            var payableMinutes=day.PayableWorkedMinutes??day.WorkedMinutes;
+            if(payableMinutes<0||day.PayableWorkedMinutes.HasValue&&(payableMinutes>day.ScheduledMinutes))throw BusinessException.Invalid("Invalid payable work snapshot.");
+            var worked=day.ScheduledMinutes>0?payableMinutes/day.ScheduledMinutes:0;
             var fraction=holiday?1:worked+day.PaidLeave;
             if(fraction>1.00001m || fraction<0 || day.UnpaidLeave<0 || worked+day.PaidLeave+day.UnpaidLeave>1.00001m)throw BusinessException.Invalid("Overlapping work and leave allocations need reconciliation.");
             if(profile==null) {if(fraction>0 || day.Overtime.Length>0)throw BusinessException.Invalid("No effective salary profile for a payable date.");continue;}
             if(profile.CurrencyCode!=r.CurrencyCode || profile.PayBasis is not ("MONTH" or "DAY" or "HOUR"))throw BusinessException.Invalid("Salary currency or pay basis does not match policy.");
             paidDays+=fraction;insuranceWeighted+=profile.InsuranceBase/last.Day;
             var hourly=profile.PayBasis switch {"MONTH"=>profile.BaseSalary/standard/r.HoursPerDay,"DAY"=>profile.BaseSalary/r.HoursPerDay,_=>profile.BaseSalary};
-            var paidHours=holiday?r.HoursPerDay:(day.WorkedMinutes+(day.PaidLeave*(day.ScheduledMinutes>0?day.ScheduledMinutes:r.HoursPerDay*60)))/60m;
+            var paidHours=holiday?r.HoursPerDay:(payableMinutes+(day.PaidLeave*(day.ScheduledMinutes>0?day.ScheduledMinutes:r.HoursPerDay*60)))/60m;
             basePay+=profile.PayBasis=="HOUR"?hourly*paidHours:hourly*r.HoursPerDay*fraction;
             legacyAllowance+=profile.AllowanceAmount/standard*fraction;
             kpiPotential+=r.ProrateKpiBonus?profile.KpiBonusAmount/standard*fraction:profile.KpiBonusAmount/last.Day;

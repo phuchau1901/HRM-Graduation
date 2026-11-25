@@ -100,3 +100,7 @@ Cấu hình qua API hiện có `/api/approval-workflow-settings`, giữ các rou
 Tiền tệ giữ theo policy từng phiếu, có trong danh sách và Excel. Statistics không cộng lẫn nhiều currency; trả 400 yêu cầu thu hẹp bộ lọc khi phạm vi gồm nhiều loại tiền. Không tự đổi tỷ giá.
 
 Danh sách, thống kê và export chỉ lấy kết quả có policy/input hash và unique calculation keys đã xác nhận. Các dòng legacy chưa đối soát hoặc kết quả vừa bị vô hiệu do adjustment không được trình bày như phiếu 0 thu nhập; phải tổng hợp/tính lại hợp lệ trước khi phát hành.
+
+### Tổng hợp lượt chấm công
+
+Calculate timesheet tính đủ phần công theo ca sau phép khi có ít nhất một lượt chấm; đi trễ/về sớm hoặc thiếu một lượt chỉ cảnh báo. Thiếu cả hai lượt tính 0 công làm việc và không chặn lock. Snapshot trả `workedMinutes` thực tế, `payableWorkedMinutes` quy đổi và `earlyMinutes`; giờ chấm thực tế không bị sửa. OT vẫn cần phê duyệt và chứng cứ thực tế. Kỳ OPEN phải calculate với requestKey mới, version hiện tại trước khi lock; kỳ LOCKED giữ nguyên. Không thay đổi quyền API.

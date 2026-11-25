@@ -4293,7 +4293,7 @@
               }
             ],
             "url": "{{baseUrl}}/api/payroll/timesheets/{{timesheetPeriodId}}/calculate",
-            "description": "WEB_PAYROLL/UPDATE. JWT + live permission; scope/own rules: docs/modules/Payroll/API.md. No automatic migration or deployment.",
+            "description": "WEB_PAYROLL/UPDATE, scope ALL. At least one regular punch credits the full scheduled work portion after approved leave; late/early or one missing punch are warnings. Both punches missing: zero worked credit, warning only, lock allowed if other validations pass. Actual timestamps and overtime evidence remain unchanged. Recalculate with current version and a NEW requestKey before lock. See docs/modules/Payroll/API.md.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"version\": 1,\n  \"requestKey\": \"{{$guid}}\"\n}",

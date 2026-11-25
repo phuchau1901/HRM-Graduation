@@ -12,7 +12,15 @@ Nguồn pháp lý để bộ phận nghiệp vụ đối chiếu khi nhập chí
 
 Lấy nhân viên ACTIVE đã tuyển trong tháng, cùng nhân viên có lịch/phép đã duyệt trong tháng dù trạng thái hiện tại đã thay đổi. Lấy hàng loạt schedules, attendance, approved leave và OT; không query từng nhân viên/ngày. Tối đa 2.000 nhân viên mỗi lần tổng hợp; từ chối khi vượt giới hạn. Thời gian nghiệp vụ Asia/Ho_Chi_Minh; timestamp UTC.
 
-Ca dùng `rules_snapshot_json` trên WorkSchedule, không dùng cấu hình Shift hiện tại để suy lại quá khứ. Công thường = giao khoảng punch đầy đủ với khung ca, trừ break snapshot, tối thiểu 0. Chỉ có check-in hoặc check-out là lỗi; trùng lịch/trùng punch/trùng công-phép là lỗi. Không có punch là vắng mặt hưởng 0 công và cảnh báo để HR kiểm tra. Thiếu lịch không tự suy ra đã đi làm. Chốt công là thao tác có chủ ý, sau khi xem cảnh báo.
+Ca dùng `rules_snapshot_json` trên WorkSchedule, không dùng cấu hình Shift hiện tại để suy lại quá khứ. Snapshot phân biệt `workedMinutes` thực tế (giao đủ hai lượt chấm với khung ca, trừ break) và `payableWorkedMinutes` dùng tổng hợp công/tính lương:
+
+- Có ít nhất một lượt check-in hoặc check-out: tính đủ phần công theo ca còn lại sau phép đã duyệt, kể cả đi trễ/về sớm hoặc quên một lượt chấm. Thiếu một lượt vẫn giữ phút thực tế bằng 0 vì không suy đoán timestamp.
+- Không có cả hai lượt (kể cả có bản ghi attendance nhưng cả hai timestamp null): 0 công làm việc, chỉ cảnh báo, vẫn cho chốt. Thiếu lịch không tự suy ra đã đi làm.
+- Giữ nguyên giờ chấm, phút trễ/về sớm; vi phạm và thiếu lượt chỉ cảnh báo. Không tự sinh giờ tăng ca hoặc phụ cấp giờ đêm từ phần công quy đổi.
+- Trùng lịch, trùng punch, thời gian đảo ngược và công/phép xung đột vẫn là lỗi phải xử lý. Phép hưởng lương và chính sách ngày lễ được tính riêng theo cấu hình.
+
+HR tính lại bảng công với `requestKey` mới và version hiện tại trước khi chốt để cập nhật quy tắc. Kỳ đã LOCKED không tự thay đổi; snapshot lịch sử vẫn giữ kết quả đã phát hành. Chốt công là thao tác có chủ ý sau khi xem cảnh báo.
+
 
 Phép APPROVED hoặc CANCELLATION_PENDING còn hiệu lực; Paid của LeaveType quyết định có hưởng lương. Leave hiện lưu tổng RequestedDays, chưa có session theo từng ngày: phân đều tổng ngày lên các ngày làm việc không phải lễ của khoảng nghỉ. Không suy đoán buổi sáng/chiều. Nếu cần phân bổ không đồng đều, đối soát nghiệp vụ trước khóa; chưa có daily leave session riêng.
 
@@ -23,8 +31,8 @@ Snapshot lưu từng ngày, phút công, phút chuẩn, phép, OT UTC, lịch/pu
 ## Công thức
 
 - Công chuẩn: `rules.standardDays`; để null thì dùng số ngày làm việc theo lịch tuần trong toàn tháng, bao gồm ngày lễ. Không lấy số ca riêng của nhân viên làm mẫu số, tránh lương đủ tháng cho người mới vào.
-- Công hưởng lương/ngày: `workedMinutes / scheduledMinutes + paidLeave`. UnpaidLeave không hưởng lương. Nếu policy `payPublicHolidays=true`, ngày lễ thuộc lịch làm việc và trong thời gian đủ điều kiện hưởng 1 công. Không tính trùng công/phép.
-- MONTH: `baseSalary / standardDays × công hưởng lương`. DAY: `baseSalary × công hưởng lương`. HOUR: `baseSalary × giờ thực làm/giờ phép hưởng lương`. Hồ sơ có hiệu lực từng ngày; ngày chưa tuyển không trả lương.
+- Công hưởng lương/ngày: `(payableWorkedMinutes ?? workedMinutes) / scheduledMinutes + paidLeave`. UnpaidLeave không hưởng lương. Nếu policy `payPublicHolidays=true`, ngày lễ thuộc lịch làm việc và trong thời gian đủ điều kiện hưởng 1 công. Không tính trùng công/phép.
+- MONTH: `baseSalary / standardDays × công hưởng lương`. DAY: `baseSalary × công hưởng lương`. HOUR: `baseSalary × giờ công quy đổi/giờ phép hưởng lương`. Hồ sơ có hiệu lực từng ngày; ngày chưa tuyển không trả lương.
 - Phụ cấp cố định: `allowanceAmount / standardDays × công hưởng lương`.
 - Components Prorate=true tương tự phụ cấp. Prorate=false phân bổ theo ngày lịch có hồ sơ (`amount / ngày trong tháng`), hỗ trợ đổi cấu hình giữa kỳ; không trả toàn bộ khoản tháng lặp lại trên mỗi hồ sơ.
 - Lương giờ OT từ baseSalary theo hình thức MONTH/DAY/HOUR; cộng components `overtimeIncluded`, phụ cấp legacy chỉ khi policy bật. OT = giờ thực tế hợp lệ × lương giờ × hệ số từng loại. Phụ cấp làm đêm công thường = giờ đêm thực làm × lương giờ × `nightWorkPremiumRate`. Break được phân bổ tỷ lệ cho phút đêm vì snapshot ca hiện chưa có khoảng bắt đầu/kết thúc break riêng.

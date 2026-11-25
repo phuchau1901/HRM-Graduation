@@ -24,6 +24,20 @@ public sealed class PayrollTests {
   var sheet=Sheet();var days=sheet.Days.ToArray();days[0]=days[0] with{WorkedMinutes=0,PaidLeave=1};days[1]=days[1] with{WorkedMinutes=0,UnpaidLeave=1};
   var result=PayrollEngine.Calculate(Input(sheet with{Days=days}));Assert.Equal(19000,result.BaseSalary);Assert.Equal(result.Gross-result.Deductions,result.Net);
  }
+ [Theory]
+ [InlineData("MONTH",20000,20000)]
+ [InlineData("DAY",100,2000)]
+ [InlineData("HOUR",100,16000)]
+ public void PayableSnapshotKeepsFullPayDespiteShortActualAttendance(string basis,decimal salary,decimal expected) {
+  var sheet=Sheet();var days=sheet.Days.Select(d=>d with{WorkedMinutes=0,PayableWorkedMinutes=d.WorkedMinutes>0?480:0}).ToArray();
+  Assert.Equal(expected,PayrollEngine.Calculate(Input(sheet with{Days=days},[Profile(salary,basis:basis)])).BaseSalary);
+  days[0]=days[0] with{PayableWorkedMinutes=240,PaidLeave=0.5m};
+  Assert.Equal(expected,PayrollEngine.Calculate(Input(sheet with{Days=days},[Profile(salary,basis:basis)])).BaseSalary);
+ }
+ [Fact] public void LegacyTimesheetJsonDoesNotGainNullPayableFields() {
+  var json=JsonSerializer.Serialize(Sheet(),new JsonSerializerOptions(JsonSerializerDefaults.Web));
+  Assert.DoesNotContain("payableWorkedMinutes",json);Assert.DoesNotContain("earlyMinutes",json);
+ }
  [Fact] public void MidMonthSalaryAndHourlyPayUseEffectiveSnapshots() {
   var result=PayrollEngine.Calculate(Input(profiles:[Profile(20000,end:new(2026,10,10)),Profile(40000,start:new(2026,10,11))]));Assert.Equal(30000,result.BaseSalary);
   Assert.Equal(16000,PayrollEngine.Calculate(Input(profiles:[Profile(100,basis:"HOUR")])).BaseSalary);
@@ -178,6 +192,34 @@ public sealed class PayrollTests {
   }
   Assert.Equal(HttpStatusCode.Forbidden,(await f.H.Client.PostAsJsonAsync("/api/salary-configuration/profiles",new{employeeId=f.H.Self,baseSalary=40000,effectiveFrom="2026-12-01",reason="Unauthorized close",supersedeProfileId=profile,supersedeVersion=1})).StatusCode);
   using var services=f.H.App.Services.CreateScope();Assert.Null((await services.ServiceProvider.GetRequiredService<AppDbContext>().Set<SalaryProfile>().SingleAsync(x=>x.ID==profile)).EffectiveTo);
+ }
+
+ [Theory]
+ [InlineData(true,true,1)]
+ [InlineData(true,false,1)]
+ [InlineData(false,true,1)]
+ [InlineData(false,false,0)]
+ public async Task RegularPunchPresenceDeterminesPayableDayWithoutBlockingLock(bool hasIn,bool hasOut,int expectedDays) {
+  await using var f=await Setup();
+  using(var scope=f.H.App.Services.CreateScope()) {
+   var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();
+   var shift=new HRM.API.Modules.Attendance.Entities.Shift{Code="PUNCH",Name="Day",StartTime=new(8,0),EndTime=new(17,0),BreakMinutes=60,IsActive=true};db.Add(shift);await db.SaveChangesAsync();
+   var date=new DateOnly(2026,9,1);var start=PayrollEngine.LocalUtc(date,new(8,0));var end=PayrollEngine.LocalUtc(date,new(17,0));
+   var snapshot=new HRM.API.Modules.Attendance.DTOs.AttendanceRuleSnapshot(date,"Asia/Ho_Chi_Minh",shift.ID,"PUNCH",start,end,start.AddHours(-1),start.AddHours(4),end.AddHours(-4),end.AddHours(3),60,5,5,false,false,"REJECT_CHECKOUT_WITHOUT_CHECKIN",[],1);
+   var schedule=new HRM.API.Modules.Attendance.Entities.WorkSchedule{EmployeeID=f.H.Self,ShiftID=shift.ID,WorkDate=date,Status="ASSIGNED",UniqueWorkKey=$"{f.H.Self}:2026-09-01",RulesSnapshotJson=JsonSerializer.Serialize(snapshot,new JsonSerializerOptions(JsonSerializerDefaults.Web))};db.Add(schedule);await db.SaveChangesAsync();
+   db.Add(new HRM.API.Modules.Attendance.Entities.Attendance{ScheduleID=schedule.ID,CheckInAt=hasIn?start.AddHours(1):null,CheckOutAt=hasOut?end.AddHours(-1):null,LateMinutes=hasIn?60:0,EarlyMinutes=hasOut?60:0,Status="COMPLETED"});await db.SaveChangesAsync();
+  }
+  var source=await Post(f,"/api/payroll/timesheets",new{periodKey="2026-09"});var id=source.GetProperty("id").GetInt64();var url=$"/api/payroll/timesheets/{id}";
+  await Post(f,url+"/calculate",new{version=1,requestKey="punch-policy"},false);
+  using(var scope=f.H.App.Services.CreateScope()) {
+   var db=scope.ServiceProvider.GetRequiredService<AppDbContext>();var detail=await db.Set<TimesheetDetail>().SingleAsync(x=>x.PeriodID==id&&x.EmployeeID==f.H.Self);
+   Assert.Equal(expectedDays,detail.WorkedDays);
+   var snapshot=JsonSerializer.Deserialize<TimesheetSnapshot>(detail.SnapshotJson!,new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+   Assert.Empty(snapshot.Errors);Assert.NotEmpty(snapshot.Warnings);
+   var day=Assert.Single(snapshot.Days,x=>x.ScheduleId!=null);Assert.Equal(hasIn&&hasOut?360:0,day.WorkedMinutes);
+   Assert.Equal(expectedDays*480,day.PayableWorkedMinutes??0);Assert.Empty(day.Overtime);
+  }
+  await Post(f,url+"/lock",new{version=2});
  }
 
  [Fact] public async Task TimesheetUsesShiftSnapshotAndActualApprovedOvertimeAndLocksSources() {

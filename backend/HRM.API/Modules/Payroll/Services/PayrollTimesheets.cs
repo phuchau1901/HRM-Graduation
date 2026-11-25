@@ -69,7 +69,7 @@ public sealed partial class PayrollService
                 if(schedule!=null) {if(string.IsNullOrWhiteSpace(schedule.RulesSnapshotJson))errors.Add($"{date}: schedule has no verified rule snapshot.");else snapshot=Read<AttendanceRuleSnapshot>(schedule.RulesSnapshotJson);}
                 int scheduled= snapshot==null?0:Math.Max(0,(int)(snapshot.EndAtUtc-snapshot.StartAtUtc).TotalMinutes-snapshot.BreakMinutes);
                 int worked=0;DateTime? regularStart=null,regularEnd=null;var spans=new List<OvertimeSpan>();
-                if(attendance!=null&&(!attendance.CheckInAt.HasValue||!attendance.CheckOutAt.HasValue))errors.Add($"{date}: incomplete attendance; request an adjustment before locking.");
+                if(attendance!=null&&(attendance.CheckInAt.HasValue^attendance.CheckOutAt.HasValue))warnings.Add($"{date:yyyy-MM-dd}: incomplete attendance; one punch is missing; full scheduled payable work retained.");
                 if(snapshot!=null&&attendance?.CheckInAt is DateTime checkin&&attendance.CheckOutAt is DateTime checkout) {
                     if(checkout<=checkin)errors.Add($"{date}: invalid attendance interval.");
                     regularStart=checkin>snapshot.StartAtUtc?checkin:snapshot.StartAtUtc;regularEnd=checkout<snapshot.EndAtUtc?checkout:snapshot.EndAtUtc;
@@ -91,6 +91,13 @@ public sealed partial class PayrollService
                         }
                     }
                 }
+                if(attendance?.LateMinutes>0)warnings.Add($"{date:yyyy-MM-dd}: late {attendance.LateMinutes} minutes; full scheduled payable work retained.");
+                if(attendance?.EarlyMinutes>0)warnings.Add($"{date:yyyy-MM-dd}: early departure {attendance.EarlyMinutes} minutes; full scheduled payable work retained.");
+                decimal? payable=null;
+                if(eligible&&scheduled>0&&(attendance?.CheckInAt.HasValue==true||attendance?.CheckOutAt.HasValue==true))
+                    payable=scheduled*Math.Max(0,1-paid-unpaid);
+                if(schedule!=null&&attendance!=null&&!attendance.CheckInAt.HasValue&&!attendance.CheckOutAt.HasValue)
+                    warnings.Add($"{date:yyyy-MM-dd}: no punches recorded; payable worked time is 0.");
                 var dayStart=PayrollEngine.LocalUtc(date,TimeOnly.MinValue);var dayEnd=dayStart.AddDays(1);
                 foreach(var evidence in employeeRaw.Where(x=>x.Status=="APPROVED"&&x.EndAtUtc.HasValue&&x.StartAtUtc<dayEnd&&x.EndAtUtc>dayStart)) {
                     var request=employeeOt.SingleOrDefault(x=>x.ID==evidence.OvertimeRequestId);
@@ -103,7 +110,7 @@ public sealed partial class PayrollService
                 }
                 if(scheduled>0&&(decimal)worked/scheduled+paid+unpaid>1.0001m)errors.Add($"{date}: work and approved leave exceed one day; reconcile leave/attendance.");
                 if(schedule!=null&&attendance==null&&paid+unpaid==0)warnings.Add($"{date}: scheduled absence, no attendance recorded.");
-                output.Add(new(date,eligible,Working(date),holiday,scheduled,worked,paid,unpaid,regularStart,regularEnd,spans.ToArray(),schedule?.ID,attendance?.ID,attendance?.LateMinutes??0));
+                output.Add(new(date,eligible,Working(date),holiday,scheduled,worked,paid,unpaid,regularStart,regularEnd,spans.ToArray(),schedule?.ID,attendance?.ID,attendance?.LateMinutes??0) {EarlyMinutes=attendance?.EarlyMinutes??0,PayableWorkedMinutes=payable});
             }
             results.Add(new(id,key,config.Version,days.Count(Working),output.ToArray(),errors.ToArray(),warnings.ToArray()) {WorkingDays=config.Settings.WorkingDays,Holidays=config.Settings.HolidayDates});
         }
@@ -117,8 +124,8 @@ public sealed partial class PayrollService
         var snapshots=await BuildTimesheets(row.PeriodKey,ct);await db.Set<TimesheetDetail>().Where(x=>x.PeriodID==id).ExecuteDeleteAsync(ct);
         var issues=snapshots.SelectMany(s=>s.Errors.Select(e=>new PayrollIssue(s.EmployeeId,"SOURCE_INVALID",e))).ToArray();
         foreach(var s in snapshots)db.Add(new TimesheetDetail {PeriodID=id,EmployeeID=s.EmployeeId,SnapshotJson=Json(s),UniqueKey=$"{id}:{s.EmployeeId}",CalculatedAt=Now,
-            WorkedDays=s.Days.Sum(d=>d.ScheduledMinutes==0?0:(decimal)d.WorkedMinutes/d.ScheduledMinutes),PaidLeaveDays=s.Days.Sum(d=>d.PaidLeave),OvertimeHours=s.Days.Sum(d=>d.Overtime.Sum(o=>(decimal)(o.EndUtc-o.StartUtc).TotalHours)),LateMinutes=s.Days.Sum(d=>d.LateMinutes)});
-        row.InputHash=Hash(snapshots);row.ErrorsJson=Json(issues);row.LastCalculationKey=r.RequestKey;row.Version++;
+            WorkedDays=s.Days.Sum(d=>d.ScheduledMinutes==0?0:(d.PayableWorkedMinutes??d.WorkedMinutes)/d.ScheduledMinutes),PaidLeaveDays=s.Days.Sum(d=>d.PaidLeave),OvertimeHours=s.Days.Sum(d=>d.Overtime.Sum(o=>(decimal)(o.EndUtc-o.StartUtc).TotalHours)),LateMinutes=s.Days.Sum(d=>d.LateMinutes)});
+        row.Status="OPEN";row.InputHash=Hash(snapshots);row.ErrorsJson=Json(issues);row.LastCalculationKey=r.RequestKey;row.Version++;
         Audit(actor,"TimesheetPeriod",id,"TIMESHEET_CALCULATED",new{row.Version,sourceHash=row.InputHash});return new(issues.Length==0,id,row.Status,row.Version,snapshots.Length,issues.Length);
     },ct);
     public Task<TimesheetPeriod> LockTimesheet(string actor,long id,PayrollVersion r,CancellationToken ct)=>Transaction(async()=> {

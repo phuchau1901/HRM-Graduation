@@ -74,7 +74,10 @@ public class PayrollPaymentRequest : PayrollVersion {
 }
 public sealed record OvertimeSpan(DateTime StartUtc,DateTime EndUtc,long RequestId);
 public sealed record TimesheetDay(DateOnly Date,bool Eligible,bool IsWorkingDay,bool IsHoliday,int ScheduledMinutes,int WorkedMinutes,
- decimal PaidLeave,decimal UnpaidLeave,DateTime? RegularStartUtc,DateTime? RegularEndUtc,OvertimeSpan[] Overtime,long? ScheduleId,long? AttendanceId,int LateMinutes);
+ decimal PaidLeave,decimal UnpaidLeave,DateTime? RegularStartUtc,DateTime? RegularEndUtc,OvertimeSpan[] Overtime,long? ScheduleId,long? AttendanceId,int LateMinutes) {
+ [global::System.Text.Json.Serialization.JsonIgnore(Condition=global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] public int EarlyMinutes {get;init;}
+ [global::System.Text.Json.Serialization.JsonIgnore(Condition=global::System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] public decimal? PayableWorkedMinutes {get;init;}
+}
 public sealed record TimesheetSnapshot(int EmployeeId,string PeriodKey,long AttendanceSettingsVersion,decimal StandardDays,
  TimesheetDay[] Days,string[] Errors,string[] Warnings) { public int[] WorkingDays {get;init;}=[1,2,3,4,5]; public DateOnly[] Holidays {get;init;}=[]; }
 public sealed record PayrollIssue(int EmployeeId,string Code,string Message);
