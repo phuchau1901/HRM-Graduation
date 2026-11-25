@@ -15,8 +15,11 @@ public sealed class PayrollApprovalModule(AppDbContext db,EmployeeDataScope scop
  private async Task<PayrollPeriod> Demand(ApprovalRequest a,string actor,string action,CancellationToken ct) {
   if(!await permissions.HasPermissionAsync(actor,PayrollScreens.Payroll,action,ct))throw BusinessException.Scope();
   var access=await scopes.GetAsync(actor,PayrollScreens.Payroll,action,ct);
-  var approvalAccess=await scopes.GetAsync(actor,ApprovalWorkflowService.Approvals,action,ct);var people=access.Apply(approvalAccess.Apply(db.Employees));
-  var p=await PayrollService.VisiblePeriods(PayrollService.VisiblePeriods(db.Set<PayrollPeriod>(),access),approvalAccess).SingleOrDefaultAsync(x=>x.ID==a.ReferenceID&&(action=="VIEW"||x.ApprovalId==a.ID),ct)??throw BusinessException.Missing();
+  var approvalAccess=await scopes.GetAsync(actor,ApprovalWorkflowService.Approvals,action,ct);
+  // Approval scope applies to the request's submitter; payroll scope applies to salary data.
+  if(!await approvalAccess.Apply(db.Employees).AnyAsync(e=>e.Id==a.EmployeeId,ct))throw BusinessException.Missing();
+  var people=access.Apply(db.Employees);
+  var p=await PayrollService.VisiblePeriods(db.Set<PayrollPeriod>(),access).SingleOrDefaultAsync(x=>x.ID==a.ReferenceID&&(action=="VIEW"||x.ApprovalId==a.ID),ct)??throw BusinessException.Missing();
   if(await db.Set<PayrollDetail>().AnyAsync(d=>d.PayrollPeriodID==p.ID&&!people.Any(e=>e.Id==d.EmployeeID),ct))throw BusinessException.Scope();return p;
  }
  public async Task AuthorizeReadAsync(ApprovalRequest a,string actor,CancellationToken ct)=>_ =await Demand(a,actor,"VIEW",ct);

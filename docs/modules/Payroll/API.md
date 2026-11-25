@@ -95,7 +95,7 @@ POST `{employeeId:1,componentId:1,amount:500000,reason:"Thưởng theo quyết �
 
 ### Approval
 
-Cấu hình qua API hiện có `/api/approval-workflow-settings`, giữ các route khác và thêm `{requestType:"PAYROLL_PERIOD",allowSelfApproval:false,steps:[{approverType:"HR",userId:"hr-payroll",roleCode:"HR"}]}` hoặc USER employeeId. TEAM_LEAD/DEPARTMENT_MANAGER lấy quản lý của nhân viên ACTIVE liên kết user gửi duyệt, kể cả kỳ toàn công ty; không lấy quản lý của nhân viên đầu tiên được trả lương. Người gửi phải có liên kết nhân viên ACTIVE. Quyền và Data Scope người quyết định vẫn phải bao phủ toàn batch. Quyết định và history dùng các API `/api/approvals` hiện có; không tạo workflow thứ hai.
+Cấu hình qua API hiện có `/api/approval-workflow-settings`, giữ các route khác và thêm `{requestType:"PAYROLL_PERIOD",allowSelfApproval:false,steps:[{approverType:"HR",userId:"hr-payroll",roleCode:"HR"}]}` hoặc USER employeeId. TEAM_LEAD/DEPARTMENT_MANAGER lấy quản lý của nhân viên ACTIVE liên kết user gửi duyệt, kể cả kỳ toàn công ty; không lấy quản lý của nhân viên đầu tiên được trả lương. Người gửi phải có liên kết nhân viên ACTIVE. Quyền và Data Scope WEB_PAYROLL của người quyết định vẫn phải bao phủ toàn batch. Quyết định và history dùng các API `/api/approvals` hiện có; không tạo workflow thứ hai.
 
 Tiền tệ giữ theo policy từng phiếu, có trong danh sách và Excel. Statistics không cộng lẫn nhiều currency; trả 400 yêu cầu thu hẹp bộ lọc khi phạm vi gồm nhiều loại tiền. Không tự đổi tỷ giá.
 
@@ -106,3 +106,5 @@ Danh sách, thống kê và export chỉ lấy kết quả có policy/input hash
 Calculate timesheet tính đủ phần công theo ca sau phép khi có ít nhất một lượt chấm; đi trễ/về sớm hoặc thiếu một lượt chỉ cảnh báo. Thiếu cả hai lượt tính 0 công làm việc và không chặn lock. Snapshot trả `workedMinutes` thực tế, `payableWorkedMinutes` quy đổi và `earlyMinutes`; giờ chấm thực tế không bị sửa. OT vẫn cần phê duyệt và chứng cứ thực tế. Kỳ OPEN phải calculate với requestKey mới, version hiện tại trước khi lock; kỳ LOCKED giữ nguyên. Không thay đổi quyền API.
 
 Khi calculate payroll, thiếu KPI được duyệt đúng kỳ không chặn lương: `result.kpiBonus = 0`, dòng `KPI` trong `result.lines` ghi lý do tại `formula`. Các khoản lương khác tính bình thường. KPI đã duyệt vẫn tính theo điểm và policy; không tự thêm ngưỡng đạt.
+
+Scope của phê duyệt lương: WEB_APPROVALS VIEW/APPROVE áp dụng cho nhân viên đại diện người gửi trong ApprovalRequest.EmployeeId, còn WEB_PAYROLL VIEW/APPROVE áp dụng cho phạm vi kỳ lương và nhân viên nhận lương. Ví dụ quản lý có WEB_APPROVALS DEPARTMENT và WEB_PAYROLL ALL được xem/duyệt kỳ toàn công ty do nhân viên cùng phòng gửi, nếu được giao đúng bước; không yêu cầu scope Approval ALL. Người gửi ngoài phòng vẫn bị ẩn. Payroll DEPARTMENT không được mở kỳ toàn công ty dù đã được giao. Quyền theo từng action, thứ tự bước và cấm tự duyệt giữ nguyên.
