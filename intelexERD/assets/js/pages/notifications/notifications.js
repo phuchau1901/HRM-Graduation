@@ -3,9 +3,10 @@ import {notificationService,notificationError} from '../../services/notification
 import {e} from '../../utils.js';
 import {icon} from '../../components/ui.js';
 
-export const notificationTabs=[['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['kpi','KPI'],['system','Hệ thống']];
+export const notificationTabs=[['all','Tất cả'],['unread','Chưa đọc'],['task','Công việc'],['attendance','Chấm công'],['leave','Nghỉ phép'],['kpi','KPI'],['payroll','Lương'],['system','Hệ thống']];
 export function notificationCategory(item){
  const source=String(item.source||'').toUpperCase(),reference=String(item.referenceType||'').toUpperCase();
+ if(reference==='PAYROLL'||String(item.type||'').toUpperCase()==='PAYROLL')return 'payroll';
  if(reference.startsWith('KPI'))return 'kpi';
  const attendance=['ATTENDANCE','WORK_SCHEDULE','SHIFT'];
  if(source==='SYSTEM')return attendance.includes(reference)?'attendance':'system';
@@ -28,7 +29,7 @@ export function notificationRows(items){
  return items.map(item=>`<button type="button" class="notification-row api-notification-row ${item.readAt?'':'unread'}" data-noti-read="${e(item.id)}"><span class="icon-tile blue">${icon('bell',16)}</span><span class="api-notification-content"><strong>${e(item.title)}</strong><span class="api-notification-text">${e(item.content)}</span><small>${e(notificationTime(item.publishedAt||item.createdAt))} · ${item.readAt?'Đã đọc':'Chưa đọc'}</small></span>${item.readAt?'':'<span class="api-notification-dot" aria-label="Chưa đọc"></span>'}</button>`).join('');
 }
 export function notificationDetailMarkup(item){
- const label=({system:'Thông báo chung',attendance:'Chấm công',leave:'Nghỉ phép',task:'Công việc',kpi:'KPI'})[notificationCategory(item)];
+ const label=({system:'Thông báo chung',attendance:'Chấm công',leave:'Nghỉ phép',task:'Công việc',kpi:'KPI',payroll:'Lương'})[notificationCategory(item)];
  return `<section id="notification-detail"><div class="notification-detail-meta"><span class="notification-detail-category">${label}</span><time>${e(notificationTime(item.publishedAt||item.createdAt))}</time></div><h3>${e(item.title)}</h3><p class="notification-detail-content">${e(item.content)}</p><p id="notification-detail-error" class="form-error" role="alert"></p></section>`;
 }
 export async function openNotificationDetail(item,service=notificationService,showDialog=openDialog){

@@ -94,7 +94,7 @@ test('only unread notification rows display an unread dot',()=>{
 });
 
 test('restored notification categories filter API records without inferring categories from message content',()=>{
- assert.deepEqual(notificationTabs.map(([key])=>key),['all','unread','task','attendance','leave','kpi','system']);
+ assert.deepEqual(notificationTabs.map(([key])=>key),['all','unread','task','attendance','leave','kpi','payroll','system']);
  const items=[{id:1,readAt:null,source:'SYSTEM'},{id:2,readAt:'2026-11-15',referenceType:'LEAVE_REQUEST'},{id:3,readAt:null,referenceType:'TASK'},{id:4,referenceType:'ATTENDANCE'},{id:5,source:'WORKFLOW',title:'Nghỉ phép'}];
  assert.deepEqual(filterNotificationItems(items,'system').map(item=>item.id),[1]);
  assert.deepEqual(filterNotificationItems(items,'leave').map(item=>item.id),[2,5]);
@@ -164,4 +164,12 @@ test('all reference types starting with KPI use the KPI tab, case-insensitively'
  const {notificationCategory}=await import('../assets/js/pages/notifications/notifications.js');
  for(const referenceType of ['KPI','KPI_PERIOD','KPI_EVALUATION','KPI_TARGET','kpi_result','KPITest'])for(const source of ['SYSTEM','WORKFLOW',null])assert.equal(notificationCategory({source,referenceType}),'kpi');
  for(const referenceType of ['NOT_KPI','KP','OTHER_KPI_PERIOD',null])assert.equal(notificationCategory({source:'SYSTEM',referenceType}),'system');
+});
+
+test('PAYROLL notifications appear under Lương instead of system or leave',async()=>{
+ const {notificationDetailMarkup}=await import('../assets/js/pages/notifications/notifications.js');
+ const items=[{id:1,source:'SYSTEM',referenceType:'PAYROLL'},{id:2,source:'WORKFLOW',type:'payroll'},{id:3,source:'SYSTEM',referenceType:'ATTENDANCE'}];
+ assert.deepEqual(filterNotificationItems(items,'payroll').map(item=>item.id),[1,2]);
+ assert.ok(notificationTabs.some(([key,label])=>key==='payroll'&&label==='Lương'));
+ assert.match(notificationDetailMarkup({...items[0],title:'Bảng lương',content:'Nội dung'}),/notification-detail-category">Lương</);
 });
